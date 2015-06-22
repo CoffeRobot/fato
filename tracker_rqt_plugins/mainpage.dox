@@ -1,0 +1,6 @@
+/**
+\mainpage
+\htmlinclude manifest.html
+
+\b rqt_image_enhancer provides a GUI plugin for enhancing images using image_transport.
+*/

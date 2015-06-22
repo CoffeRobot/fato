@@ -1,0 +1,35 @@
+<package>
+  <name>tracker_rqt_plugins</name>
+  <version>0.0.1</version>
+  <description>Tracker plugins for rqt.</description>
+  <maintainer email="graber@fsr.tu-darmstadt.de">Thorsten Graber</maintainer>
+
+  <license>BSD</license>
+
+  <author>Dirk Thomas</author>
+  <author>Thorsten Graber</author>
+  <author>Gregor Gebhardt</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>image_transport</build_depend>
+  <build_depend>rqt_gui</build_depend>
+  <build_depend>rqt_gui_cpp</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>rosconsole</build_depend>
+  <build_depend>image_transport</build_depend>
+  <run_depend>roscpp</run_depend>
+  <run_depend>cv_bridge</run_depend>
+  <run_depend>image_transport</run_depend>
+  <run_depend>rqt_gui</run_depend>
+  <run_depend>rqt_gui_cpp</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>rosconsole</run_depend>
+  <run_depend>image_transport</run_depend>
+
+  <export>
+    <rqt_gui plugin="${prefix}/tracker_plugin.xml"/>
+  </export>
+</package>

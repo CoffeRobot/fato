@@ -1,0 +1,32 @@
+<library path="lib/libtracker_rqt_plugins">
+  <class name="rqt_image_cropping/ImageCropper" type="rqt_image_cropping::ImageCropper" base_class_type="rqt_gui_cpp::Plugin">
+    <description>
+      A GUI plugin to crop an image and republish it.
+    </description>
+    <qtgui>
+      <label>Image Cropper</label>
+      <icon type="theme">image-x-generic</icon>
+      <statustip>A GUI plugin to crop an image and republish it.</statustip>
+    </qtgui>
+  </class>
+  <class name="rqt_image_view/ImageView" type="rqt_image_view::ImageView" base_class_type="rqt_gui_cpp::Plugin">
+    <description>
+      A GUI plugin to view a sensor_msgs/Image topic.
+    </description>
+    <qtgui>
+      <label>Image View</label>
+      <icon type="theme">image-x-generic</icon>
+      <statustip>A GUI plugin to view a sensor_msgs/Image topic.</statustip>
+    </qtgui>
+  </class>
+  <class name="rqt_flipper_control/FlipperControl" type="rqt_flipper_control::FlipperControl" base_class_type="rqt_gui_cpp::Plugin">
+    <description>
+      A GUI plugin to view the flipper position and control them.
+    </description>
+    <qtgui>
+      <label>Flipper Control</label>
+      <icon type="theme">image-x-generic</icon>
+      <statustip>A GUI plugin to view the flipper position and control them.</statustip>
+    </qtgui>
+  </class>
+</library>
