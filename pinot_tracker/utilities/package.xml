@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package>
+  <name>utilities</name>
+  <version>0.1.0</version>
+  <description>general debug utilities</description>
+  <license>BSD</license>
+  <url type="website">http://www.robocoffee.org</url>
+  <author email="pieropan@kth.se">Alessandro Pieropan</author>
+  <maintainer email="pieropan@kth.se">Alessandro Pieropan</maintainer>
+
+  <buildtool_depend>catkin</buildtool_depend>
+</package>

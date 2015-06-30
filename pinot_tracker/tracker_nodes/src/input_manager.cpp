@@ -14,7 +14,15 @@ InputManager::InputManager()
       depth_topic_("/tracker_input/depth"),
       camera_info_topic_("/tracker_input/camera_info"),
       queue_size(5),
-      spinner_(0) {
+      spinner_(0),
+      is_mouse_dragging_(false),
+      img_updated_(false),
+      mouse_start_(0, 0),
+      mouse_end_(0, 0) {
+
+  namedWindow("Image Viewer");
+  setMouseCallback("Image Viewer", InputManager::mouseCallback, this);
+
   run();
 }
 
@@ -35,20 +43,19 @@ void InputManager::start() {
 
   spinner_.start();
 
-  cv::namedWindow("Image Viewer");
-
   ros::Rate r(1);
   while (ros::ok()) {
-    //ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
+    // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
 
-    if(img_updated_)
-    {
+    if (img_updated_) {
+      if(mouse_start_.x != mouse_end_.x)
+        rectangle(rgb_image_, mouse_start_, mouse_end_, Scalar(255,0,0), 3);
       imshow("Image Viewer", rgb_image_);
       img_updated_ = false;
       waitKey(1);
     }
 
-    //r.sleep();
+    // r.sleep();
   }
 }
 
@@ -67,7 +74,6 @@ void InputManager::rgbdCallback(
     const sensor_msgs::ImageConstPtr &rgb_msg,
     const sensor_msgs::CameraInfoConstPtr &camera_info_msg) {
 
-
   cv::Mat rgb, depth;
 
   readImage(rgb_msg, rgb);
@@ -76,7 +82,47 @@ void InputManager::rgbdCallback(
   rgb_image_ = rgb;
   depth_image_ = depth;
   img_updated_ = true;
+}
 
+void InputManager::mouseCallback(int event, int x, int y) {
+
+  auto set_point = [this](int x, int y)
+  {
+    if(x < mouse_start_.x)
+    {
+      mouse_end_.x = mouse_start_.x;
+      mouse_start_.x = x;
+    }
+    else
+      mouse_end_.x = x;
+
+    if(y < mouse_start_.y)
+    {
+      mouse_end_.y = mouse_start_.y;
+      mouse_start_.y = y;
+    }
+    else
+      mouse_end_.y = y;
+  };
+
+
+  if (event == EVENT_LBUTTONDOWN) {
+    mouse_start_.x = x;
+    mouse_start_.y = y;
+    mouse_end_ = mouse_start_;
+    is_mouse_dragging_ = true;
+  } else if (event == EVENT_MOUSEMOVE && is_mouse_dragging_) {
+    set_point(x,y);
+  } else if (event == EVENT_LBUTTONUP) {
+    set_point(x,y);
+    is_mouse_dragging_ = false;
+  }
+}
+
+void InputManager::mouseCallback(int event, int x, int y, int flags,
+                                 void *userdata) {
+  auto manager = reinterpret_cast<InputManager *>(userdata);
+  manager->mouseCallback(event, x, y);
 }
 
 void InputManager::readImage(const sensor_msgs::Image::ConstPtr msgImage,

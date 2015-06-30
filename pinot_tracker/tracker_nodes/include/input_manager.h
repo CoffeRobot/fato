@@ -24,6 +24,10 @@ class InputManager {
                     const sensor_msgs::ImageConstPtr& rgb_msg,
                     const sensor_msgs::CameraInfoConstPtr& camera_info_msg);
 
+  static void mouseCallback(int event, int x, int y, int flags, void* userdata);
+
+  void mouseCallback(int event, int x, int y);
+
  private:
   void start();
 
@@ -34,7 +38,7 @@ class InputManager {
   void showInput();
 
   void readImage(const sensor_msgs::Image::ConstPtr msgImage,
-                 cv::Mat &image) const;
+                 cv::Mat& image) const;
 
   ros::NodeHandle nh_;
   // message filter
@@ -57,6 +61,8 @@ class InputManager {
   cv::Mat rgb_image_, depth_image_;
   bool img_updated_;
 
+  cv::Point2d mouse_start_, mouse_end_;
+  bool is_mouse_dragging_;
 };
 
 }  // end namespace
