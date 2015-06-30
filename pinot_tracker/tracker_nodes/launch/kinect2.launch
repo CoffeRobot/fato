@@ -1,0 +1,23 @@
+<launch>
+  
+<!-- uncomment to use the full hd version
+ <node name="tracker" pkg="pinot_tracker_nodes" type="pinot_tracker_node" output="screen">
+  <remap from="/tracker_input/rgb" to="/kinect2/hd/image_color_rect" />
+  <remap from="/tracker_input/rgb/compressed" to="/kinect2/hd/image_color_rect/compressed" />
+  <remap from="/tracker_input/depth" to="/kinect2/hd/image_depth_rect" />
+  <remap from="/tracker_input/depth/compressed" to="/kinect2/hd/image_depth_rect/compressed" />
+  <remap from="/tracker_input/camera_info" to="/kinect2/hd/camera_info" />
+  </node>
+-->
+
+<!-- uncomment to use the medium version-->
+ <node name="tracker" pkg="pinot_tracker_nodes" type="pinot_tracker_node" output="screen">
+  <remap from="/tracker_input/rgb" to="/kinect2/qhd/image_color_rect" />
+  <remap from="/tracker_input/rgb/compressed" to="/kinect2/qhd/image_color_rect/compressed" />
+  <remap from="/tracker_input/depth" to="/kinect2/qhd/image_depth_rect" />
+  <remap from="/tracker_input/depth/compressed" to="/kinect2/hd/image_depth_rect/compressed" />
+  <remap from="/tracker_input/camera_info" to="/kinect2/qhd/camera_info" />
+  </node>
+
+  
+</launch>
