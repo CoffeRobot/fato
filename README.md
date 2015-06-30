@@ -6,6 +6,7 @@ Pinot Tracker
 # Contents
 
 - [Installation](#markdown-header-installation)
+- [Cameras](#markdown-header-cameras)
 - [Dependencies](#markdown-header-simulation)
 - [Tracker](#markdown-header-pr2)
     - [Tracking 2D](#markdown-header-start-and-stop)
@@ -44,6 +45,19 @@ Build:
 cd ~/catkin_ws
 catkin_make
 ```
+
+## Cameras
+
+The tracker support many cameras, each camera has a different launch file where the input to the tracker can be configured.
+
+### Kinect V2
+
+To run Kinect V2 please run the following commands in the terminal:
+```
+rosrun kinect2_bridge kinect2_bridge
+roslaunch pinot_tracker_nodes kinect2.launch
+```
+
 
 ## Dependencies
 
