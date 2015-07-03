@@ -1,5 +1,6 @@
-cmake_minimum_required(VERSION 2.8.3)
 project(pinot_tracker_nodes)
+
+cmake_minimum_required(VERSION 2.8.3)
 find_package(catkin REQUIRED)
 
 
@@ -11,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   tf
   image_geometry
+  tracker_gpu
 )
 
 find_package(OpenCV 2.4.8 REQUIRED)

@@ -2,6 +2,8 @@
 #include <boost/thread.hpp>
 #include <mutex>
 #include <opencv2/highgui/highgui.hpp>
+#include <Tracker.h>
+#include <DebugFunctions.h>
 
 using namespace std;
 using namespace cv;
@@ -17,6 +19,8 @@ InputManager::InputManager()
       spinner_(0),
       is_mouse_dragging_(false),
       img_updated_(false),
+      init_requested_(false),
+      tracker_initialized_(false),
       mouse_start_(0, 0),
       mouse_end_(0, 0) {
 
@@ -43,13 +47,39 @@ void InputManager::start() {
 
   spinner_.start();
 
+  ROS_INFO("INPUT: init tracker");
+
+  pinot::gpu::Tracker gpu_tracker;
+
+  ROS_INFO("INPUT: init tracker 2");
+
   ros::Rate r(1);
   while (ros::ok()) {
     // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
 
     if (img_updated_) {
+
       if(mouse_start_.x != mouse_end_.x)
         rectangle(rgb_image_, mouse_start_, mouse_end_, Scalar(255,0,0), 3);
+
+      if(init_requested_)
+      {
+        ROS_INFO("INPUT: tracker intialization requested");
+        gpu_tracker.init(rgb_image_, mouse_start_, mouse_end_);
+        init_requested_ = false;
+        tracker_initialized_ = true;
+        ROS_INFO("Tracker initialized!");
+      }
+
+      if(tracker_initialized_)
+      {
+        gpu_tracker.computeNext(rgb_image_);
+        Point2f p = gpu_tracker.getCentroid();
+        circle(rgb_image_, p, 5, Scalar(255,0,0), 2);
+        Scalar color(255,0,0);
+        drawBoundingBox(gpu_tracker.getBoundingBox(),color, rgb_image_);
+      }
+
       imshow("Image Viewer", rgb_image_);
       img_updated_ = false;
       waitKey(1);
@@ -116,6 +146,7 @@ void InputManager::mouseCallback(int event, int x, int y) {
   } else if (event == EVENT_LBUTTONUP) {
     set_point(x,y);
     is_mouse_dragging_ = false;
+    init_requested_ = true;
   }
 }
 

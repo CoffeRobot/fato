@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.7)
 project(utilities)
 
-find_package(OpenCV 2.4.8 REQUIRED)
+find_package(OpenCV REQUIRED PATHS "/home/alessandro/Libs" NO_DEFAULT_PATH)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -25,10 +25,11 @@ include_directories(include
 )
 
 add_library(${PROJECT_NAME}
- #src/DebugFunctions.cpp
+  src/DebugFunctions.cpp
   src/ToString.cpp
   src/utilities.cpp
   src/GpuDebugFunctions.cpp
+  src/draw_functions.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

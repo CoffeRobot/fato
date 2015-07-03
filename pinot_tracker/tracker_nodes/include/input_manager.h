@@ -62,7 +62,7 @@ class InputManager {
   bool img_updated_;
 
   cv::Point2d mouse_start_, mouse_end_;
-  bool is_mouse_dragging_;
+  bool is_mouse_dragging_, init_requested_, tracker_initialized_;
 };
 
 }  // end namespace

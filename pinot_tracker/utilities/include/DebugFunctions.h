@@ -13,7 +13,6 @@
 #endif
 #include <fstream>
 
-#include "../BorgCube.h"
 #include "Constants.h"
 #include "ToString.h"
 
@@ -66,13 +65,14 @@ void drawObjectLocation(const Point3f& fstC, const vector<Point3f>& fstBBox,
                         const Point3f& scdC, const vector<Point3f>& scdBBox,
                         const float focal, const Point2f& center, Mat& out);
 
-void drawObjectLocation(const BorgCube& fstCube, const BorgCube& updCube,
+/*void drawObjectLocation(const BorgCube& fstCube, const BorgCube& updCube,
                         const vector<bool>& visibleFaces, const float focal,
                         const Point2f& imgCenter, Mat& out);
 
 void drawObjectLocation(const BorgCube& updCube,
                         const vector<bool>& visibleFaces, const float focal,
                         const Point2f& imgCenter, Mat& out);
+*/
 
 void drawBoundingCube(const cv::Point3f& scdC,
                       const std::vector<cv::Point3f>& scdFrontBox,
