@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package>
+  <name>tracker_gpu</name>
+  <version>0.1.0</version>
+  <description>tracker using orb features and gpu related stuff in opencv</description>
+  <license>BSD</license>
+  <url type="website">http://www.robocoffee.org</url>
+  <author email="pieropan@kth.se">Alessandro Pieropan</author>
+  <maintainer email="pieropan@kth.se">Alessandro Pieropan</maintainer>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>utilities</build_depend>
+  <build_depend>clustering</build_depend>
+  <run_depend>utilities</run_depend>
+  <run_depend>clustering</run_depend>
+</package>
