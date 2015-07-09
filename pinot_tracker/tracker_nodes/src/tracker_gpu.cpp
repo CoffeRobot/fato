@@ -23,38 +23,30 @@ TrackerGpu2D::TrackerGpu2D()
       init_requested_(false),
       tracker_initialized_(false),
       mouse_start_(0, 0),
-      mouse_end_(0, 0) {
+      mouse_end_(0, 0),
+      use_depth_(false)
+{
 
   namedWindow("Image Viewer");
   setMouseCallback("Image Viewer", TrackerGpu2D::mouseCallback, this);
+
+  getTrackerParameters();
+
+  if(use_depth_)
+    initRGBD();
+  else
+    initRGB();
 
   run();
 }
 
 void TrackerGpu2D::start() {
-  depth_it_.reset(new image_transport::ImageTransport(nh_));
-  rgb_it_.reset(new image_transport::ImageTransport(nh_));
-  sub_camera_info_.subscribe(nh_, camera_info_topic_, 1);
-  /** kinect node settings */
-  sub_depth_.subscribe(*depth_it_, depth_topic_, 1,
-                       image_transport::TransportHints("compressed"));
-  sub_rgb_.subscribe(*rgb_it_, rgb_topic_, 1,
-                     image_transport::TransportHints("compressed"));
-
-  sync_rgbd_.reset(new SynchronizerRGBD(SyncPolicyRGBD(queue_size), sub_depth_,
-                                        sub_rgb_, sub_camera_info_));
-  sync_rgbd_->registerCallback(
-      boost::bind(&TrackerGpu2D::rgbdCallback, this, _1, _2, _3));
 
   spinner_.start();
 
   ROS_INFO("INPUT: init tracker");
 
   pinot::gpu::Tracker gpu_tracker;
-
-  ROS_INFO("INPUT: init tracker 2");
-
-  getTrackerParameters();
 
   ros::Rate r(1);
   while (ros::ok()) {
@@ -87,6 +79,7 @@ void TrackerGpu2D::start() {
         circle(rgb_image_, p, 5, Scalar(255, 0, 0), -1);
         Scalar color(255, 0, 0);
         drawBoundingBox(gpu_tracker.getBoundingBox(), color, rgb_image_);
+        
       }
 
       imshow("Image Viewer", rgb_image_);
@@ -120,6 +113,18 @@ void TrackerGpu2D::rgbdCallback(
 
   rgb_image_ = rgb;
   depth_image_ = depth;
+  img_updated_ = true;
+}
+
+void TrackerGpu2D::rgbCallback(
+    const sensor_msgs::ImageConstPtr &rgb_msg,
+    const sensor_msgs::CameraInfoConstPtr &camera_info_msg) {
+
+  cv::Mat rgb;
+
+  readImage(rgb_msg, rgb);
+
+  rgb_image_ = rgb;
   img_updated_ = true;
 }
 
@@ -166,11 +171,22 @@ void TrackerGpu2D::readImage(const sensor_msgs::Image::ConstPtr msgImage,
   pCvImage->image.copyTo(image);
 }
 
-void TrackerGpu2D::getTrackerParameters()
-{
+void TrackerGpu2D::getTrackerParameters() {
   int n_feat, levels, edge_thres, patch;
   float scale, confidence, ratio;
   stringstream ss;
+
+  ss << "Tracker Input: \n";
+  if(!ros::param::get("pinot/gpu_tracker/use_depth", use_depth_))
+  {
+    ss << "Failed to parse camera parameter\n";
+    use_depth_ = false;
+  }
+
+  if(use_depth_)
+    ss << "RGBD camera \n";
+  else
+    ss << "RGB camera \n";
 
   ss << "Feature Extractor: \n";
   ss << "num_features: ";
@@ -181,32 +197,32 @@ void TrackerGpu2D::getTrackerParameters()
 
   ss << "scale_factor: ";
   if (!ros::param::get("pinot/gpu_tracker/scale_factor", scale))
-     ss << "failed \n";
+    ss << "failed \n";
   else
     ss << scale << "\n";
 
   ss << "num_levels: ";
   if (!ros::param::get("pinot/gpu_tracker/num_levels", levels))
-     ss << "failed \n";
+    ss << "failed \n";
   else
     ss << levels << "\n";
 
   ss << "edge: ";
   if (!ros::param::get("pinot/gpu_tracker/edge_threshold", edge_thres))
-     ss << "failed \n";
+    ss << "failed \n";
   else
-     ss << edge_thres << "\n";
+    ss << edge_thres << "\n";
 
   ss << "patch: ";
   if (!ros::param::get("pinot/gpu_tracker/patch_size", patch))
-     ss << "failed \n";
+    ss << "failed \n";
   else
     ss << patch << "\n";
 
   ss << "Matcher: \n";
   ss << "confidence: ";
   if (!ros::param::get("pinot/gpu_tracker/feature_confidence", confidence))
-     ss << "failed \n";
+    ss << "failed \n";
   else
     ss << confidence << "\n";
 
@@ -219,10 +235,38 @@ void TrackerGpu2D::getTrackerParameters()
   ROS_INFO(ss.str().c_str());
 }
 
+void TrackerGpu2D::initRGB() {
+  rgb_it_.reset(new image_transport::ImageTransport(nh_));
+  sub_camera_info_.subscribe(nh_, camera_info_topic_, 1);
+  /** kinect node settings */
+  sub_rgb_.subscribe(*rgb_it_, rgb_topic_, 1,
+                     image_transport::TransportHints("compressed"));
+
+  sync_rgb_.reset(new SynchronizerRGB(SyncPolicyRGB(queue_size), sub_rgb_,
+                                      sub_camera_info_));
+  sync_rgb_->registerCallback(
+      boost::bind(&TrackerGpu2D::rgbCallback, this, _1, _2));
+}
+
+void TrackerGpu2D::initRGBD() {
+  depth_it_.reset(new image_transport::ImageTransport(nh_));
+  rgb_it_.reset(new image_transport::ImageTransport(nh_));
+  sub_camera_info_.subscribe(nh_, camera_info_topic_, 1);
+  /** kinect node settings */
+  sub_depth_.subscribe(*depth_it_, depth_topic_, 1,
+                       image_transport::TransportHints("compressed"));
+  sub_rgb_.subscribe(*rgb_it_, rgb_topic_, 1,
+                     image_transport::TransportHints("compressed"));
+
+  sync_rgbd_.reset(new SynchronizerRGBD(SyncPolicyRGBD(queue_size), sub_depth_,
+                                        sub_rgb_, sub_camera_info_));
+  sync_rgbd_->registerCallback(
+      boost::bind(&TrackerGpu2D::rgbdCallback, this, _1, _2, _3));
+}
+
 }  // end namespace
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char *argv[]) {
 
   ROS_INFO("Starting tracker input");
   ros::init(argc, argv, "pinot_tracker_node");
@@ -233,4 +277,3 @@ int main(int argc, char* argv[])
 
   return 0;
 }
-

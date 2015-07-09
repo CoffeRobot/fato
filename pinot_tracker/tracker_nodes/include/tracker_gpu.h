@@ -24,6 +24,9 @@ class TrackerGpu2D {
                     const sensor_msgs::ImageConstPtr& rgb_msg,
                     const sensor_msgs::CameraInfoConstPtr& camera_info_msg);
 
+  void rgbCallback(const sensor_msgs::ImageConstPtr& rgb_msg,
+                   const sensor_msgs::CameraInfoConstPtr& camera_info_msg);
+
   static void mouseCallback(int event, int x, int y, int flags, void* userdata);
 
   void mouseCallback(int event, int x, int y);
@@ -42,16 +45,28 @@ class TrackerGpu2D {
 
   void getTrackerParameters();
 
+  void initRGB();
+
+  void initRGBD();
+
   ros::NodeHandle nh_;
   // message filter
   boost::shared_ptr<image_transport::ImageTransport> rgb_it_, depth_it_;
   image_transport::SubscriberFilter sub_depth_, sub_rgb_;
   message_filters::Subscriber<sensor_msgs::CameraInfo> sub_camera_info_;
+
   typedef message_filters::sync_policies::ApproximateTime<
       sensor_msgs::Image, sensor_msgs::Image, sensor_msgs::CameraInfo>
       SyncPolicyRGBD;
+  typedef message_filters::sync_policies::ApproximateTime<
+    sensor_msgs::Image, sensor_msgs::CameraInfo>
+    SyncPolicyRGB;
+
+
   typedef message_filters::Synchronizer<SyncPolicyRGBD> SynchronizerRGBD;
   boost::shared_ptr<SynchronizerRGBD> sync_rgbd_;
+  typedef message_filters::Synchronizer<SyncPolicyRGB> SynchronizerRGB;
+  boost::shared_ptr<SynchronizerRGB> sync_rgb_;
 
   const std::string rgb_topic_;
   const std::string depth_topic_;
@@ -65,6 +80,8 @@ class TrackerGpu2D {
 
   cv::Point2d mouse_start_, mouse_end_;
   bool is_mouse_dragging_, init_requested_, tracker_initialized_;
+
+  bool use_depth_;
 };
 
 }  // end namespace

@@ -1,3 +1,6 @@
+# set the type of camera as input
+pinot/gpu_tracker/use_depth: false
+
 # ORB feature extraction parameters
 pinot/gpu_tracker/num_features: 500 
 pinot/gpu_tracker/scale_factor: 1.1 

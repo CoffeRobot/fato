@@ -789,7 +789,7 @@ void Tracker::detectNext(Mat next) {
   Mat descriptors, gray;
   vector<KeyPoint> keypoints;
 
-  int nFeatures = 1500;
+  int nFeatures = 500;
   float scaleFactor = 1.1f;
   int nLevels = 6;
   int edgeThreshold = 31;
