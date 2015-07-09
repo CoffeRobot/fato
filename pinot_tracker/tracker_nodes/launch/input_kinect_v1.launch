@@ -1,0 +1,14 @@
+<launch>
+
+<rosparam command="load" file="$(find pinot_tracker_nodes)/config/parameters.yaml"/>
+
+<!-- uncomment to use the medium version-->
+ <node name="tracker" pkg="pinot_tracker_nodes" type="tracker_2d_gpu" output="screen">
+  <remap from="/tracker_input/rgb" to="/camera/rgb/image_color" />
+  <remap from="/tracker_input/rgb/compressed" to="/camera/rgb/image_color/compressed" />
+  <remap from="/tracker_input/depth" to="/camera/depth_registered/hw_registered/image_rect_raw" />
+  <remap from="/tracker_input/depth/compressed" to="/camera/depth_registered/hw_registered/image_rect_raw/compressedDepth" />
+  <remap from="/tracker_input/camera_info" to="/camera/rgb/camera_info" />
+  </node>
+  
+</launch>

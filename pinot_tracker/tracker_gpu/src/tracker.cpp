@@ -25,7 +25,7 @@ Tracker::Tracker()
       first_level_(0),
       wta_k_(2),
       score_type_(0),
-      patch_size_(30),
+      patch_size_(31),
       matcher_confidence_(0.8),
       matcher_ratio_(0.8) {}
 
@@ -60,17 +60,16 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
   // featuresDetector.detect(gray, m_initKeypoints);
   // featuresDetector.compute(gray, m_initKeypoints, m_initDescriptors);
 
-  int nFeatures = 500;
-  float scaleFactor = 1.1f;
-  int nLevels = 6;
-  int edgeThreshold = 31;
-  int firstLevel = 0;
-  int WTA_K = 2;
-  int scoreType = 0;
-  int patchSize = 31;
+  //int nLevels = 6;
+  //int edgeThreshold = 31;
+  //int firstLevel = 0;
+  //int WTA_K = 2;
+  //int scoreType = 0;
+  //int patchSize = 31;
 
-  cv::gpu::ORB_GPU m_orbDetector(nFeatures, scaleFactor, nLevels, edgeThreshold,
-                               firstLevel, WTA_K, scoreType, patchSize);
+  cv::gpu::ORB_GPU m_orbDetector(num_features_, scale_factor_, num_levels_,
+                                 edge_threshold_, first_level_, wta_k_,
+                                 score_type_, patch_size_);
 
   /*cv::gpu::ORB_GPU m_orbDetector(num_features_, scale_factor_, num_levels_,
                                  edge_threshold_, first_level_, wta_k_,
@@ -150,8 +149,7 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
 void Tracker::setFeatureExtractionParameters(int num_features,
                                              float scale_factor, int num_levels,
                                              int edge_threshold,
-                                             int first_level, int patch_size)
-{
+                                             int first_level, int patch_size) {
   num_features_ = num_features;
   scale_factor_ = scale_factor;
   num_levels_ = num_levels;
@@ -160,8 +158,7 @@ void Tracker::setFeatureExtractionParameters(int num_features,
   patch_size_ = patch_size;
 }
 
-void Tracker::setMatcerParameters(float confidence, float second_ratio)
-{
+void Tracker::setMatcerParameters(float confidence, float second_ratio) {
   matcher_confidence_ = confidence;
   matcher_ratio_ = second_ratio;
 }
@@ -789,17 +786,16 @@ void Tracker::detectNext(Mat next) {
   Mat descriptors, gray;
   vector<KeyPoint> keypoints;
 
-  int nFeatures = 500;
-  float scaleFactor = 1.1f;
-  int nLevels = 6;
-  int edgeThreshold = 31;
-  int firstLevel = 0;
-  int WTA_K = 2;
-  int scoreType = 0;
-  int patchSize = 31;
+  //int nLevels = 6;
+  //int edgeThreshold = 31;
+  //int firstLevel = 0;
+  //int WTA_K = 2;
+  //int scoreType = 0;
+  //int patchSize = 31;
 
-  cv::gpu::ORB_GPU orbDetector(nFeatures, scaleFactor, nLevels, edgeThreshold,
-                               firstLevel, WTA_K, scoreType, patchSize);
+  cv::gpu::ORB_GPU orbDetector(num_features_, scale_factor_, num_levels_,
+                               edge_threshold_, first_level_, wta_k_,
+                               score_type_, patch_size_);
 
   orbDetector(d_nextGray, GpuMat(), d_keypoints, d_descriptors);
   d_descriptors.download(descriptors);
