@@ -27,6 +27,12 @@ class Tracker {
 
   void init(const cv::Mat& rgb, const cv::Mat& mask);
 
+  void setFeatureExtractionParameters(int num_features, float scale_factor,
+                                      int num_levels, int edge_threshold,
+                                      int first_level, int patch_size);
+
+  void setMatcerParameters(float confidence, float second_ratio);
+
   void computeNext(const cv::Mat& rgb);
 
   const std::vector<cv::Point2f>* getPoints() { return &m_updatedPoints; }
@@ -238,6 +244,22 @@ class Tracker {
   float m_detectorTime;
   float m_trackerFrameCount;
   float m_detectorFrameCount;
+  /****************************************************************************/
+  /*                       FEATURE EXTRACTION PARAMS                          */
+  /****************************************************************************/
+  int num_features_;
+  float scale_factor_;
+  int num_levels_;
+  int edge_threshold_;
+  int first_level_;
+  int wta_k_;
+  int score_type_;
+  int patch_size_;
+  /****************************************************************************/
+  /*                       MATCHER PARAMS                                     */
+  /****************************************************************************/
+  float matcher_confidence_;
+  float matcher_ratio_;
 };
 };
 };

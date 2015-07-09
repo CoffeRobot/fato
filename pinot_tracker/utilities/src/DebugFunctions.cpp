@@ -813,10 +813,10 @@ std::string toPythonString(const std::vector<cv::Point3f>& cloud) {
 
 void drawBoundingBox(const std::vector<cv::Point2f>& box, cv::Scalar& color,
                      Mat& out) {
-  line(out, box[0], box[1], color, 1, 1);
-  line(out, box[1], box[2], color, 1, 1);
-  line(out, box[2], box[3], color, 1, 1);
-  line(out, box[3], box[0], color, 1, 1);
+  line(out, box[0], box[1], color, 2, 1);
+  line(out, box[1], box[2], color, 2, 1);
+  line(out, box[2], box[3], color, 2, 1);
+  line(out, box[3], box[0], color, 2, 1);
 }
 
 void drawVotes(const std::vector<Point2f>& votes, cv::Scalar& color, Mat& out) {

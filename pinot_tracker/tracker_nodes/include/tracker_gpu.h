@@ -15,9 +15,9 @@
 
 namespace pinot_tracker {
 
-class InputManager {
+class TrackerGpu2D {
  public:
-  InputManager();
+  TrackerGpu2D();
 
  protected:
   void rgbdCallback(const sensor_msgs::ImageConstPtr& depth_msg,
@@ -39,6 +39,8 @@ class InputManager {
 
   void readImage(const sensor_msgs::Image::ConstPtr msgImage,
                  cv::Mat& image) const;
+
+  void getTrackerParameters();
 
   ros::NodeHandle nh_;
   // message filter

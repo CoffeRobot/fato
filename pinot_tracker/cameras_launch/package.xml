@@ -1,0 +1,12 @@
+<package>
+  <name>tracker_cameras_launch</name>
+  <version>0.0.1</version>
+  <description>
+    Launch files for different cameras
+  </description>
+  <maintainer email="pieropan@kth.se">Alessandro Pieropan</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+</package>

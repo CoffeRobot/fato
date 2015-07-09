@@ -17,7 +17,17 @@ namespace pinot {
 
 namespace gpu {
 
-Tracker::Tracker() {}
+Tracker::Tracker()
+    : num_features_(500),
+      scale_factor_(1.1f),
+      num_levels_(6),
+      edge_threshold_(31),
+      first_level_(0),
+      wta_k_(2),
+      score_type_(0),
+      patch_size_(30),
+      matcher_confidence_(0.8),
+      matcher_ratio_(0.8) {}
 
 bool Tracker::isPointValid(const int& id) {
   // auto tmp_id = m_upd_to_init_ids[id];
@@ -49,7 +59,8 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
   // BRISK featuresDetector;
   // featuresDetector.detect(gray, m_initKeypoints);
   // featuresDetector.compute(gray, m_initKeypoints, m_initDescriptors);
-  int nFeatures = 1500;
+
+  int nFeatures = 500;
   float scaleFactor = 1.1f;
   int nLevels = 6;
   int edgeThreshold = 31;
@@ -59,7 +70,11 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
   int patchSize = 31;
 
   cv::gpu::ORB_GPU m_orbDetector(nFeatures, scaleFactor, nLevels, edgeThreshold,
-                                 firstLevel, WTA_K, scoreType, patchSize);
+                               firstLevel, WTA_K, scoreType, patchSize);
+
+  /*cv::gpu::ORB_GPU m_orbDetector(num_features_, scale_factor_, num_levels_,
+                                 edge_threshold_, first_level_, wta_k_,
+                                 score_type_, patch_size_);*/
 
   m_orbDetector(d_gray, GpuMat(), dm_initKeypoints, dm_initDescriptors);
   m_orbDetector.downloadKeyPoints(dm_initKeypoints, m_initKeypoints);
@@ -93,19 +108,19 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
   /****************************************************************************/
   /*                          INIT CENTROID                                   */
   /****************************************************************************/
-  //cout << "Init centroid" << endl;
+  // cout << "Init centroid" << endl;
   m_initCentroid = initCentroid(m_updatedPoints);
   m_updatedCentroid = m_initCentroid;
-  //cout << m_updatedCentroid << endl;
+  // cout << m_updatedCentroid << endl;
   /****************************************************************************/
   /*                          INIT RELATIVE DISTANCES                         */
   /****************************************************************************/
-  //cout << "Init relative distance" << endl;
+  // cout << "Init relative distance" << endl;
   initRelativeDistance(m_updatedPoints, m_initCentroid, m_relativeDistances);
   /****************************************************************************/
   /*                          INIT BOUNDING BOX                               */
   /****************************************************************************/
-  //cout << "Init bounding box" << endl;
+  // cout << "Init bounding box" << endl;
   initBoundingBox(mask, m_initCentroid, m_boundingBox, m_boundingBoxRelative,
                   m_boundingBoxUpdated);
   /****************************************************************************/
@@ -126,10 +141,29 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
   /****************************************************************************/
   /*                          LOADING IMGS ON GPU                             */
   /****************************************************************************/
-  //cout << "load images" << endl;
+  // cout << "load images" << endl;
   rgb.copyTo(m_init_rgb_img);
   dm_prev.upload(rgb);
   cv::gpu::cvtColor(dm_prev, dm_prevGray, CV_BGR2GRAY);
+}
+
+void Tracker::setFeatureExtractionParameters(int num_features,
+                                             float scale_factor, int num_levels,
+                                             int edge_threshold,
+                                             int first_level, int patch_size)
+{
+  num_features_ = num_features;
+  scale_factor_ = scale_factor;
+  num_levels_ = num_levels;
+  edge_threshold_ = edge_threshold;
+  first_level_ = first_level;
+  patch_size_ = patch_size;
+}
+
+void Tracker::setMatcerParameters(float confidence, float second_ratio)
+{
+  matcher_confidence_ = confidence;
+  matcher_ratio_ = second_ratio;
 }
 
 Point2f Tracker::initCentroid(const vector<Point2f>& points) {
@@ -562,7 +596,7 @@ void Tracker::computeNext(const Mat& next) {
   m_trackerCondition.notify_one();
   m_detectorCondition.notify_one();
 
-  std::chrono::microseconds sleepTime(10);
+  std::chrono::microseconds sleepTime(1);
 
   while (!m_trackerDone || !m_matcherDone) {
     // do nothing

@@ -69,12 +69,11 @@ include_directories(include
 )
 
 
-add_executable(pinot_tracker_node
-  src/tracker_node.cpp
-  src/input_manager.cpp
+add_executable(tracker_2d_gpu
+  src/tracker_gpu.cpp
 )
 
-target_link_libraries(pinot_tracker_node
+target_link_libraries(tracker_2d_gpu
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
   ${PCL_LIBRARIES}

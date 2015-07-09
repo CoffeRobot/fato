@@ -1,0 +1,10 @@
+# ORB feature extraction parameters
+pinot/gpu_tracker/num_features: 500 
+pinot/gpu_tracker/scale_factor: 1.1 
+pinot/gpu_tracker/num_levels: 6
+pinot/gpu_tracker/edge_threshold: 31
+pinot/gpu_tracker/patch_size: 31
+
+# matcher parameters 
+pinot/gpu_tracker/feature_confidence: 0.8
+pinot/gpu_tracker/second_ratio: 0.8
