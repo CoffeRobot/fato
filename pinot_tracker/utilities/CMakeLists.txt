@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.7)
 project(utilities)
 
-find_package(OpenCV REQUIRED PATHS "/home/alessandro/Libs" NO_DEFAULT_PATH)
+find_package(OpenCV REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include

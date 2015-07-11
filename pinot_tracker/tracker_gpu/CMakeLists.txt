@@ -1,6 +1,7 @@
 project(tracker_gpu)
-
 cmake_minimum_required(VERSION 2.8.7)
+
+set(WITH_GPU OFF CACHE BOOL "set to true if opencv gpu is installed")
 
 #LINK_DIRECTORIES("/home/alessandro/Libs/lib")
 
