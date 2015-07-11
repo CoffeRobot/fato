@@ -68,16 +68,17 @@ include_directories(include
   ${EIGEN_INCLUDE_DIR} 
 )
 
+if(WITH_GPU)
+  add_executable(tracker_2d_gpu
+    src/tracker_gpu.cpp
+  )
 
-add_executable(tracker_2d_gpu
-  src/tracker_gpu.cpp
-)
-
-target_link_libraries(tracker_2d_gpu
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBS}
-  ${PCL_LIBRARIES}
-)
+  target_link_libraries(tracker_2d_gpu
+    ${catkin_LIBRARIES}
+    ${OpenCV_LIBS}
+    ${PCL_LIBRARIES}
+  )
+endif()
 
 
 

@@ -2,6 +2,7 @@ project(tracker_gpu)
 cmake_minimum_required(VERSION 2.8.7)
 
 set(WITH_GPU OFF CACHE BOOL "set to true if opencv gpu is installed")
+set(CUSTON_OPENCV_PATH ON CACHE STRING "path to gpu compiled opencv" FORCE )
 
 #LINK_DIRECTORIES("/home/alessandro/Libs/lib")
 
@@ -49,22 +50,27 @@ include_directories(include
   ${CUDA_INCLUDE_DIRS}
 )
 
-add_library(${PROJECT_NAME}
+if(WITH_GPU)
+
+  add_library(${PROJECT_NAME}
   src/matcher.cpp
   src/tracker.cpp
+  )
+
+  target_link_libraries(${PROJECT_NAME}
+  ${CUSTON_OPENCV_PATH}/libopencv_gpu.so
+  ${CUSTON_OPENCV_PATH}/opencv_highgui
+  ${CUSTON_OPENCV_PATH}/opencv_gpu
+  ${CUSTON_OPENCV_PATH}/opencv_flann
+  ${CUSTON_OPENCV_PATH}/opencv_features2d
+  ${CUSTON_OPENCV_PATH}/opencv_core
+  ${CUSTON_OPENCV_PATH}/opencv_contrib
+  ${CUSTON_OPENCV_PATH}/opencv_calib3d
+  ${CUDA_LIBRARIES}
 )
+endif()
+
 
 # super ugly, linking manually to the gpu library. No other way found right now
 # to override ros opencv path
-target_link_libraries(${PROJECT_NAME}
-  /home/alessandro/Libs/lib/libopencv_gpu.so
-  opencv_highgui
-  opencv_gpu
-  opencv_flann
-  opencv_features2d
-  opencv_core
-  opencv_contrib
-  opencv_calib3d
-  ${OpenCV_LIBS}
-  ${CUDA_LIBRARIES}
-)
+

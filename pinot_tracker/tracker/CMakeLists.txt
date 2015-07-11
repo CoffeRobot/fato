@@ -33,12 +33,12 @@ include_directories(include
   ${OpenCV_INCLUDE_DIRS}
 )
 
-add_library(${PROJECT_NAME}
-  src/tracker_2d.cpp
-)
+#add_library(${PROJECT_NAME}
+#  src/tracker_2d.cpp
+#)
 
 # super ugly, linking manually to the gpu library. No other way found right now
 # to override ros opencv path
-target_link_libraries(${PROJECT_NAME}
-  ${OpenCV_LIBS}
-)
+#target_link_libraries(${PROJECT_NAME}
+#  ${OpenCV_LIBS}
+#)
