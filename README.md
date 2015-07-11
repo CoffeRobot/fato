@@ -21,11 +21,17 @@ sudo apt-get install python-wstool
 
 Create your workspace:
 ```
-mkdir -p ~/catkin_ws/src
+mkdir -p ~/[name_of_workspace]/src
 ```
 
-Copy the contents of [amazon_challenge.rosinstall](amazon_challenge.rosinstall) into a file ~/catkin_ws/src/.rosinstall
-*Note: Bitbucket requires this README to be rendered at a specific commit for the file links to work (e.g. go to source and select the devel branch).*
+Create a file 
+Copy the contents of the following lines into a file ~/[name_of_workspace]/src/.rosinstall
+```
+- git: {local-name: pinot_tracker, uri: 'git@bitbucket.org:robocoffee/pinot_tracker.git', version: master}
+- git: {local-name: iai_kinect2, uri: 'https://github.com/code-iai/iai_kinect2.git', version: master}
+```
+
+Or copy the content of tracker.rosinstall in the install repository folder.
 
 Fetch the code:
 ```
