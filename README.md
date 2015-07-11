@@ -24,7 +24,6 @@ Create your workspace:
 mkdir -p ~/[name_of_workspace]/src
 ```
 
-Create a file 
 Copy the contents of the following lines into a file ~/[name_of_workspace]/src/.rosinstall
 ```
 - git: {local-name: pinot_tracker, uri: 'git@bitbucket.org:robocoffee/pinot_tracker.git', version: master}
