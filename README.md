@@ -55,12 +55,30 @@ catkin_make
 
 The tracker support many cameras, each camera has a different launch file where the input to the tracker can be configured.
 
+### USB Cameras
+
+The general usb camera launch file depends on the libuvc_camera package of ROS. Please check you have in installed on your system before 
+using the launch file. You can use a USB camera connected to your computer with the following instruction:
+```
+roslaunch tracker_cameras custom_camera.launch
+```
+
+If you want to use a specific camera please consider to write your own launch file specifing the parameters you desire as 
+descibed on the libuvc_camera package.
+
 ### Kinect V2
 
 To run Kinect V2 please run the following commands in the terminal:
 ```
 rosrun kinect2_bridge kinect2_bridge
 roslaunch pinot_tracker_nodes kinect2.launch
+```
+
+### Kinect V1
+
+To run Kinect V1 please make sure you have libfreenect installed on your system. Then write the following command to launch the node>
+```
+roslaunch tracker_cameras kinect_v1.launch
 ```
 
 

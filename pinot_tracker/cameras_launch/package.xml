@@ -1,5 +1,5 @@
 <package>
-  <name>tracker_cameras_launch</name>
+  <name>tracker_cameras</name>
   <version>0.0.1</version>
   <description>
     Launch files for different cameras
