@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   tf
   image_geometry
+  utilities
   #tracker_gpu
   tracker_cpu
 )

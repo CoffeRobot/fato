@@ -4,6 +4,8 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <sstream>
 #include <chrono>
+#include <profiler.h>
+#include <draw_functions.h>
 
 using namespace cv;
 using namespace std;
@@ -53,7 +55,7 @@ void TrackerNode2D::rgbCallback(
 
   readImage(rgb_msg, rgb);
 
-  rgb_image_ = rgb;
+  cvtColor(rgb,rgb_image_, CV_RGB2BGR);
   img_updated_ = true;
 }
 
@@ -142,6 +144,7 @@ void TrackerNode2D::run() {
 
   Tracker2D tracker(params_);
 
+  //auto& profiler = Profiler::getInstance();
 
   while (ros::ok()) {
     // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
@@ -156,20 +159,24 @@ void TrackerNode2D::run() {
         init_requested_ = false;
         tracker_initialized_ = true;
         ROS_INFO("Tracker initialized!");
-        waitKey(0);
       }
 
       if (tracker_initialized_) {
         auto begin = chrono::high_resolution_clock::now();
+        //profiler->start("test");
         Mat out;
         tracker.computeNext(rgb_image_, out);
+        //profiler->stop("test");
         auto end = chrono::high_resolution_clock::now();
         auto time_span =
             chrono::duration_cast<chrono::milliseconds>(end - begin).count();
         stringstream ss;
         Point2f p = tracker.getCentroid();
         circle(rgb_image_, p, 5, Scalar(255, 0, 0), -1);
+        vector<Point2f> bbox = tracker.getBoundingBox();
+        drawBoundingBox(bbox, Scalar(255, 0, 0), 2, rgb_image_);
         ss << "Tracker run in ms: " << time_span << "";
+        //ss << " profiler " << profiler->getProfile().c_str();
         ROS_INFO(ss.str().c_str());
       }
 

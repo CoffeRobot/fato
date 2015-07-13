@@ -62,7 +62,8 @@ class Tracker2D {
 
   void close();
 
-  cv::Point2f getCentroid() { return m_updatedCentroid; };
+  cv::Point2f getCentroid() { return m_updatedCentroid; }
+  std::vector<cv::Point2f> getBoundingBox() { return m_updatedBBPoints; }
 
   int m_threshold;
   int m_octave;

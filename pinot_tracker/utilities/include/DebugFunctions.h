@@ -152,9 +152,6 @@ std::string toString(const Matrix3d& rotation);
 
 std::string toString(const Quaterniond& quaternion);
 
-void drawBoundingBox(const std::vector<cv::Point2f>& box, cv::Scalar& color,
-                     Mat& out);
-
 void drawVotes(const std::vector<Point2f>& votes, cv::Scalar& color, Mat& out);
 
 template <typename T>
