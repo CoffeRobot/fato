@@ -44,7 +44,6 @@ void Tracker::init(const cv::Mat& rgb, const cv::Point2d& fst,
 }
 
 void Tracker::init(const Mat& rgb, const Mat& mask) {
-
   GpuMat d_gray;
   GpuMat d_rgb;
   Mat gray;
@@ -60,12 +59,12 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
   // featuresDetector.detect(gray, m_initKeypoints);
   // featuresDetector.compute(gray, m_initKeypoints, m_initDescriptors);
 
-  //int nLevels = 6;
-  //int edgeThreshold = 31;
-  //int firstLevel = 0;
-  //int WTA_K = 2;
-  //int scoreType = 0;
-  //int patchSize = 31;
+  // int nLevels = 6;
+  // int edgeThreshold = 31;
+  // int firstLevel = 0;
+  // int WTA_K = 2;
+  // int scoreType = 0;
+  // int patchSize = 31;
 
   cv::gpu::ORB_GPU m_orbDetector(num_features_, scale_factor_, num_levels_,
                                  edge_threshold_, first_level_, wta_k_,
@@ -88,7 +87,6 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
   // m_init_to_upd_ids.resize(m_initKeypoints.size(), -1);
 
   for (int i = 0; i < m_initKeypoints.size(); i++) {
-
     Point2f& pt = m_points[i];
 
     if (mask.at<uchar>(pt) == 255) {
@@ -164,7 +162,6 @@ void Tracker::setMatcerParameters(float confidence, float second_ratio) {
 }
 
 Point2f Tracker::initCentroid(const vector<Point2f>& points) {
-
   Point2f centroid(0, 0);
   int validPoints = 0;
 
@@ -262,7 +259,7 @@ void Tracker::getOpticalFlow(const GpuMat& d_prev, const GpuMat& d_next,
 
   m_flow_counter = 0;
   for (int i = 0; i < nextPoints.size(); ++i) {
-    float error = getDistance(prevCalcPoints[i], prevPoints[i]);
+    float error = pinot_tracker::getDistance(prevCalcPoints[i], prevPoints[i]);
 
     Status& s = status[ids[i]];
 
@@ -339,9 +336,10 @@ float Tracker::getMedianScale(const vector<Point2f>& initPoints,
   for (size_t i = 0; i < updPoints.size(); ++i) {
     for (size_t j = 0; j < updPoints.size(); j++) {
       if (isPointValid(ids[i]) && isPointValid(ids[j])) {
-        float nextDistance = getDistance(updPoints[i], updPoints[j]);
+        float nextDistance =
+            pinot_tracker::getDistance(updPoints[i], updPoints[j]);
         float currDistance =
-            getDistance(initPoints[ids[i]], initPoints[ids[j]]);
+            pinot_tracker::getDistance(initPoints[ids[i]], initPoints[ids[j]]);
 
         if (currDistance != 0 && i != j) {
           scales.push_back(nextDistance / currDistance);
@@ -395,7 +393,6 @@ void Tracker::voteForCentroid(const vector<Point2f>& relativeDistances,
 
 void Tracker::clusterVotes(vector<Point2f>& centroidVotes,
                            vector<bool>& isClustered) {
-
   DBScanClustering<Point2f*> clusterer;
 
   vector<Point2f*> votes;
@@ -520,8 +517,9 @@ void Tracker::discardNotClustered(std::vector<Point2f>& upd_points,
     auto id = ids[i];
 
     if (pointsStatus[id] == Status::NOCLUSTER) {
-      float init_dist = getDistance(init_pts[id], init_centroid);
-      float upd_dist = getDistance(upd_points[i], upd_centroid) * m_scale;
+      float init_dist = pinot_tracker::getDistance(init_pts[id], init_centroid);
+      float upd_dist =
+          pinot_tracker::getDistance(upd_points[i], upd_centroid) * m_scale;
 
       float ratio = min(init_dist, upd_dist) / max(init_dist, upd_dist);
 
@@ -541,7 +539,6 @@ void Tracker::removeLostPoints(const std::vector<bool>& isClustered,
   for (int i = 0; i < points.size(); ++i) {
     const int& id = ids[i];
     if (pointsStatus[i] == Status::LOST) {
-
       toBeRemoved.push_back(i);
     }
   }
@@ -622,7 +619,6 @@ void Tracker::taskFinished() {
 }
 
 int Tracker::runTracker() {
-
   // cv::gpu::setDevice(0);
 
   GpuTimer timer;
@@ -786,12 +782,12 @@ void Tracker::detectNext(Mat next) {
   Mat descriptors, gray;
   vector<KeyPoint> keypoints;
 
-  //int nLevels = 6;
-  //int edgeThreshold = 31;
-  //int firstLevel = 0;
-  //int WTA_K = 2;
-  //int scoreType = 0;
-  //int patchSize = 31;
+  // int nLevels = 6;
+  // int edgeThreshold = 31;
+  // int firstLevel = 0;
+  // int WTA_K = 2;
+  // int scoreType = 0;
+  // int patchSize = 31;
 
   cv::gpu::ORB_GPU orbDetector(num_features_, scale_factor_, num_levels_,
                                edge_threshold_, first_level_, wta_k_,
@@ -882,9 +878,9 @@ void Tracker::detectNext(Mat next) {
 
 bool Tracker::evaluatePose(const float& angle, const float& scale) {
   // discretize angle
-  float angle_change = roundDownToNearest(angle, 0.30);
+  float angle_change = pinot_tracker::roundDownToNearest(angle, 0.30);
   // discretize scale
-  float scale_change = roundDownToNearest(scale - 1, 0.30);
+  float scale_change = pinot_tracker::roundDownToNearest(scale - 1, 0.30);
 
   /****************************************************************************/
   /**                adding to history                                        */
@@ -925,8 +921,8 @@ bool Tracker::evaluatePose(const float& angle, const float& scale) {
   auto prev_val_mov = *it_mov;
   auto max_variation_mov = 0.0f;
   while (it_mov != m_center_history.end()) {
-    max_variation_mov =
-        std::max(max_variation_mov, getDistance(prev_val_mov, *it_mov));
+    max_variation_mov = std::max(
+        max_variation_mov, pinot_tracker::getDistance(prev_val_mov, *it_mov));
     prev_val_mov = *it_mov;
     ++it_mov;
   }
@@ -947,7 +943,6 @@ bool Tracker::evaluatePose(const float& angle, const float& scale) {
   }
 
   if (is_new_pose) {
-
     cout << fixed << setprecision(2) << "Angle change " << angle_change
          << " scale change " << scale_change << " angle delta "
          << max_variation_angle << " scale delta " << max_variation_scale
@@ -1008,7 +1003,6 @@ void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
   std::cout << m_points.size() << std::endl;
 
   for (auto i = 0; i < points_to_add.size(); i++) {
-
     if (m_points.size() > 2000) break;
 
     auto id = i + pts_size;

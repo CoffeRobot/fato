@@ -12,7 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   tf
   image_geometry
-  tracker_gpu
+  #tracker_gpu
+  tracker_cpu
 )
 
 find_package(OpenCV 2.4.8 REQUIRED)
@@ -76,12 +77,19 @@ if(WITH_GPU)
   target_link_libraries(tracker_2d_gpu
     ${catkin_LIBRARIES}
     ${OpenCV_LIBS}
-    ${PCL_LIBRARIES}
   )
 endif()
 
 
+add_executable(tracker_node_2d
+    src/tracker_node.cpp
+    src/tracker_node_2d.cpp)
 
+
+  target_link_libraries(tracker_node_2d
+    ${catkin_LIBRARIES}
+    ${OpenCV_LIBS}
+  )
 
 #add_executable(cloud_publisher
 #    src/cloud_publisher.cpp)

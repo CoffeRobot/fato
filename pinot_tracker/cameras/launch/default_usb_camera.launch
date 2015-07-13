@@ -15,5 +15,8 @@
       <param name="height" value="480"/>
       -->
       <!-- choose whichever uncompressed format the camera supports: -->
+      <param name="video_mode" value="compressed"/> <!-- or yuyv/nv12/jpeg -->
+      <param name="frame_rate" value="30"/>
+
     </node>
 </launch>

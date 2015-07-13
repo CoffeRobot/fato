@@ -2,6 +2,9 @@
 #define UTILITIES_H
 
 #include<cmath>
+#include <opencv2/core/core.hpp>
+
+namespace pinot_tracker{
 
 inline float roundUpToNearest(float src_number, float round_to)
 {
@@ -27,6 +30,12 @@ inline float getDistance(const cv::Point2f& a, const cv::Point2f& b)
 {
   return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
 }
+
+cv::Mat1b getMask(int rows, int cols, const cv::Point2d& begin,
+                         const cv::Point2d& end);
+
+
+} // end namespace
 
 
 

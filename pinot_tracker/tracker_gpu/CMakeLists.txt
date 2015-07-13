@@ -42,20 +42,19 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
   ${PROJECT_SOURCE_DIR}/../../README.md
 )
 
-include_directories(include
+  include_directories(include
   ${catkin_INCLUDE_DIRS}
-  #${OpenCV_INCLUDE_DIRS}
-  "/home/alessandro/Libs/inlcude"
-  "/home/alessandro/Libs/include/opencv"
+  ${OpenCV_INCLUDE_DIRS}
   ${CUDA_INCLUDE_DIRS}
-)
-
-if(WITH_GPU)
+  )
 
   add_library(${PROJECT_NAME}
   src/matcher.cpp
   src/tracker.cpp
   )
+
+if(WITH_GPU)
+
 
   target_link_libraries(${PROJECT_NAME}
   ${CUSTON_OPENCV_PATH}/libopencv_gpu.so
@@ -67,7 +66,13 @@ if(WITH_GPU)
   ${CUSTON_OPENCV_PATH}/opencv_contrib
   ${CUSTON_OPENCV_PATH}/opencv_calib3d
   ${CUDA_LIBRARIES}
-)
+  )
+else()
+  target_link_libraries(${PROJECT_NAME}
+  ${OpenCV_LIBS}
+  ${CUDA_LIBRARIES}
+  )
+
 endif()
 
 

@@ -2,9 +2,7 @@ project(tracker_cpu)
 
 cmake_minimum_required(VERSION 2.8.7)
 
-
 find_package(OpenCV REQUIRED)
-
 
 find_package(catkin REQUIRED COMPONENTS
   clustering
@@ -33,12 +31,11 @@ include_directories(include
   ${OpenCV_INCLUDE_DIRS}
 )
 
-#add_library(${PROJECT_NAME}
-#  src/tracker_2d.cpp
-#)
+add_library(${PROJECT_NAME}
+  src/matcher.cpp
+  src/tracker_2d.cpp
+)
 
-# super ugly, linking manually to the gpu library. No other way found right now
-# to override ros opencv path
-#target_link_libraries(${PROJECT_NAME}
-#  ${OpenCV_LIBS}
-#)
+target_link_libraries(${PROJECT_NAME}
+  ${OpenCV_LIBS}
+)

@@ -27,10 +27,14 @@ mkdir -p ~/[name_of_workspace]/src
 Copy the contents of the following lines into a file ~/[name_of_workspace]/src/.rosinstall
 ```
 - git: {local-name: pinot_tracker, uri: 'git@bitbucket.org:robocoffee/pinot_tracker.git', version: master}
+```
+If you installed successfully libfreenect2 on your system, you can add this line in the install file to clone 
+this package necessary to use the Kinect V2.
+```
 - git: {local-name: iai_kinect2, uri: 'https://github.com/code-iai/iai_kinect2.git', version: master}
 ```
 
-Or copy the content of tracker.rosinstall in the install repository folder.
+A copy of the tracker.rosinstall file with all the packages can be found in the install repository folder.
 
 Fetch the code:
 ```

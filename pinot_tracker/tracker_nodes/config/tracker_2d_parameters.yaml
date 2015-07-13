@@ -1,0 +1,11 @@
+pinot/tracker_2d/filter_border: false
+pinot/tracker_2d/update_votes: false
+
+# clustering parameters
+pinot/tracker_2d/eps: 10
+pinot/tracker_2d/min_points: 5
+
+
+
+
+
