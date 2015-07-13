@@ -28,8 +28,9 @@ Copy the contents of the following lines into a file ~/[name_of_workspace]/src/.
 ```
 - git: {local-name: pinot_tracker, uri: 'git@bitbucket.org:robocoffee/pinot_tracker.git', version: master}
 ```
-If you installed successfully libfreenect2 on your system, you can add this line in the install file to clone 
-this package necessary to use the Kinect V2.
+If you installed successfully [libfreenect2](https://github.com/OpenKinect/libfreenect2) on your system, 
+you can add this line in the install file to clone [kinect2 bridge package](https://github.com/code-iai/iai_kinect2) 
+necessary to use the Kinect V2.
 ```
 - git: {local-name: iai_kinect2, uri: 'https://github.com/code-iai/iai_kinect2.git', version: master}
 ```
@@ -88,46 +89,24 @@ roslaunch tracker_cameras kinect_v1.launch
 
 ## Dependencies
 
-```
-roslaunch pr2_gazebo pr2_empty_world.launch
-roslaunch pr2_moveit_config move_group.launch
-```
+- libfreenect: required to use Kinect V1
+- [libfreenect2](https://github.com/OpenKinect/libfreenect2), [iai_kinect2](https://github.com/code-iai/iai_kinect2): required to use Kinect V2
+- libuvc,[libuvc_camera](http://wiki.ros.org/libuvc_camera): required to run any common usb camera
 
 ## Tracker
 
 ### Tracking 2D
 
-Start:
+Run the following command in a terminal:
 ```
-ssh user@pr2-c1
-robot claim
-robot start
+roslaunch pinot_tracker_nodes usb_camera.launch
 ```
-
-Activate the Kinect with Yasemin's calibration:
-```
-cd ~/amazon_challenge_ws/
-roslaunch kinect_yasemin/kinect_node.launch
-```
-
-Start moveit:
-```
-cd ~/catkin_ws/
-source devel/setup.bash
-roslaunch pr2_ft_moveit_config move_group.launch
-```
-
-Stop:
-```
-robot stop
-robot release
-```
+Once the video is shown on the screen please draw a bounding box aruond the object you want to track by pressing the left mouse button and draggin it.
 
 ### Tracking 3D
 
-Example service call:
 ```
-rosservice call laser_tilt_controller/set_periodic_cmd '{ command: { header: { stamp: 0 }, profile: "linear" , period: 9 , amplitude: 1 , offset: 0 }}'
+WORK IN PROGRESS...
 ```
 
 See [here](http://wiki.ros.org/pr2_mechanism_controllers/LaserScannerTrajController) for more details.
