@@ -28,8 +28,9 @@ Copy the contents of the following lines into a file ~/[name_of_workspace]/src/.
 ```
 - git: {local-name: pinot_tracker, uri: 'git@bitbucket.org:robocoffee/pinot_tracker.git', version: master}
 ```
-If you installed successfully libfreenect2 on your system, you can add this line in the install file to clone 
-this package necessary to use the Kinect V2.
+If you installed successfully [libfreenect2](https://github.com/OpenKinect/libfreenect2) on your system, 
+you can add this line in the install file to clone [kinect2 bridge package](https://github.com/code-iai/iai_kinect2) 
+necessary to use the Kinect V2.
 ```
 - git: {local-name: iai_kinect2, uri: 'https://github.com/code-iai/iai_kinect2.git', version: master}
 ```
@@ -89,8 +90,8 @@ roslaunch tracker_cameras kinect_v1.launch
 ## Dependencies
 
 - libfreenect: required to use Kinect V1
-- libfreenect2, iai_kinect2: required to use Kinect V2
-- libuvc: required to run a general RGB usb camera
+- [libfreenect2](https://github.com/OpenKinect/libfreenect2), [iai_kinect2](https://github.com/code-iai/iai_kinect2): required to use Kinect V2
+- libuvc,[libuvc_camera](http://wiki.ros.org/libuvc_camera): required to run any common usb camera
 
 ## Tracker
 
