@@ -144,7 +144,7 @@ void TrackerNode2D::run() {
 
   Tracker2D tracker(params_);
 
-  //auto& profiler = Profiler::getInstance();
+  auto& profiler = Profiler::getInstance();
 
   while (ros::ok()) {
     // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
@@ -163,10 +163,10 @@ void TrackerNode2D::run() {
 
       if (tracker_initialized_) {
         auto begin = chrono::high_resolution_clock::now();
-        //profiler->start("test");
+        profiler->start("test");
         Mat out;
         tracker.computeNext(rgb_image_, out);
-        //profiler->stop("test");
+        profiler->stop("test");
         auto end = chrono::high_resolution_clock::now();
         auto time_span =
             chrono::duration_cast<chrono::milliseconds>(end - begin).count();
@@ -176,7 +176,7 @@ void TrackerNode2D::run() {
         vector<Point2f> bbox = tracker.getBoundingBox();
         drawBoundingBox(bbox, Scalar(255, 0, 0), 2, rgb_image_);
         ss << "Tracker run in ms: " << time_span << "";
-        //ss << " profiler " << profiler->getProfile().c_str();
+        ss << " profiler " << profiler->getProfile().c_str();
         ROS_INFO(ss.str().c_str());
       }
 
