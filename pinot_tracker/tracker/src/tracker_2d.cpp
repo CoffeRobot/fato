@@ -156,6 +156,8 @@ void Tracker2D::computeNext(Mat& next, Mat& out) {
   vector<KeyPoint> nextKeypoints;
   Mat nextDescriptors;
 
+  auto& profiler = Profiler::getInstance();
+
   /*********************************************************************************************/
   /*                             TRACKING */
   /*********************************************************************************************/

@@ -17,6 +17,8 @@
 #include <DBScanClustering.h>
 #include <DebugFunctions.h>
 #include <Constants.h>
+#include "../../utilities/include/profiler.h" // ugly include for auto completion
+// #include <profiler.h>
 
 #include "matcher.h"
 

@@ -35,10 +35,6 @@ static void upload(const vector<Point2f>& points, GpuMat& d_points) {
                     return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
 }*/
 
-inline Point2f mult(const Mat2f& rot, const Point2f& p) {
-  return Point2f(rot.at<float>(0, 0) * p.x + rot.at<float>(1, 0) * p.y,
-                 rot.at<float>(0, 1) * p.x + rot.at<float>(1, 1) * p.y);
-}
 
 inline cv::Mat1b getMask(int rows, int cols, const cv::Point2d& begin,
                          const cv::Point2d& end) {

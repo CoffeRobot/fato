@@ -6,6 +6,7 @@
 #include <chrono>
 #include <profiler.h>
 #include <draw_functions.h>
+#include "../../tracker/include/tracker_2d_v2.h"
 
 using namespace cv;
 using namespace std;
@@ -142,7 +143,8 @@ void TrackerNode2D::run() {
   cout << params_.threshold << " " << params_.octaves << " "
        << params_.pattern_scale << endl;
 
-  Tracker2D tracker(params_);
+  //Tracker2D tracker(params_);
+  TrackerV2 tracker;
 
   auto& profiler = Profiler::getInstance();
 
@@ -165,7 +167,7 @@ void TrackerNode2D::run() {
         auto begin = chrono::high_resolution_clock::now();
         profiler->start("test");
         Mat out;
-        tracker.computeNext(rgb_image_, out);
+        tracker.computeNext(rgb_image_);
         profiler->stop("test");
         auto end = chrono::high_resolution_clock::now();
         auto time_span =

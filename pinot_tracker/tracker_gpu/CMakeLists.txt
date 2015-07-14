@@ -31,7 +31,8 @@ catkin_package(
   CATKIN_DEPENDS utilities clustering
 )
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native")
+#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -march=native")
 
 # show additional files in qtcreator
 execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f
@@ -49,7 +50,7 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
   )
 
   add_library(${PROJECT_NAME}
-  src/matcher.cpp
+  #src/matcher.cpp
   src/tracker.cpp
   )
 

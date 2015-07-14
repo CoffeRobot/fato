@@ -1,6 +1,4 @@
-#include "Tracker.h"
-#include "HelperFunctions.h"
-#include "GpuTimer.h"
+#include "../include/tracker_2d_v2.h"
 
 #include <utilities.h>
 #include <DebugFunctions.h>
@@ -13,11 +11,9 @@
 #include <algorithm>
 #include <utility>
 
-namespace pinot {
+namespace pinot_tracker {
 
-namespace gpu {
-
-Tracker::Tracker()
+TrackerV2::TrackerV2()
     : num_features_(500),
       scale_factor_(1.1f),
       num_levels_(6),
@@ -27,56 +23,33 @@ Tracker::Tracker()
       score_type_(0),
       patch_size_(31),
       matcher_confidence_(0.8),
-      matcher_ratio_(0.8) {}
+      matcher_ratio_(0.8),
+      m_featuresDetector()
+{
+  m_featuresDetector.create("Feature2D.BRISK");
+}
 
-bool Tracker::isPointValid(const int& id) {
-  // auto tmp_id = m_upd_to_init_ids[id];
-
-  // std::cout << tmp_id << " "  << id << std::endl;
-
+bool TrackerV2::isPointValid(const int& id) {
   return m_pointsStatus[id] == Status::TRACK;
 }
 
-void Tracker::init(const cv::Mat& rgb, const cv::Point2d& fst,
+void TrackerV2::init(const cv::Mat& rgb, const cv::Point2d& fst,
                    const cv::Point2d& scd) {
   auto mask = getMask(rgb.rows, rgb.cols, fst, scd);
   init(rgb, mask);
 }
 
-void Tracker::init(const Mat& rgb, const Mat& mask) {
-  GpuMat d_gray;
-  GpuMat d_rgb;
+void TrackerV2::init(const Mat& rgb, const Mat& mask) {
   Mat gray;
 
   m_width = rgb.cols;
   m_height = rgb.rows;
 
-  d_rgb.upload(rgb);
-  cvtColor(d_rgb, d_gray, CV_BGR2GRAY);
   cvtColor(rgb, gray, CV_BGR2GRAY);
 
   // BRISK featuresDetector;
-  // featuresDetector.detect(gray, m_initKeypoints);
-  // featuresDetector.compute(gray, m_initKeypoints, m_initDescriptors);
-
-  // int nLevels = 6;
-  // int edgeThreshold = 31;
-  // int firstLevel = 0;
-  // int WTA_K = 2;
-  // int scoreType = 0;
-  // int patchSize = 31;
-
-  cv::gpu::ORB_GPU m_orbDetector(num_features_, scale_factor_, num_levels_,
-                                 edge_threshold_, first_level_, wta_k_,
-                                 score_type_, patch_size_);
-
-  /*cv::gpu::ORB_GPU m_orbDetector(num_features_, scale_factor_, num_levels_,
-                                 edge_threshold_, first_level_, wta_k_,
-                                 score_type_, patch_size_);*/
-
-  m_orbDetector(d_gray, GpuMat(), dm_initKeypoints, dm_initDescriptors);
-  m_orbDetector.downloadKeyPoints(dm_initKeypoints, m_initKeypoints);
-  dm_initDescriptors.download(m_initDescriptors);
+  m_featuresDetector.detect(gray, m_initKeypoints);
+  m_featuresDetector.compute(gray, m_initKeypoints, m_initDescriptors);
 
   for (int i = 0; i < m_initKeypoints.size(); i++) {
     Point2f pt = m_initKeypoints[i].pt;
@@ -133,18 +106,21 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
   /*                          INIT THREADS                                    */
   /****************************************************************************/
   m_isRunning = true;
-  m_trackerStatus = async(launch::async, &Tracker::runTracker, this);
-  m_detectorStatus = async(launch::async, &Tracker::runDetector, this);
+  m_trackerStatus = async(launch::async, &TrackerV2::runTracker, this);
+  m_detectorStatus = async(launch::async, &TrackerV2::runDetector, this);
   /****************************************************************************/
   /*                          LOADING IMGS ON GPU                             */
   /****************************************************************************/
   // cout << "load images" << endl;
   rgb.copyTo(m_init_rgb_img);
-  dm_prev.upload(rgb);
-  cv::gpu::cvtColor(dm_prev, dm_prevGray, CV_BGR2GRAY);
+  gray.copyTo(prev_gray_);
+  // dm_prev.upload(rgb);
+  // cv::gpu::cvtColor(dm_prev, dm_prevGray, CV_BGR2GRAY);
+  cout << "Num points " << m_initKeypoints.size() << endl;
+  waitKey(0);
 }
 
-void Tracker::setFeatureExtractionParameters(int num_features,
+void TrackerV2::setFeatureExtractionParameters(int num_features,
                                              float scale_factor, int num_levels,
                                              int edge_threshold,
                                              int first_level, int patch_size) {
@@ -156,12 +132,12 @@ void Tracker::setFeatureExtractionParameters(int num_features,
   patch_size_ = patch_size;
 }
 
-void Tracker::setMatcerParameters(float confidence, float second_ratio) {
+void TrackerV2::setMatcerParameters(float confidence, float second_ratio) {
   matcher_confidence_ = confidence;
   matcher_ratio_ = second_ratio;
 }
 
-Point2f Tracker::initCentroid(const vector<Point2f>& points) {
+Point2f TrackerV2::initCentroid(const vector<Point2f>& points) {
   Point2f centroid(0, 0);
   int validPoints = 0;
 
@@ -178,22 +154,22 @@ Point2f Tracker::initCentroid(const vector<Point2f>& points) {
   return centroid;
 }
 
-void Tracker::extractFeatures(const GpuMat& gray,
-                              std::vector<KeyPoint>& keypoints,
-                              Mat& descriptors) {
-  cv::gpu::ORB_GPU orbDetector;
-  orbDetector(gray, GpuMat(), dm_initKeypoints, dm_initDescriptors);
-  orbDetector.downloadKeyPoints(dm_initKeypoints, m_initKeypoints);
-  dm_initDescriptors.download(m_initDescriptors);
-}
+// void Tracker::extractFeatures(const GpuMat& gray,
+//                              std::vector<KeyPoint>& keypoints,
+//                              Mat& descriptors) {
+//  cv::gpu::ORB_GPU orbDetector;
+//  orbDetector(gray, GpuMat(), dm_initKeypoints, dm_initDescriptors);
+//  orbDetector.downloadKeyPoints(dm_initKeypoints, m_initKeypoints);
+//  dm_initDescriptors.download(m_initDescriptors);
+//}
 
-void Tracker::extractFeatures(const Mat& gray, std::vector<KeyPoint>& keypoints,
+void TrackerV2::extractFeatures(const Mat& gray, std::vector<KeyPoint>& keypoints,
                               Mat& descriptors) {
   m_featuresDetector.detect(gray, keypoints);
   m_featuresDetector.compute(gray, keypoints, descriptors);
 }
 
-void Tracker::initRelativeDistance(const vector<Point2f>& points,
+void TrackerV2::initRelativeDistance(const vector<Point2f>& points,
                                    const Point2f& centroid,
                                    vector<Point2f>& relDistances) {
   relDistances.reserve(points.size());
@@ -203,7 +179,7 @@ void Tracker::initRelativeDistance(const vector<Point2f>& points,
   }
 }
 
-void Tracker::initBoundingBox(const Mat& mask, const Point2f& centroid,
+void TrackerV2::initBoundingBox(const Mat& mask, const Point2f& centroid,
                               vector<Point2f>& initBox,
                               vector<Point2f>& relativeBox,
                               vector<Point2f>& updBox) {
@@ -235,35 +211,26 @@ void Tracker::initBoundingBox(const Mat& mask, const Point2f& centroid,
   updBox = initBox;
 }
 
-void Tracker::getOpticalFlow(const GpuMat& d_prev, const GpuMat& d_next,
+void TrackerV2::getOpticalFlow(const Mat& prev, const Mat& next,
                              vector<Point2f>& points, vector<int>& ids,
                              vector<Status>& status) {
-  // uploading points to the gpu
-  cv::gpu::GpuMat d_nextStatus, d_prevStatus, d_prevCalcPts, d_prevPts,
-      d_nextPts;
-  upload(points, d_prevPts);
 
-  m_dPyrLK.sparse(d_prev, d_next, d_prevPts, d_nextPts, d_nextStatus);
-  m_dPyrLK.sparse(d_next, d_prev, d_nextPts, d_prevCalcPts, d_prevStatus);
+  vector<Point2f> next_points, prev_points;
+  vector<uchar> next_status, prev_status;
+  vector<float> next_errors, prev_errors;
 
-  vector<Point2f> prevPoints(d_prevPts.cols);
-  vector<Point2f> prevCalcPoints(d_prevCalcPts.cols);
-  vector<Point2f> nextPoints(d_nextPts.cols);
+  calcOpticalFlowPyrLK(prev, next, points, next_points, next_status,
+                       next_errors);
 
-  download(d_prevPts, prevPoints);
-  download(d_prevCalcPts, prevCalcPoints);
-  download(d_nextPts, nextPoints);
-
-  vector<uchar> ofStatus(d_prevStatus.cols);
-  download(d_prevStatus, ofStatus);
-
+  calcOpticalFlowPyrLK(next, prev, next_points, prev_points, prev_status,
+                       prev_errors);
   m_flow_counter = 0;
-  for (int i = 0; i < nextPoints.size(); ++i) {
-    float error = pinot_tracker::getDistance(prevCalcPoints[i], prevPoints[i]);
+  for (int i = 0; i < next_points.size(); ++i) {
+    float error = pinot_tracker::getDistance(points[i], prev_points[i]);
 
     Status& s = status[ids[i]];
 
-    if (ofStatus[i] == 1 && error < 20) {
+    if (prev_status[i] == 1 && error < 20) {
       // const int& id = ids[i];
       auto id = i;
 
@@ -279,7 +246,7 @@ void Tracker::getOpticalFlow(const GpuMat& d_prev, const GpuMat& d_next,
         m_flow_counter++;
       }
 
-      points[i] = nextPoints[i];
+      points[i] = next_points[i];
     } else {
       // status[ids[i]] = Status::LOST;
       if (status[i] != Status::BACKGROUND) status[i] = Status::LOST;
@@ -289,7 +256,7 @@ void Tracker::getOpticalFlow(const GpuMat& d_prev, const GpuMat& d_next,
   }
 }
 
-float Tracker::getMedianRotation(const vector<Point2f>& initPoints,
+float TrackerV2::getMedianRotation(const vector<Point2f>& initPoints,
                                  const vector<Point2f>& updPoints,
                                  const vector<int>& ids) {
   vector<double> angles;
@@ -328,7 +295,7 @@ float Tracker::getMedianRotation(const vector<Point2f>& initPoints,
   return static_cast<float>(median);
 }
 
-float Tracker::getMedianScale(const vector<Point2f>& initPoints,
+float TrackerV2::getMedianScale(const vector<Point2f>& initPoints,
                               const vector<Point2f>& updPoints,
                               const vector<int>& ids) {
   vector<float> scales;
@@ -366,7 +333,7 @@ float Tracker::getMedianScale(const vector<Point2f>& initPoints,
   return median;
 }
 
-void Tracker::voteForCentroid(const vector<Point2f>& relativeDistances,
+void TrackerV2::voteForCentroid(const vector<Point2f>& relativeDistances,
                               const vector<Point2f>& updPoints,
                               const float& angle, const float& scale,
                               vector<Point2f>& votes) {
@@ -386,12 +353,12 @@ void Tracker::voteForCentroid(const vector<Point2f>& relativeDistances,
       const Point2f& a = updPoints[i];
       const Point2f& rm = relativeDistances[i];
 
-      votes[i] = a - scale * pinot_tracker::mult(rotMat, rm);
+      votes[i] = a - scale * mult(rotMat, rm);
     }
   }
 }
 
-void Tracker::clusterVotes(vector<Point2f>& centroidVotes,
+void TrackerV2::clusterVotes(vector<Point2f>& centroidVotes,
                            vector<bool>& isClustered) {
   DBScanClustering<Point2f*> clusterer;
 
@@ -434,7 +401,7 @@ void Tracker::clusterVotes(vector<Point2f>& centroidVotes,
   }
 }
 
-void Tracker::updateCentroid(const float& angle, const float& scale,
+void TrackerV2::updateCentroid(const float& angle, const float& scale,
                              const vector<Point2f>& votes,
                              const vector<bool>& isClustered,
                              Point2f& updCentroid) {
@@ -459,7 +426,7 @@ void Tracker::updateCentroid(const float& angle, const float& scale,
   }
 }
 
-void Tracker::updatePointsStatus(const vector<bool>& isClustered,
+void TrackerV2::updatePointsStatus(const vector<bool>& isClustered,
                                  vector<Point2f>& points,
                                  vector<Point2f>& votes,
                                  vector<Point2f>& relDistances,
@@ -492,7 +459,7 @@ void Tracker::updatePointsStatus(const vector<bool>& isClustered,
   relDistances.resize(reducedSize);
 }
 
-void Tracker::labelNotClusteredPts(const vector<bool>& isClustered,
+void TrackerV2::labelNotClusteredPts(const vector<bool>& isClustered,
                                    vector<Point2f>& points,
                                    vector<Point2f>& votes,
                                    vector<Point2f>& relDistances,
@@ -507,7 +474,7 @@ void Tracker::labelNotClusteredPts(const vector<bool>& isClustered,
   }
 }
 
-void Tracker::discardNotClustered(std::vector<Point2f>& upd_points,
+void TrackerV2::discardNotClustered(std::vector<Point2f>& upd_points,
                                   std::vector<Point2f>& init_pts,
                                   cv::Point2f& upd_centroid,
                                   cv::Point2f& init_centroid,
@@ -528,7 +495,7 @@ void Tracker::discardNotClustered(std::vector<Point2f>& upd_points,
   }
 }
 
-void Tracker::removeLostPoints(const std::vector<bool>& isClustered,
+void TrackerV2::removeLostPoints(const std::vector<bool>& isClustered,
                                std::vector<Point2f>& points,
                                std::vector<Point2f>& votes,
                                std::vector<Point2f>& relDistances,
@@ -561,7 +528,7 @@ void Tracker::removeLostPoints(const std::vector<bool>& isClustered,
   relDistances.resize(reducedSize);
 }
 
-void Tracker::updateBoundingBox(const float& angle, const float& scale,
+void TrackerV2::updateBoundingBox(const float& angle, const float& scale,
                                 const vector<Point2f>& boundingBoxRelative,
                                 const Point2f& updCentroid,
                                 vector<Point2f>& updBox) {
@@ -573,11 +540,11 @@ void Tracker::updateBoundingBox(const float& angle, const float& scale,
   rotMat.at<float>(1, 1) = cosf(angle);
 
   for (int i = 0; i < updBox.size(); ++i) {
-    updBox[i] = updCentroid + scale * pinot_tracker::mult(rotMat, boundingBoxRelative[i]);
+    updBox[i] = updCentroid + scale * mult(rotMat, boundingBoxRelative[i]);
   }
 }
 
-void Tracker::computeNext(const Mat& next) {
+void TrackerV2::computeNext(const Mat& next) {
   // cout << "Computing next! " << endl;
 
   m_nextRgb = next;
@@ -593,7 +560,6 @@ void Tracker::computeNext(const Mat& next) {
   std::chrono::microseconds sleepTime(1);
 
   while (!m_trackerDone || !m_matcherDone) {
-    // do nothing
     std::this_thread::sleep_for(sleepTime);
   }
   /****************************************************************************/
@@ -612,38 +578,34 @@ void Tracker::computeNext(const Mat& next) {
   m_centroid_old = m_updatedCentroid;
 }
 
-void Tracker::taskFinished() {
+void TrackerV2::taskFinished() {
   m_isRunning = false;
   m_trackerCondition.notify_one();
   m_detectorCondition.notify_one();
 }
 
-int Tracker::runTracker() {
+int TrackerV2::runTracker() {
   // cv::gpu::setDevice(0);
 
-  GpuTimer timer;
   m_trackerFrameCount = 0;
   m_trackerTime = 0;
 
-  cout << "Tracker initialized!" << endl;
+  cout << "Tracker process initialized! \n" << endl;
 
   while (m_isRunning) {
     unique_lock<mutex> lock(m_trackerMutex);
     m_trackerCondition.wait(lock);
-    if (!m_isRunning) return 0;
-    if (m_nextRgb.empty()) return 0;
+    if (!m_isRunning) break;
+    if (m_nextRgb.empty()) break;
     /*********************************************************************************/
-    timer.Start();
     /*********************************************************************************/
     Mat rgb = m_nextRgb;
-    // cout << "before tracker" << endl;
+//    cout << "before tracker \n" << endl;
     trackNext(rgb);
-    // cout << "after tracker" << endl;
+//    cout << "after tracker \n" << endl;
     m_completed++;
     m_trackerDone = true;
     /*********************************************************************************/
-    timer.Stop();
-    m_trackerTime += timer.Elapsed();
     m_trackerFrameCount++;
     /*********************************************************************************/
   }
@@ -652,37 +614,28 @@ int Tracker::runTracker() {
   return 0;
 }
 
-int Tracker::runDetector() {
-  cout << "Before device call!" << endl;
+int TrackerV2::runDetector() {
 
-  // cudaThreadExit();
-  // cv::gpu::setDevice(1);
-
-  cout << "Before timer call!" << endl;
-
-  GpuTimer timer;
   m_detectorFrameCount = 0;
   m_detectorTime = 0;
 
-  cout << "Detector initialized!" << endl;
+  cout << "Detector porcess initialized! \n" << endl;
 
   while (m_isRunning) {
     unique_lock<mutex> lock(m_detectorMutex);
     m_detectorCondition.wait(lock);
-    if (!m_isRunning) return 0;
-    if (m_nextRgb.empty()) return 0;
+    if (!m_isRunning) break;
+    if (m_nextRgb.empty()) break;
     /*********************************************************************************/
-    timer.Start();
+
     /*********************************************************************************/
     Mat rgb = m_nextRgb;
-    // cout << "before detector" << endl;
+//    cout << "before detector \n" << endl;
     detectNext(rgb);
-    // cout << "after detector" << endl;
+//    cout << "after detector \n" << endl;
     m_matcherDone = true;
     m_completed++;
     /*********************************************************************************/
-    timer.Stop();
-    m_detectorTime += timer.Elapsed();
     m_detectorFrameCount++;
     /*********************************************************************************/
   }
@@ -691,18 +644,17 @@ int Tracker::runDetector() {
   return 0;
 }
 
-void Tracker::trackNext(Mat next) {
+void TrackerV2::trackNext(Mat next) {
   /*************************************************************************************/
   /*                       LOADING IMAGES */
   /*************************************************************************************/
-  GpuMat d_next, d_nextGray;
-  d_next.upload(next);
-  cvtColor(d_next, d_nextGray, CV_BGR2GRAY);
+  Mat next_gray;
+  cvtColor(next, next_gray, CV_BGR2GRAY);
   /*************************************************************************************/
   /*                       TRACKING */
   /*************************************************************************************/
-  // cout << "Optical flow " << endl;
-  getOpticalFlow(dm_prevGray, d_nextGray, m_updatedPoints, m_upd_to_init_ids,
+//  cout << "Optical flow " << endl;
+  getOpticalFlow(prev_gray_, next_gray, m_updatedPoints, m_upd_to_init_ids,
                  m_pointsStatus);
   /*************************************************************************************/
   /*                             ANGLE /
@@ -715,19 +667,19 @@ void Tracker::trackNext(Mat next) {
   /*************************************************************************************/
   /*                             SCALE */
   /*************************************************************************************/
-  // cout << "Scale " << endl;
+//   cout << "Scale " << endl;
   float scale = getMedianScale(m_points, m_updatedPoints, m_upd_to_init_ids);
   m_scale = scale;
   // cout << "Scale " << scale << endl;
   /*************************************************************************************/
   /*                             VOTING */
   /*************************************************************************************/
-  // cout << "Vote " << endl;
+//   cout << "Vote " << endl;
   voteForCentroid(m_relativeDistances, m_updatedPoints, angle, scale, m_votes);
   /*************************************************************************************/
   /*                             CLUSTERING */
   /*************************************************************************************/
-  // cout << "Cluster " << endl;
+//   cout << "Cluster " << endl;
   vector<bool> isClustered;
   clusterVotes(m_votes, isClustered);
   /*************************************************************************************/
@@ -748,68 +700,46 @@ void Tracker::trackNext(Mat next) {
   /*************************************************************************************/
   /*                             UPDATING CENTROID */
   /*************************************************************************************/
-  // cout << "Upd centroid " << endl;
+//   cout << "Upd centroid " << endl;
   updateCentroid(angle, scale, m_votes, isClustered, m_updatedCentroid);
   /*************************************************************************************/
   /*                             UPDATING BOX */
   /*************************************************************************************/
-  // cout << "Upd box " << endl;
+//   cout << "Upd box " << endl;
   updateBoundingBox(angle, scale, m_boundingBoxRelative, m_updatedCentroid,
                     m_boundingBoxUpdated);
   /*************************************************************************************/
   /*                       SWAP MEMORY */
   /*************************************************************************************/
-  dm_prev.swap(d_next);
-  dm_prevGray.swap(d_nextGray);
+  next_gray.copyTo(prev_gray_);
 }
 
-void Tracker::detectNext(Mat next) {
+void TrackerV2::detectNext(Mat next) {
   /*************************************************************************************/
   /*                       LOADING IMAGES */
   /*************************************************************************************/
 
-  GpuMat d_next, d_nextGray, d_keypoints, d_descriptors;
+  // GpuMat d_next, d_nextGray, d_keypoints, d_descriptors;
   // GpuTimer tm;
   // tm.Start();
-  d_next.upload(next);
-  cvtColor(d_next, d_nextGray, CV_BGR2GRAY);
+  // d_next.upload(next);
+  // cvtColor(d_next, d_nextGray, CV_BGR2GRAY);
   // tm.Stop();
   // cout << "Upload and grayscale in " << tm.Elapsed() << " ms " << endl;
   /*************************************************************************************/
   /*                       FEATURE EXTRACTION */
   /*************************************************************************************/
-  // ORB_GPU d_orbExtractor;
-  Mat descriptors, gray;
   vector<KeyPoint> keypoints;
-
-  // int nLevels = 6;
-  // int edgeThreshold = 31;
-  // int firstLevel = 0;
-  // int WTA_K = 2;
-  // int scoreType = 0;
-  // int patchSize = 31;
-
-  cv::gpu::ORB_GPU orbDetector(num_features_, scale_factor_, num_levels_,
-                               edge_threshold_, first_level_, wta_k_,
-                               score_type_, patch_size_);
-
-  orbDetector(d_nextGray, GpuMat(), d_keypoints, d_descriptors);
-  d_descriptors.download(descriptors);
-  orbDetector.downloadKeyPoints(d_keypoints, keypoints);
-  // alternative with brisk
-
-  // cvtColor(next, gray, CV_BGR2GRAY);
-  // m_featuresDetector.detect(gray, keypoints);
-  // m_featuresDetector.compute(gray, keypoints, descriptors);
+  Mat gray, descriptors;
+  cvtColor(next, gray, CV_BGR2GRAY);
+  m_featuresDetector.detect(gray, keypoints);
+  m_featuresDetector.compute(gray, keypoints, descriptors);
 
   /*************************************************************************************/
   /*                       FEATURE MATCHING */
   /*************************************************************************************/
   vector<vector<DMatch>> matches;
   m_customMatcher.match32(descriptors, m_initDescriptors, 2, matches);
-  // BFMatcher_GPU d_matcher(NORM_HAMMING);
-  // d_matcher.match(d_descriptors, dm_initDescriptors, matches);
-
   /*************************************************************************************/
   /*                      SYNC WITH TRACKER */
   /*************************************************************************************/
@@ -876,7 +806,7 @@ void Tracker::detectNext(Mat next) {
   // waitKey(0);
 }
 
-bool Tracker::evaluatePose(const float& angle, const float& scale) {
+bool TrackerV2::evaluatePose(const float& angle, const float& scale) {
   // discretize angle
   float angle_change = pinot_tracker::roundDownToNearest(angle, 0.30);
   // discretize scale
@@ -954,81 +884,82 @@ bool Tracker::evaluatePose(const float& angle, const float& scale) {
   return is_new_pose;
 }
 
-void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
-                        const GpuMat& d_gray, std::vector<Point2f>& init_pts,
-                        std::vector<Point2f>& upd_pts,
-                        std::vector<Status>& pts_status,
-                        std::vector<int>& pts_id) {
+//void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
+//                        const GpuMat& d_gray, std::vector<Point2f>& init_pts,
+//                        std::vector<Point2f>& upd_pts,
+//                        std::vector<Status>& pts_status,
+//                        std::vector<int>& pts_id) {
+
   // extract features
-  cv::gpu::GpuMat d_keypoints;
-  cv::gpu::GpuMat d_descriptors;
-  ORB_GPU orbDetector;
-  orbDetector(d_gray, GpuMat(), d_keypoints, d_descriptors);
-  // find feature points that belongs to the model
-  std::vector<KeyPoint> keypoints;
-  std::vector<Point2f> points_to_add;
-  Mat descriptors;
-  orbDetector.downloadKeyPoints(d_keypoints, keypoints);
-  d_descriptors.download(descriptors);
-  // draw mask of the object
-  Mat1b mask(m_height, m_width, static_cast<uchar>(0));
-  drawTriangleMask(bbox[0], bbox[1], bbox[2], mask);
-  drawTriangleMask(bbox[0], bbox[2], bbox[3], mask);
+  //  cv::gpu::GpuMat d_keypoints;
+  //  cv::gpu::GpuMat d_descriptors;
+  //  ORB_GPU orbDetector;
+  //  orbDetector(d_gray, GpuMat(), d_keypoints, d_descriptors);
+  //  // find feature points that belongs to the model
+  //  std::vector<KeyPoint> keypoints;
+  //  std::vector<Point2f> points_to_add;
+  //  Mat descriptors;
+  //  orbDetector.downloadKeyPoints(d_keypoints, keypoints);
+  //  d_descriptors.download(descriptors);
+  //  // draw mask of the object
+  //  Mat1b mask(m_height, m_width, static_cast<uchar>(0));
+  //  drawTriangleMask(bbox[0], bbox[1], bbox[2], mask);
+  //  drawTriangleMask(bbox[0], bbox[2], bbox[3], mask);
 
-  // Mat debug_img;
-  // m_nextRgb.copyTo(debug_img);
+  //  // Mat debug_img;
+  //  // m_nextRgb.copyTo(debug_img);
 
-  Mat descriptors_to_add;
-  for (int i = 0; i < keypoints.size(); i++) {
-    Point2f& pt = keypoints[i].pt;
-    if (mask.at<uchar>(pt) == 255) {
-      points_to_add.push_back(pt);
-      descriptors_to_add.push_back(descriptors.row(i));
-      // circle(debug_img, pt, 3, Scalar(255, 0, 0), 1);
-    }
-  }
+  //  Mat descriptors_to_add;
+  //  for (int i = 0; i < keypoints.size(); i++) {
+  //    Point2f& pt = keypoints[i].pt;
+  //    if (mask.at<uchar>(pt) == 255) {
+  //      points_to_add.push_back(pt);
+  //      descriptors_to_add.push_back(descriptors.row(i));
+  //      // circle(debug_img, pt, 3, Scalar(255, 0, 0), 1);
+  //    }
+  //  }
 
-  // imshow("Learn Debug", debug_img);
-  // waitKey(0);*/
+  //  // imshow("Learn Debug", debug_img);
+  //  // waitKey(0);*/
 
-  auto pts_size = m_points.size();
+  //  auto pts_size = m_points.size();
 
-  vector<Point2f> projected_pts;
-  projectPointsToModel(m_initCentroid, m_updatedCentroid, m_angle, m_scale,
-                       points_to_add, projected_pts);
+  //  vector<Point2f> projected_pts;
+  //  projectPointsToModel(m_initCentroid, m_updatedCentroid, m_angle, m_scale,
+  //                       points_to_add, projected_pts);
 
-  Mat init_debug;
-  m_init_rgb_img.copyTo(init_debug);
+  //  Mat init_debug;
+  //  m_init_rgb_img.copyTo(init_debug);
 
-  std::cout << m_points.size() << std::endl;
+  //  std::cout << m_points.size() << std::endl;
 
-  for (auto i = 0; i < points_to_add.size(); i++) {
-    if (m_points.size() > 2000) break;
+  //  for (auto i = 0; i < points_to_add.size(); i++) {
+  //    if (m_points.size() > 2000) break;
 
-    auto id = i + pts_size;
-    auto pt = points_to_add[i];
-    auto pt_prj = projected_pts[i];
-    m_pointsStatus.push_back(Status::MATCH);
-    m_updatedPoints.push_back(pt);
-    m_votes.push_back(Point2f(0, 0));
-    m_upd_to_init_ids.push_back(id);
-    m_points.push_back(pt_prj);
-    m_relativeDistances.push_back(pt_prj - m_initCentroid);
-    m_initDescriptors.push_back(descriptors_to_add.row(i));
-    // TODO: remove this after experiments are done
-    m_points_status_debug.push_back(Status::LEARN);
-    circle(init_debug, pt_prj, 3, Scalar(255, 0, 0), 1);
-  }
+  //    auto id = i + pts_size;
+  //    auto pt = points_to_add[i];
+  //    auto pt_prj = projected_pts[i];
+  //    m_pointsStatus.push_back(Status::MATCH);
+  //    m_updatedPoints.push_back(pt);
+  //    m_votes.push_back(Point2f(0, 0));
+  //    m_upd_to_init_ids.push_back(id);
+  //    m_points.push_back(pt_prj);
+  //    m_relativeDistances.push_back(pt_prj - m_initCentroid);
+  //    m_initDescriptors.push_back(descriptors_to_add.row(i));
+  //    // TODO: remove this after experiments are done
+  //    m_points_status_debug.push_back(Status::LEARN);
+  //    circle(init_debug, pt_prj, 3, Scalar(255, 0, 0), 1);
+  //  }
 
-  cout << "Size of points " << m_points.size() << endl;
-  cout << "Size of descriptors " << m_initDescriptors.rows << endl;
-  cout << "Size of points extracted " << points_to_add.size() << endl;
+  //  cout << "Size of points " << m_points.size() << endl;
+  //  cout << "Size of descriptors " << m_initDescriptors.rows << endl;
+  //  cout << "Size of points extracted " << points_to_add.size() << endl;
 
   // imshow("Learn Debug", init_debug);
   // waitKey(0);
-}
+//}
 
-void Tracker::projectPointsToModel(const Point2f& model_centroid,
+void TrackerV2::projectPointsToModel(const Point2f& model_centroid,
                                    const Point2f& upd_centroid,
                                    const float angle, const float scale,
                                    const std::vector<Point2f>& pts,
@@ -1045,12 +976,10 @@ void Tracker::projectPointsToModel(const Point2f& model_centroid,
       rm.x = rm.x / scale;
       rm.y = rm.y / scale;
     }
-    rm = pinot_tracker::mult(rotMat, rm);
+    rm = mult(rotMat, rm);
 
     proj_pts.push_back(model_centroid + rm);
   }
 }
-
-}  // end namespace gpu
 
 }  // end namespace pinot
