@@ -15,6 +15,7 @@
 #include "../../utilities/include/profiler.h"
 #include "Constants.h"
 #include "matcher.h"
+#include "params.h"
 
 namespace pinot_tracker {
 
@@ -22,7 +23,9 @@ class TrackerV2 {
  public:
   TrackerV2();
 
-  void init(const cv::Mat& rgb, const cv::Point2d& fst, const cv::Point2d& scd);
+  TrackerV2(const TrackerParams& params, const cv::Mat& camera_matrix);
+
+  void init(const cv::Mat &rgb, const cv::Point2d &fst, const cv::Point2d &scd);
 
   void init(const cv::Mat& rgb, const cv::Mat& mask);
 
@@ -247,21 +250,16 @@ class TrackerV2 {
   float m_trackerFrameCount;
   float m_detectorFrameCount;
   /****************************************************************************/
-  /*                       FEATURE EXTRACTION PARAMS                          */
+  /*                       PNP RANSAC REQUIREMENTS                            */
   /****************************************************************************/
-  int num_features_;
-  float scale_factor_;
-  int num_levels_;
-  int edge_threshold_;
-  int first_level_;
-  int wta_k_;
-  int score_type_;
-  int patch_size_;
+  cv::Mat camera_matrix_;
+  int pnp_iterations_;
   /****************************************************************************/
   /*                       MATCHER PARAMS                                     */
   /****************************************************************************/
   float matcher_confidence_;
   float matcher_ratio_;
+
 };
 
 } // end namespace

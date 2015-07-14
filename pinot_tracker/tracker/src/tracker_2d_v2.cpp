@@ -14,19 +14,15 @@
 namespace pinot_tracker {
 
 TrackerV2::TrackerV2()
-    : num_features_(500),
-      scale_factor_(1.1f),
-      num_levels_(6),
-      edge_threshold_(31),
-      first_level_(0),
-      wta_k_(2),
-      score_type_(0),
-      patch_size_(31),
-      matcher_confidence_(0.8),
-      matcher_ratio_(0.8),
-      m_featuresDetector()
-{
+    : matcher_confidence_(0.8), matcher_ratio_(0.8), m_featuresDetector() {
   m_featuresDetector.create("Feature2D.BRISK");
+}
+
+TrackerV2::TrackerV2(const TrackerParams &params, const cv::Mat &camera_matrix)
+    : matcher_confidence_(0.8), matcher_ratio_(0.8), m_featuresDetector(),
+      camera_matrix_(camera_matrix)
+{
+    m_featuresDetector.create("Feature2D.BRISK");
 }
 
 bool TrackerV2::isPointValid(const int& id) {
@@ -34,7 +30,7 @@ bool TrackerV2::isPointValid(const int& id) {
 }
 
 void TrackerV2::init(const cv::Mat& rgb, const cv::Point2d& fst,
-                   const cv::Point2d& scd) {
+                     const cv::Point2d& scd) {
   auto mask = getMask(rgb.rows, rgb.cols, fst, scd);
   init(rgb, mask);
 }
@@ -117,19 +113,6 @@ void TrackerV2::init(const Mat& rgb, const Mat& mask) {
   // dm_prev.upload(rgb);
   // cv::gpu::cvtColor(dm_prev, dm_prevGray, CV_BGR2GRAY);
   cout << "Num points " << m_initKeypoints.size() << endl;
-  waitKey(0);
-}
-
-void TrackerV2::setFeatureExtractionParameters(int num_features,
-                                             float scale_factor, int num_levels,
-                                             int edge_threshold,
-                                             int first_level, int patch_size) {
-  num_features_ = num_features;
-  scale_factor_ = scale_factor;
-  num_levels_ = num_levels;
-  edge_threshold_ = edge_threshold;
-  first_level_ = first_level;
-  patch_size_ = patch_size;
 }
 
 void TrackerV2::setMatcerParameters(float confidence, float second_ratio) {
@@ -163,15 +146,16 @@ Point2f TrackerV2::initCentroid(const vector<Point2f>& points) {
 //  dm_initDescriptors.download(m_initDescriptors);
 //}
 
-void TrackerV2::extractFeatures(const Mat& gray, std::vector<KeyPoint>& keypoints,
-                              Mat& descriptors) {
+void TrackerV2::extractFeatures(const Mat& gray,
+                                std::vector<KeyPoint>& keypoints,
+                                Mat& descriptors) {
   m_featuresDetector.detect(gray, keypoints);
   m_featuresDetector.compute(gray, keypoints, descriptors);
 }
 
 void TrackerV2::initRelativeDistance(const vector<Point2f>& points,
-                                   const Point2f& centroid,
-                                   vector<Point2f>& relDistances) {
+                                     const Point2f& centroid,
+                                     vector<Point2f>& relDistances) {
   relDistances.reserve(points.size());
 
   for (size_t i = 0; i < points.size(); i++) {
@@ -180,9 +164,9 @@ void TrackerV2::initRelativeDistance(const vector<Point2f>& points,
 }
 
 void TrackerV2::initBoundingBox(const Mat& mask, const Point2f& centroid,
-                              vector<Point2f>& initBox,
-                              vector<Point2f>& relativeBox,
-                              vector<Point2f>& updBox) {
+                                vector<Point2f>& initBox,
+                                vector<Point2f>& relativeBox,
+                                vector<Point2f>& updBox) {
   int minX = numeric_limits<int>::max();
   int minY = minX;
   int maxX = 0;
@@ -212,8 +196,8 @@ void TrackerV2::initBoundingBox(const Mat& mask, const Point2f& centroid,
 }
 
 void TrackerV2::getOpticalFlow(const Mat& prev, const Mat& next,
-                             vector<Point2f>& points, vector<int>& ids,
-                             vector<Status>& status) {
+                               vector<Point2f>& points, vector<int>& ids,
+                               vector<Status>& status) {
 
   vector<Point2f> next_points, prev_points;
   vector<uchar> next_status, prev_status;
@@ -257,8 +241,8 @@ void TrackerV2::getOpticalFlow(const Mat& prev, const Mat& next,
 }
 
 float TrackerV2::getMedianRotation(const vector<Point2f>& initPoints,
-                                 const vector<Point2f>& updPoints,
-                                 const vector<int>& ids) {
+                                   const vector<Point2f>& updPoints,
+                                   const vector<int>& ids) {
   vector<double> angles;
   angles.reserve(updPoints.size());
 
@@ -296,8 +280,8 @@ float TrackerV2::getMedianRotation(const vector<Point2f>& initPoints,
 }
 
 float TrackerV2::getMedianScale(const vector<Point2f>& initPoints,
-                              const vector<Point2f>& updPoints,
-                              const vector<int>& ids) {
+                                const vector<Point2f>& updPoints,
+                                const vector<int>& ids) {
   vector<float> scales;
 
   for (size_t i = 0; i < updPoints.size(); ++i) {
@@ -334,9 +318,9 @@ float TrackerV2::getMedianScale(const vector<Point2f>& initPoints,
 }
 
 void TrackerV2::voteForCentroid(const vector<Point2f>& relativeDistances,
-                              const vector<Point2f>& updPoints,
-                              const float& angle, const float& scale,
-                              vector<Point2f>& votes) {
+                                const vector<Point2f>& updPoints,
+                                const float& angle, const float& scale,
+                                vector<Point2f>& votes) {
   Mat2f rotMat(2, 2);
 
   rotMat.at<float>(0, 0) = cosf(angle);
@@ -359,7 +343,7 @@ void TrackerV2::voteForCentroid(const vector<Point2f>& relativeDistances,
 }
 
 void TrackerV2::clusterVotes(vector<Point2f>& centroidVotes,
-                           vector<bool>& isClustered) {
+                             vector<bool>& isClustered) {
   DBScanClustering<Point2f*> clusterer;
 
   vector<Point2f*> votes;
@@ -402,9 +386,9 @@ void TrackerV2::clusterVotes(vector<Point2f>& centroidVotes,
 }
 
 void TrackerV2::updateCentroid(const float& angle, const float& scale,
-                             const vector<Point2f>& votes,
-                             const vector<bool>& isClustered,
-                             Point2f& updCentroid) {
+                               const vector<Point2f>& votes,
+                               const vector<bool>& isClustered,
+                               Point2f& updCentroid) {
   updCentroid.x = 0;
   updCentroid.y = 0;
 
@@ -427,11 +411,11 @@ void TrackerV2::updateCentroid(const float& angle, const float& scale,
 }
 
 void TrackerV2::updatePointsStatus(const vector<bool>& isClustered,
-                                 vector<Point2f>& points,
-                                 vector<Point2f>& votes,
-                                 vector<Point2f>& relDistances,
-                                 vector<int>& ids,
-                                 vector<Status>& pointsStatus) {
+                                   vector<Point2f>& points,
+                                   vector<Point2f>& votes,
+                                   vector<Point2f>& relDistances,
+                                   vector<int>& ids,
+                                   vector<Status>& pointsStatus) {
   vector<int> toBeRemoved;
 
   for (int i = 0; i < isClustered.size(); ++i) {
@@ -460,11 +444,11 @@ void TrackerV2::updatePointsStatus(const vector<bool>& isClustered,
 }
 
 void TrackerV2::labelNotClusteredPts(const vector<bool>& isClustered,
-                                   vector<Point2f>& points,
-                                   vector<Point2f>& votes,
-                                   vector<Point2f>& relDistances,
-                                   vector<int>& ids,
-                                   vector<Status>& pointsStatus) {
+                                     vector<Point2f>& points,
+                                     vector<Point2f>& votes,
+                                     vector<Point2f>& relDistances,
+                                     vector<int>& ids,
+                                     vector<Status>& pointsStatus) {
   for (int i = 0; i < isClustered.size(); ++i) {
     if (!isClustered[i] && m_pointsStatus[ids[i]] != Status::BACKGROUND) {
       pointsStatus[ids[i]] = Status::LOST;
@@ -475,11 +459,11 @@ void TrackerV2::labelNotClusteredPts(const vector<bool>& isClustered,
 }
 
 void TrackerV2::discardNotClustered(std::vector<Point2f>& upd_points,
-                                  std::vector<Point2f>& init_pts,
-                                  cv::Point2f& upd_centroid,
-                                  cv::Point2f& init_centroid,
-                                  std::vector<int>& ids,
-                                  std::vector<Status>& pointsStatus) {
+                                    std::vector<Point2f>& init_pts,
+                                    cv::Point2f& upd_centroid,
+                                    cv::Point2f& init_centroid,
+                                    std::vector<int>& ids,
+                                    std::vector<Status>& pointsStatus) {
   for (auto i = 0; i < upd_points.size(); ++i) {
     auto id = ids[i];
 
@@ -496,11 +480,11 @@ void TrackerV2::discardNotClustered(std::vector<Point2f>& upd_points,
 }
 
 void TrackerV2::removeLostPoints(const std::vector<bool>& isClustered,
-                               std::vector<Point2f>& points,
-                               std::vector<Point2f>& votes,
-                               std::vector<Point2f>& relDistances,
-                               std::vector<int>& ids,
-                               std::vector<Status>& pointsStatus) {
+                                 std::vector<Point2f>& points,
+                                 std::vector<Point2f>& votes,
+                                 std::vector<Point2f>& relDistances,
+                                 std::vector<int>& ids,
+                                 std::vector<Status>& pointsStatus) {
   vector<int> toBeRemoved;
 
   for (int i = 0; i < points.size(); ++i) {
@@ -529,9 +513,9 @@ void TrackerV2::removeLostPoints(const std::vector<bool>& isClustered,
 }
 
 void TrackerV2::updateBoundingBox(const float& angle, const float& scale,
-                                const vector<Point2f>& boundingBoxRelative,
-                                const Point2f& updCentroid,
-                                vector<Point2f>& updBox) {
+                                  const vector<Point2f>& boundingBoxRelative,
+                                  const Point2f& updCentroid,
+                                  vector<Point2f>& updBox) {
   Mat2f rotMat(2, 2);
 
   rotMat.at<float>(0, 0) = cosf(angle);
@@ -600,9 +584,9 @@ int TrackerV2::runTracker() {
     /*********************************************************************************/
     /*********************************************************************************/
     Mat rgb = m_nextRgb;
-//    cout << "before tracker \n" << endl;
+    //    cout << "before tracker \n" << endl;
     trackNext(rgb);
-//    cout << "after tracker \n" << endl;
+    //    cout << "after tracker \n" << endl;
     m_completed++;
     m_trackerDone = true;
     /*********************************************************************************/
@@ -630,9 +614,9 @@ int TrackerV2::runDetector() {
 
     /*********************************************************************************/
     Mat rgb = m_nextRgb;
-//    cout << "before detector \n" << endl;
+    //    cout << "before detector \n" << endl;
     detectNext(rgb);
-//    cout << "after detector \n" << endl;
+    //    cout << "after detector \n" << endl;
     m_matcherDone = true;
     m_completed++;
     /*********************************************************************************/
@@ -653,7 +637,7 @@ void TrackerV2::trackNext(Mat next) {
   /*************************************************************************************/
   /*                       TRACKING */
   /*************************************************************************************/
-//  cout << "Optical flow " << endl;
+  //  cout << "Optical flow " << endl;
   getOpticalFlow(prev_gray_, next_gray, m_updatedPoints, m_upd_to_init_ids,
                  m_pointsStatus);
   /*************************************************************************************/
@@ -663,23 +647,23 @@ void TrackerV2::trackNext(Mat next) {
   m_angle = angle;
   // angle = 0;
   // m_angle = 0.0f;
-  // cout << "Angle " << angle << endl;
+  //  cout << "Angle " << angle << endl;
   /*************************************************************************************/
   /*                             SCALE */
   /*************************************************************************************/
-//   cout << "Scale " << endl;
+  //   cout << "Scale " << endl;
   float scale = getMedianScale(m_points, m_updatedPoints, m_upd_to_init_ids);
   m_scale = scale;
-  // cout << "Scale " << scale << endl;
+  //  cout << "Scale " << scale << endl;
   /*************************************************************************************/
   /*                             VOTING */
   /*************************************************************************************/
-//   cout << "Vote " << endl;
+  //   cout << "Vote " << endl;
   voteForCentroid(m_relativeDistances, m_updatedPoints, angle, scale, m_votes);
   /*************************************************************************************/
   /*                             CLUSTERING */
   /*************************************************************************************/
-//   cout << "Cluster " << endl;
+  //   cout << "Cluster " << endl;
   vector<bool> isClustered;
   clusterVotes(m_votes, isClustered);
   /*************************************************************************************/
@@ -700,12 +684,12 @@ void TrackerV2::trackNext(Mat next) {
   /*************************************************************************************/
   /*                             UPDATING CENTROID */
   /*************************************************************************************/
-//   cout << "Upd centroid " << endl;
+  //   cout << "Upd centroid " << endl;
   updateCentroid(angle, scale, m_votes, isClustered, m_updatedCentroid);
   /*************************************************************************************/
   /*                             UPDATING BOX */
   /*************************************************************************************/
-//   cout << "Upd box " << endl;
+  //   cout << "Upd box " << endl;
   updateBoundingBox(angle, scale, m_boundingBoxRelative, m_updatedCentroid,
                     m_boundingBoxUpdated);
   /*************************************************************************************/
@@ -739,7 +723,7 @@ void TrackerV2::detectNext(Mat next) {
   /*                       FEATURE MATCHING */
   /*************************************************************************************/
   vector<vector<DMatch>> matches;
-  m_customMatcher.match32(descriptors, m_initDescriptors, 2, matches);
+  m_customMatcher.match(descriptors, m_initDescriptors, 2, matches);
   /*************************************************************************************/
   /*                      SYNC WITH TRACKER */
   /*************************************************************************************/
@@ -760,7 +744,7 @@ void TrackerV2::detectNext(Mat next) {
     if (queryId < 0 && queryId >= keypoints.size()) continue;
     if (trainId < 0 && trainId >= m_initKeypoints.size()) continue;
 
-    float confidence = 1 - (matches[i][0].distance / 256.0);
+    float confidence = 1 - (matches[i][0].distance / 512.0);
     float ratio = matches[i][0].distance / matches[i][1].distance;
 
     Status& s = m_pointsStatus[trainId];
@@ -884,86 +868,86 @@ bool TrackerV2::evaluatePose(const float& angle, const float& scale) {
   return is_new_pose;
 }
 
-//void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
+// void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
 //                        const GpuMat& d_gray, std::vector<Point2f>& init_pts,
 //                        std::vector<Point2f>& upd_pts,
 //                        std::vector<Status>& pts_status,
 //                        std::vector<int>& pts_id) {
 
-  // extract features
-  //  cv::gpu::GpuMat d_keypoints;
-  //  cv::gpu::GpuMat d_descriptors;
-  //  ORB_GPU orbDetector;
-  //  orbDetector(d_gray, GpuMat(), d_keypoints, d_descriptors);
-  //  // find feature points that belongs to the model
-  //  std::vector<KeyPoint> keypoints;
-  //  std::vector<Point2f> points_to_add;
-  //  Mat descriptors;
-  //  orbDetector.downloadKeyPoints(d_keypoints, keypoints);
-  //  d_descriptors.download(descriptors);
-  //  // draw mask of the object
-  //  Mat1b mask(m_height, m_width, static_cast<uchar>(0));
-  //  drawTriangleMask(bbox[0], bbox[1], bbox[2], mask);
-  //  drawTriangleMask(bbox[0], bbox[2], bbox[3], mask);
+// extract features
+//  cv::gpu::GpuMat d_keypoints;
+//  cv::gpu::GpuMat d_descriptors;
+//  ORB_GPU orbDetector;
+//  orbDetector(d_gray, GpuMat(), d_keypoints, d_descriptors);
+//  // find feature points that belongs to the model
+//  std::vector<KeyPoint> keypoints;
+//  std::vector<Point2f> points_to_add;
+//  Mat descriptors;
+//  orbDetector.downloadKeyPoints(d_keypoints, keypoints);
+//  d_descriptors.download(descriptors);
+//  // draw mask of the object
+//  Mat1b mask(m_height, m_width, static_cast<uchar>(0));
+//  drawTriangleMask(bbox[0], bbox[1], bbox[2], mask);
+//  drawTriangleMask(bbox[0], bbox[2], bbox[3], mask);
 
-  //  // Mat debug_img;
-  //  // m_nextRgb.copyTo(debug_img);
+//  // Mat debug_img;
+//  // m_nextRgb.copyTo(debug_img);
 
-  //  Mat descriptors_to_add;
-  //  for (int i = 0; i < keypoints.size(); i++) {
-  //    Point2f& pt = keypoints[i].pt;
-  //    if (mask.at<uchar>(pt) == 255) {
-  //      points_to_add.push_back(pt);
-  //      descriptors_to_add.push_back(descriptors.row(i));
-  //      // circle(debug_img, pt, 3, Scalar(255, 0, 0), 1);
-  //    }
-  //  }
+//  Mat descriptors_to_add;
+//  for (int i = 0; i < keypoints.size(); i++) {
+//    Point2f& pt = keypoints[i].pt;
+//    if (mask.at<uchar>(pt) == 255) {
+//      points_to_add.push_back(pt);
+//      descriptors_to_add.push_back(descriptors.row(i));
+//      // circle(debug_img, pt, 3, Scalar(255, 0, 0), 1);
+//    }
+//  }
 
-  //  // imshow("Learn Debug", debug_img);
-  //  // waitKey(0);*/
+//  // imshow("Learn Debug", debug_img);
+//  // waitKey(0);*/
 
-  //  auto pts_size = m_points.size();
+//  auto pts_size = m_points.size();
 
-  //  vector<Point2f> projected_pts;
-  //  projectPointsToModel(m_initCentroid, m_updatedCentroid, m_angle, m_scale,
-  //                       points_to_add, projected_pts);
+//  vector<Point2f> projected_pts;
+//  projectPointsToModel(m_initCentroid, m_updatedCentroid, m_angle, m_scale,
+//                       points_to_add, projected_pts);
 
-  //  Mat init_debug;
-  //  m_init_rgb_img.copyTo(init_debug);
+//  Mat init_debug;
+//  m_init_rgb_img.copyTo(init_debug);
 
-  //  std::cout << m_points.size() << std::endl;
+//  std::cout << m_points.size() << std::endl;
 
-  //  for (auto i = 0; i < points_to_add.size(); i++) {
-  //    if (m_points.size() > 2000) break;
+//  for (auto i = 0; i < points_to_add.size(); i++) {
+//    if (m_points.size() > 2000) break;
 
-  //    auto id = i + pts_size;
-  //    auto pt = points_to_add[i];
-  //    auto pt_prj = projected_pts[i];
-  //    m_pointsStatus.push_back(Status::MATCH);
-  //    m_updatedPoints.push_back(pt);
-  //    m_votes.push_back(Point2f(0, 0));
-  //    m_upd_to_init_ids.push_back(id);
-  //    m_points.push_back(pt_prj);
-  //    m_relativeDistances.push_back(pt_prj - m_initCentroid);
-  //    m_initDescriptors.push_back(descriptors_to_add.row(i));
-  //    // TODO: remove this after experiments are done
-  //    m_points_status_debug.push_back(Status::LEARN);
-  //    circle(init_debug, pt_prj, 3, Scalar(255, 0, 0), 1);
-  //  }
+//    auto id = i + pts_size;
+//    auto pt = points_to_add[i];
+//    auto pt_prj = projected_pts[i];
+//    m_pointsStatus.push_back(Status::MATCH);
+//    m_updatedPoints.push_back(pt);
+//    m_votes.push_back(Point2f(0, 0));
+//    m_upd_to_init_ids.push_back(id);
+//    m_points.push_back(pt_prj);
+//    m_relativeDistances.push_back(pt_prj - m_initCentroid);
+//    m_initDescriptors.push_back(descriptors_to_add.row(i));
+//    // TODO: remove this after experiments are done
+//    m_points_status_debug.push_back(Status::LEARN);
+//    circle(init_debug, pt_prj, 3, Scalar(255, 0, 0), 1);
+//  }
 
-  //  cout << "Size of points " << m_points.size() << endl;
-  //  cout << "Size of descriptors " << m_initDescriptors.rows << endl;
-  //  cout << "Size of points extracted " << points_to_add.size() << endl;
+//  cout << "Size of points " << m_points.size() << endl;
+//  cout << "Size of descriptors " << m_initDescriptors.rows << endl;
+//  cout << "Size of points extracted " << points_to_add.size() << endl;
 
-  // imshow("Learn Debug", init_debug);
-  // waitKey(0);
+// imshow("Learn Debug", init_debug);
+// waitKey(0);
 //}
 
 void TrackerV2::projectPointsToModel(const Point2f& model_centroid,
-                                   const Point2f& upd_centroid,
-                                   const float angle, const float scale,
-                                   const std::vector<Point2f>& pts,
-                                   std::vector<Point2f>& proj_pts) {
+                                     const Point2f& upd_centroid,
+                                     const float angle, const float scale,
+                                     const std::vector<Point2f>& pts,
+                                     std::vector<Point2f>& proj_pts) {
   Mat2f rotMat(2, 2);
   rotMat.at<float>(0, 0) = cosf(angle);
   rotMat.at<float>(0, 1) = -sinf(angle);

@@ -7,6 +7,7 @@
 #include <profiler.h>
 #include <draw_functions.h>
 #include "../../tracker/include/tracker_2d_v2.h"
+#include "../../tracker/include/tracker_2d.h"
 
 using namespace cv;
 using namespace std;
@@ -25,9 +26,15 @@ TrackerNode2D::TrackerNode2D()
       mouse_start_(0, 0),
       mouse_end_(0, 0),
       spinner_(0),
-      params_() {
+      params_(),
+      camera_matrix_initialized(false)
+{
+  cvStartWindowThread();
   namedWindow("Image Viewer");
   setMouseCallback("Image Viewer", TrackerNode2D::mouseCallback, this);
+
+  publisher_ =
+          nh_.advertise<sensor_msgs::Image>("pinot_tracker/output", 1);
 
   getTrackerParameters();
 
@@ -52,10 +59,16 @@ void TrackerNode2D::initRGB() {
 void TrackerNode2D::rgbCallback(
     const sensor_msgs::ImageConstPtr &rgb_msg,
     const sensor_msgs::CameraInfoConstPtr &camera_info_msg) {
+
+  if(!camera_matrix_initialized)
+  {
+      camera_matrix_ =
+          cv::Mat(3, 4, CV_64F, (void *)camera_info_msg->P.data()).clone();
+      camera_matrix_initialized = true;
+  }
+
   Mat rgb;
-
   readImage(rgb_msg, rgb);
-
   cvtColor(rgb,rgb_image_, CV_RGB2BGR);
   img_updated_ = true;
 }
@@ -144,23 +157,34 @@ void TrackerNode2D::run() {
        << params_.pattern_scale << endl;
 
   //Tracker2D tracker(params_);
-  TrackerV2 tracker;
+  TrackerV2 tracker(params_, camera_matrix_);
 
   auto& profiler = Profiler::getInstance();
 
+  ros::Rate r(100);
   while (ros::ok()) {
     // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
 
     if (img_updated_) {
-      if (mouse_start_.x != mouse_end_.x && !tracker_initialized_)
-        rectangle(rgb_image_, mouse_start_, mouse_end_, Scalar(255, 0, 0), 3);
 
+      if (mouse_start_.x != mouse_end_.x && !tracker_initialized_)
+      {
+        rectangle(rgb_image_, mouse_start_, mouse_end_, Scalar(255, 0, 0), 3);
+        img_updated_ = false;
+      }
+      if(!tracker_initialized_)
+      {
+        imshow("Image Viewer", rgb_image_);
+        waitKey(1);
+      }
       if (init_requested_) {
         ROS_INFO("INPUT: tracker intialization requested");
         tracker.init(rgb_image_, mouse_start_, mouse_end_);
         init_requested_ = false;
         tracker_initialized_ = true;
         ROS_INFO("Tracker initialized!");
+        destroyWindow("Image Viewer");
+        waitKey(1);
       }
 
       if (tracker_initialized_) {
@@ -180,14 +204,16 @@ void TrackerNode2D::run() {
         ss << "Tracker run in ms: " << time_span << "";
         ss << " profiler " << profiler->getProfile().c_str();
         ROS_INFO(ss.str().c_str());
-      }
 
-      imshow("Image Viewer", rgb_image_);
-      img_updated_ = false;
-      waitKey(1);
+        cv_bridge::CvImage cv_img;
+        cv_img.image = rgb_image_;
+        cv_img.encoding = sensor_msgs::image_encodings::BGR8;
+        publisher_.publish(cv_img.toImageMsg());
+        r.sleep();
+      } 
     }
 
-    // r.sleep();
+
   }
 }
 

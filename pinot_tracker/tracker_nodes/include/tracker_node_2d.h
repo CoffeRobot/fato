@@ -62,7 +62,9 @@ class TrackerNode2D : public TrackerNode{
   const std::string camera_info_topic_;
 
   cv::Mat rgb_image_;
+  cv::Mat camera_matrix_;
   bool img_updated_;
+  bool camera_matrix_initialized;
 
   cv::Point2d mouse_start_, mouse_end_;
   bool is_mouse_dragging_, init_requested_, tracker_initialized_;
@@ -70,6 +72,7 @@ class TrackerNode2D : public TrackerNode{
   TrackerParams params_;
 
   ros::AsyncSpinner spinner_;
+  ros::Publisher publisher_;
 };
 
 } // end namespace
