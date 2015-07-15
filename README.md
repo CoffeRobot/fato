@@ -11,6 +11,7 @@ Pinot Tracker
 - [Tracker](#markdown-header-pr2)
     - [Tracking 2D](#markdown-header-start-and-stop)
     - [Tracking 3D](#markdown-header-object-tracking)
+    - [Offline Mode]()
 
 ## Installation
 
@@ -109,6 +110,14 @@ Once the video is shown on the screen please draw a bounding box aruond the obje
 WORK IN PROGRESS...
 ```
 
-See [here](http://wiki.ros.org/pr2_mechanism_controllers/LaserScannerTrajController) for more details.
+### Offline Mode
+
+It is possible to run the tracker offline using a video as input. The parameters needed for the offline mode are included in the configuration file parameters.yaml.
+To run the tracker in this modality please write the following command in the terminal:
+
+```
+roslaunch pinot_tracker_nodes tracker_offline.launch
+```
+
 
 
