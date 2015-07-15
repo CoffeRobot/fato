@@ -92,6 +92,16 @@ add_executable(tracker_node_2d
     ${OpenCV_LIBS}
   )
 
+
+add_executable(tracker_node_offline
+    src/tracker_offline.cpp)
+
+
+  target_link_libraries(tracker_node_offline
+    ${catkin_LIBRARIES}
+    ${OpenCV_LIBS}
+  )
+
 #add_executable(cloud_publisher
 #    src/cloud_publisher.cpp)
 

@@ -24,6 +24,11 @@ TrackerV2::TrackerV2()
   m_featuresDetector.create("Feature2D.BRISK");
 }
 
+TrackerV2::TrackerV2(const TrackerParams& params)
+    : matcher_confidence_(0.8), matcher_ratio_(0.8), m_featuresDetector() {
+  m_featuresDetector.create("Feature2D.BRISK");
+}
+
 TrackerV2::TrackerV2(const TrackerParams& params, const cv::Mat& camera_matrix)
     : matcher_confidence_(0.8),
       matcher_ratio_(0.8),
@@ -32,6 +37,11 @@ TrackerV2::TrackerV2(const TrackerParams& params, const cv::Mat& camera_matrix)
   m_featuresDetector.create("Feature2D.BRISK");
   ransac_iterations_ = params.ransac_iterations;
   ransac_distance_ = params.ransac_distance;
+}
+
+TrackerV2::~TrackerV2()
+{
+    taskFinished();
 }
 
 bool TrackerV2::isPointValid(const int& id) {
@@ -639,23 +649,23 @@ void TrackerV2::trackNext(Mat next) {
   /*                             POSE ESTIMATION /
   /*************************************************************************************/
   auto& profiler = Profiler::getInstance();
-  profiler->start("pose");
-  float angle = getMedianRotation(m_points, m_updatedPoints, m_upd_to_init_ids);
-  float scale = getMedianScale(m_points, m_updatedPoints, m_upd_to_init_ids);
-  m_angle = angle;
-  m_scale = scale;
-  profiler->stop("pose");
+//  profiler->start("pose");
+//  float angle = getMedianRotation(m_points, m_updatedPoints, m_upd_to_init_ids);
+//  float scale = getMedianScale(m_points, m_updatedPoints, m_upd_to_init_ids);
+//  m_angle = angle;
+//  m_scale = scale;
+//  profiler->stop("pose");
 
   vector<Point2f*> model_pts;
   vector<Point2f*> tracked_pts;
   profiler->start("pose_n");
   getTrackedPoints(m_points, m_updatedPoints, m_upd_to_init_ids, model_pts,
                    tracked_pts);
-  float scale_n, angle_n;
-  getPose2D(model_pts, tracked_pts, scale_n, angle_n);
+  float scale, angle;
+  getPose2D(model_pts, tracked_pts, scale, angle);
   profiler->stop("pose_n");
-  cout << "angle: " << angle << " - " << angle_n << " scale " << scale << " - "
-       << scale_n << "\n";
+//  cout << "angle: " << angle << " - " << angle_n << " scale " << scale << " - "
+//       << scale_n << "\n";
 
 
 //  vector<Point3f> model_pts_alt;

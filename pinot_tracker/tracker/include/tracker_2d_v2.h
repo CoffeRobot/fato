@@ -25,6 +25,10 @@ class TrackerV2 {
 
   TrackerV2(const TrackerParams& params, const cv::Mat& camera_matrix);
 
+  TrackerV2(const TrackerParams& params);
+
+  ~TrackerV2();
+
   void init(const cv::Mat &rgb, const cv::Point2d &fst, const cv::Point2d &scd);
 
   void init(const cv::Mat& rgb, const cv::Mat& mask);

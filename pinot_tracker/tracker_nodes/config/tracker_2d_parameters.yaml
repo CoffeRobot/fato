@@ -9,6 +9,16 @@ pinot/tracker_2d/min_points: 5
 pinot/tracker_2d/ransac_iterations: 100
 pinot/tracker_2d/ransac_distance: 8.0
 
+# offline parameters
+pinot/offline/use_depth: false
+pinot/offline/rgb_input: /home/alessandro/Projects/pinot_tracker_ws/src/pinot_tracker/pinot_tracker/tracker_tests/data/juice.avi
+pinot/offline/depth_input: test_d.avi
+pinot/offline/box_x: 131
+pinot/offline/box_y: 50
+pinot/offline/box_w: 36
+pinot/offline/box_h: 89
+pinot/offline/video_result: out.avi
+
 
 
 
