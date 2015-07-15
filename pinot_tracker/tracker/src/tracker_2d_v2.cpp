@@ -11,6 +11,12 @@
 #include <algorithm>
 #include <utility>
 
+#include "../include/pose_estimation.h"
+#include "../../utilities/include/profiler.h"
+
+using namespace std;
+using namespace cv;
+
 namespace pinot_tracker {
 
 TrackerV2::TrackerV2()
@@ -18,11 +24,14 @@ TrackerV2::TrackerV2()
   m_featuresDetector.create("Feature2D.BRISK");
 }
 
-TrackerV2::TrackerV2(const TrackerParams &params, const cv::Mat &camera_matrix)
-    : matcher_confidence_(0.8), matcher_ratio_(0.8), m_featuresDetector(),
-      camera_matrix_(camera_matrix)
-{
-    m_featuresDetector.create("Feature2D.BRISK");
+TrackerV2::TrackerV2(const TrackerParams& params, const cv::Mat& camera_matrix)
+    : matcher_confidence_(0.8),
+      matcher_ratio_(0.8),
+      m_featuresDetector(),
+      camera_matrix_(camera_matrix) {
+  m_featuresDetector.create("Feature2D.BRISK");
+  ransac_iterations_ = params.ransac_iterations;
+  ransac_distance_ = params.ransac_distance;
 }
 
 bool TrackerV2::isPointValid(const int& id) {
@@ -110,9 +119,6 @@ void TrackerV2::init(const Mat& rgb, const Mat& mask) {
   // cout << "load images" << endl;
   rgb.copyTo(m_init_rgb_img);
   gray.copyTo(prev_gray_);
-  // dm_prev.upload(rgb);
-  // cv::gpu::cvtColor(dm_prev, dm_prevGray, CV_BGR2GRAY);
-  cout << "Num points " << m_initKeypoints.size() << endl;
 }
 
 void TrackerV2::setMatcerParameters(float confidence, float second_ratio) {
@@ -136,15 +142,6 @@ Point2f TrackerV2::initCentroid(const vector<Point2f>& points) {
 
   return centroid;
 }
-
-// void Tracker::extractFeatures(const GpuMat& gray,
-//                              std::vector<KeyPoint>& keypoints,
-//                              Mat& descriptors) {
-//  cv::gpu::ORB_GPU orbDetector;
-//  orbDetector(gray, GpuMat(), dm_initKeypoints, dm_initDescriptors);
-//  orbDetector.downloadKeyPoints(dm_initKeypoints, m_initKeypoints);
-//  dm_initDescriptors.download(m_initDescriptors);
-//}
 
 void TrackerV2::extractFeatures(const Mat& gray,
                                 std::vector<KeyPoint>& keypoints,
@@ -198,7 +195,6 @@ void TrackerV2::initBoundingBox(const Mat& mask, const Point2f& centroid,
 void TrackerV2::getOpticalFlow(const Mat& prev, const Mat& next,
                                vector<Point2f>& points, vector<int>& ids,
                                vector<Status>& status) {
-
   vector<Point2f> next_points, prev_points;
   vector<uchar> next_status, prev_status;
   vector<float> next_errors, prev_errors;
@@ -599,7 +595,6 @@ int TrackerV2::runTracker() {
 }
 
 int TrackerV2::runDetector() {
-
   m_detectorFrameCount = 0;
   m_detectorTime = 0;
 
@@ -641,20 +636,42 @@ void TrackerV2::trackNext(Mat next) {
   getOpticalFlow(prev_gray_, next_gray, m_updatedPoints, m_upd_to_init_ids,
                  m_pointsStatus);
   /*************************************************************************************/
-  /*                             ANGLE /
+  /*                             POSE ESTIMATION /
   /*************************************************************************************/
+  auto& profiler = Profiler::getInstance();
+  profiler->start("pose");
   float angle = getMedianRotation(m_points, m_updatedPoints, m_upd_to_init_ids);
+  float scale = getMedianScale(m_points, m_updatedPoints, m_upd_to_init_ids);
   m_angle = angle;
+  m_scale = scale;
+  profiler->stop("pose");
+
+  vector<Point2f*> model_pts;
+  vector<Point2f*> tracked_pts;
+  profiler->start("pose_n");
+  getTrackedPoints(m_points, m_updatedPoints, m_upd_to_init_ids, model_pts,
+                   tracked_pts);
+  float scale_n, angle_n;
+  getPose2D(model_pts, tracked_pts, scale_n, angle_n);
+  profiler->stop("pose_n");
+  cout << "angle: " << angle << " - " << angle_n << " scale " << scale << " - "
+       << scale_n << "\n";
+
+
+//  vector<Point3f> model_pts_alt;
+//  vector<Point2f> tracked_pts_alt;
+//  getTrackedPoints(m_points, m_updatedPoints, m_upd_to_init_ids, model_pts_alt,
+//                   tracked_pts_alt);
+//  vector<int> inliers;
+//  Mat rotation, translation;
+//  profiler->start("ransac");
+//  getPose2D(model_pts_alt, tracked_pts_alt, camera_matrix_, ransac_iterations_,
+//            ransac_distance_, inliers, rotation, translation);
+//  profiler->stop("ransac");
+
   // angle = 0;
   // m_angle = 0.0f;
   //  cout << "Angle " << angle << endl;
-  /*************************************************************************************/
-  /*                             SCALE */
-  /*************************************************************************************/
-  //   cout << "Scale " << endl;
-  float scale = getMedianScale(m_points, m_updatedPoints, m_upd_to_init_ids);
-  m_scale = scale;
-  //  cout << "Scale " << scale << endl;
   /*************************************************************************************/
   /*                             VOTING */
   /*************************************************************************************/
@@ -868,6 +885,55 @@ bool TrackerV2::evaluatePose(const float& angle, const float& scale) {
   return is_new_pose;
 }
 
+void TrackerV2::getTrackedPoints(std::vector<cv::Point2f>& model_pts,
+                                 std::vector<cv::Point2f>& current_pts,
+                                 const std::vector<int>& ids,
+                                 std::vector<cv::Point2f*>& model_valid_pts,
+                                 std::vector<cv::Point2f*>& current_valid_pts) {
+  for (auto i = 0; i < model_pts.size(); ++i) {
+    if (isPointValid(ids[i])) {
+      model_valid_pts.push_back(&model_pts[i]);
+      current_valid_pts.push_back(&current_pts[i]);
+    }
+  }
+}
+
+void TrackerV2::getTrackedPoints(std::vector<cv::Point2f>& model_pts,
+                                 std::vector<cv::Point2f>& current_pts,
+                                 const std::vector<int>& ids,
+                                 std::vector<cv::Point3f>& model_valid_pts,
+                                 std::vector<cv::Point2f>& current_valid_pts) {
+  for (auto i = 0; i < model_pts.size(); ++i) {
+    if (isPointValid(ids[i])) {
+      model_valid_pts.push_back(Point3f(model_pts[i].x, model_pts[i].y,0));
+      current_valid_pts.push_back(current_pts[i]);
+    }
+  }
+}
+
+void TrackerV2::projectPointsToModel(const Point2f& model_centroid,
+                                     const Point2f& upd_centroid,
+                                     const float angle, const float scale,
+                                     const std::vector<Point2f>& pts,
+                                     std::vector<Point2f>& proj_pts) {
+  Mat2f rotMat(2, 2);
+  rotMat.at<float>(0, 0) = cosf(angle);
+  rotMat.at<float>(0, 1) = -sinf(angle);
+  rotMat.at<float>(1, 0) = sinf(angle);
+  rotMat.at<float>(1, 1) = cosf(angle);
+
+  for (auto i = 0; i < pts.size(); i++) {
+    Point2f rm = pts[i] - upd_centroid;
+    if (scale != 0) {
+      rm.x = rm.x / scale;
+      rm.y = rm.y / scale;
+    }
+    rm = mult(rotMat, rm);
+
+    proj_pts.push_back(model_centroid + rm);
+  }
+}
+
 // void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
 //                        const GpuMat& d_gray, std::vector<Point2f>& init_pts,
 //                        std::vector<Point2f>& upd_pts,
@@ -942,28 +1008,5 @@ bool TrackerV2::evaluatePose(const float& angle, const float& scale) {
 // imshow("Learn Debug", init_debug);
 // waitKey(0);
 //}
-
-void TrackerV2::projectPointsToModel(const Point2f& model_centroid,
-                                     const Point2f& upd_centroid,
-                                     const float angle, const float scale,
-                                     const std::vector<Point2f>& pts,
-                                     std::vector<Point2f>& proj_pts) {
-  Mat2f rotMat(2, 2);
-  rotMat.at<float>(0, 0) = cosf(angle);
-  rotMat.at<float>(0, 1) = -sinf(angle);
-  rotMat.at<float>(1, 0) = sinf(angle);
-  rotMat.at<float>(1, 1) = cosf(angle);
-
-  for (auto i = 0; i < pts.size(); i++) {
-    Point2f rm = pts[i] - upd_centroid;
-    if (scale != 0) {
-      rm.x = rm.x / scale;
-      rm.y = rm.y / scale;
-    }
-    rm = mult(rotMat, rm);
-
-    proj_pts.push_back(model_centroid + rm);
-  }
-}
 
 }  // end namespace pinot

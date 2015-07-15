@@ -31,6 +31,11 @@ inline float getDistance(const cv::Point2f& a, const cv::Point2f& b)
   return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
 }
 
+inline float getDistance(const cv::Point2f* a, const cv::Point2f* b)
+{
+    return sqrt(pow(a->x - b->x, 2) + pow(a->y - b->y, 2));
+}
+
 inline cv::Point2f mult(const cv::Mat2f& rot, const cv::Point2f& p) {
   return cv::Point2f(rot.at<float>(0, 0) * p.x + rot.at<float>(1, 0) * p.y,
                  rot.at<float>(0, 1) * p.x + rot.at<float>(1, 1) * p.y);

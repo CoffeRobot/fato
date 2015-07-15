@@ -89,9 +89,6 @@ class TrackerV2 {
   void extractFeatures(const cv::Mat& gray,
                        std::vector<cv::KeyPoint>& keypoints,
                        cv::Mat& descriptors);
-//  void extractFeatures(const cv::gpu::GpuMat& gray,
-//                       std::vector<cv::KeyPoint>& keypoints,
-//                       cv::Mat& descriptors);
 
   void initRelativeDistance(const std::vector<cv::Point2f>& points,
                             const cv::Point2f& centroid,
@@ -101,11 +98,6 @@ class TrackerV2 {
                        std::vector<cv::Point2f>& initBox,
                        std::vector<cv::Point2f>& relativeBox,
                        std::vector<cv::Point2f>& updBox);
-
-//  void getOpticalFlow(const cv::gpu::GpuMat& d_prev,
-//                      const cv::gpu::GpuMat& d_next,
-//                      std::vector<cv::Point2f>& points, std::vector<int>& ids,
-//                      std::vector<Status>& status);
 
   void getOpticalFlow(const cv::Mat& prev,
                       const cv::Mat& next,
@@ -167,17 +159,23 @@ class TrackerV2 {
 
   bool evaluatePose(const float& angle, const float& scale);
 
-//  void learnPose(const std::vector<cv::Point2f>& bbox,
-//                 const cv::gpu::GpuMat& d_gray,
-//                 std::vector<cv::Point2f>& init_pts,
-//                 std::vector<cv::Point2f>& upd_pts,
-//                 std::vector<Status>& pts_status, std::vector<int>& pts_id);
-
   void projectPointsToModel(const cv::Point2f& model_centroid,
                             const cv::Point2f& upd_centroid, const float angle,
                             const float scale,
                             const std::vector<cv::Point2f>& pts,
                             std::vector<cv::Point2f>& proj_pts);
+
+  void getTrackedPoints(std::vector<cv::Point2f>& model_pts,
+                        std::vector<cv::Point2f>& current_pts,
+                        const std::vector<int>& ids,
+                        std::vector<cv::Point2f*>& model_valid_pts,
+                        std::vector<cv::Point2f*>& current_valid_pts);
+
+  void getTrackedPoints(std::vector<cv::Point2f>& model_pts,
+                        std::vector<cv::Point2f>& current_pts,
+                        const std::vector<int>& ids,
+                        std::vector<cv::Point3f>& model_valid_pts,
+                        std::vector<cv::Point2f>& current_valid_pts);
 
   bool isPointValid(const int& id);
 
@@ -195,6 +193,8 @@ class TrackerV2 {
   /****************************************************************************/
   float m_angle, m_scale;
   bool m_is_object_lost;
+  int ransac_iterations_;
+  float ransac_distance_;
   /****************************************************************************/
   /*                       CONCURRENCY VARIABLES                              */
   /****************************************************************************/

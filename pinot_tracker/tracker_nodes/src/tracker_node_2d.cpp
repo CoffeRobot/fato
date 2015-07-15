@@ -102,6 +102,19 @@ void TrackerNode2D::getTrackerParameters() {
   else
     ss << params_.min_points << "\n";
 
+  ss << "ransac_iterations: ";
+  if (!ros::param::get("pinot/tracker_2d/ransac_iterations", params_.ransac_iterations))
+    ss << "failed \n";
+  else
+    ss << params_.ransac_iterations << "\n";
+
+
+  ss << "ransac_distance: ";
+  if (!ros::param::get("pinot/tracker_2d/ransac_distance", params_.ransac_distance))
+    ss << "failed \n";
+  else
+    ss << params_.ransac_distance << "\n";
+
   ROS_INFO(ss.str().c_str());
 }
 
@@ -188,21 +201,21 @@ void TrackerNode2D::run() {
       }
 
       if (tracker_initialized_) {
-        auto begin = chrono::high_resolution_clock::now();
-        profiler->start("test");
+//        auto begin = chrono::high_resolution_clock::now();
+        profiler->start("total");
         Mat out;
         tracker.computeNext(rgb_image_);
-        profiler->stop("test");
-        auto end = chrono::high_resolution_clock::now();
-        auto time_span =
-            chrono::duration_cast<chrono::milliseconds>(end - begin).count();
+        profiler->stop("total");
+//        auto end = chrono::high_resolution_clock::now();
+//        auto time_span =
+//            chrono::duration_cast<chrono::milliseconds>(end - begin).count();
         stringstream ss;
         Point2f p = tracker.getCentroid();
         circle(rgb_image_, p, 5, Scalar(255, 0, 0), -1);
         vector<Point2f> bbox = tracker.getBoundingBox();
         drawBoundingBox(bbox, Scalar(255, 0, 0), 2, rgb_image_);
-        ss << "Tracker run in ms: " << time_span << "";
-        ss << " profiler " << profiler->getProfile().c_str();
+//        ss << "Tracker run in ms: " << time_span << "";
+        ss << "Profiler " << profiler->getProfile().c_str();
         ROS_INFO(ss.str().c_str());
 
         cv_bridge::CvImage cv_img;

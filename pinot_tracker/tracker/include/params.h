@@ -12,13 +12,18 @@ struct TrackerParams {
   float pattern_scale;
   bool filter_border;
   bool update_votes;
+  int ransac_iterations;
+  float ransac_distance;
 
   TrackerParams()
       : eps(10),
         min_points(5),
         threshold(30),
         octaves(3),
-        pattern_scale(1.0f) {}
+        pattern_scale(1.0f),
+        ransac_iterations(100),
+        ransac_distance(8.0f)
+  {}
 };
 
 }

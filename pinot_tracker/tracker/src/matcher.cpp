@@ -32,6 +32,7 @@ void Matcher::match(const Mat& query, const Mat& train, int bestNum, vector<vect
 	__int64* fstData = (__int64*)query.data;
 	__int64* scdData = (__int64*)train.data;
 
+    // TODO(alessandro.pieropan@gmail.com): can be optimized to make it faster
 	for (size_t i = 0; i < query.rows; i++)
 	{
 
@@ -76,6 +77,8 @@ void Matcher::match32(const cv::Mat& query, const cv::Mat& train, int bestNum,
 	__int32* fstData = (__int32*)query.data;
 	__int32* scdData = (__int32*)train.data;
 
+
+    // TODO(alessandro.pieropan@gmail.com): can be optimized to make it faster
 	for (size_t i = 0; i < query.rows; i++)
 	{
 

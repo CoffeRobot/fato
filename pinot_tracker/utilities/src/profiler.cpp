@@ -3,57 +3,68 @@
 
 using namespace std;
 
-namespace pinot_tracker{
+namespace pinot_tracker {
 
+Profiler::Profiler() {}
 
-Profiler::Profiler()
-{
+void Profiler::start(std::string id) {
+  mutex_.lock();
+  auto entry = profiler_.find(id);
 
+  auto tp = chrono::high_resolution_clock::now();
+  if (entry == profiler_.end()) {
+    TimeEntry te;
+    te.start_time = tp;
+    profiler_.insert(pair<string, TimeEntry>(id, te));
+  } else
+    entry->second.start_time = tp;
+  mutex_.unlock();
 }
 
-void Profiler::start(std::string id)
-{
-    auto entry = profiler_.find(id);
+void Profiler::stop(std::string id) {
+  mutex_.lock();
+  auto entry = profiler_.find(id);
 
-    auto tp = chrono::high_resolution_clock::now();
-    if(entry == profiler_.end())
-    {
-        TimeEntry te;
-        te.start_time = tp;
-        profiler_.insert(pair<string, TimeEntry>(id,te));
-    }
-    else
-        entry->second.start_time = tp;
+  if (entry == profiler_.end()) {
+    mutex_.unlock();
+    return;
+  }
+
+  auto tp = chrono::high_resolution_clock::now();
+  auto begin = entry->second.start_time;
+
+  entry->second.end_time = tp;
+  entry->second.total_time +=
+      chrono::duration_cast<chrono::milliseconds>(tp - begin).count();
+  entry->second.num_calls++;
+  mutex_.unlock();
 }
 
-void Profiler::stop(std::string id)
-{
-    auto entry = profiler_.find(id);
+float Profiler::getTime(string id) {
+  mutex_.lock();
+  auto entry = profiler_.find(id);
 
-    if(entry == profiler_.end())
-        return;
+  if (entry == profiler_.end()) {
+    mutex_.unlock();
+    return 0;
+  }
 
-    auto tp = chrono::high_resolution_clock::now();
-    auto begin = entry->second.start_time;
-
-    entry->second.end_time = tp;
-    entry->second.total_time +=
-            chrono::duration_cast<chrono::milliseconds>(tp - begin).count();
-    entry->second.num_calls++;
-
+  float elapsed =
+      entry->second.total_time / static_cast<float>(entry->second.num_calls++);
+  mutex_.unlock();
+  return elapsed;
 }
 
-string Profiler::getProfile()
-{
-    stringstream ss;
-    for (auto it = profiler_.begin(); it!=profiler_.end(); ++it)
-    {
-        float avg_time = it->second.total_time / static_cast<float>(it->second.num_calls);
-        ss << it->first << ": " << avg_time << endl;
-    }
-
-    return ss.str();
+string Profiler::getProfile() {
+  mutex_.lock();
+  stringstream ss;
+  for (auto it = profiler_.begin(); it != profiler_.end(); ++it) {
+    float avg_time =
+        it->second.total_time / static_cast<float>(it->second.num_calls);
+    ss << it->first << ": " << avg_time << endl;
+  }
+  mutex_.unlock();
+  return ss.str();
 }
 
-} // end namespace
-
+}  // end namespace

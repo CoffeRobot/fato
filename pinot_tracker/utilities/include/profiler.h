@@ -5,6 +5,7 @@
 #include <map>
 #include <chrono>
 #include <string>
+#include <mutex>
 
 namespace pinot_tracker{
 
@@ -26,6 +27,7 @@ class Profiler
 public:
     static std::unique_ptr<Profiler>& getInstance()
     {
+        // no need to check concurrency in c++11 when creating static object
         static std::unique_ptr<Profiler> instance(new Profiler());
 
         return instance;
@@ -33,7 +35,7 @@ public:
 
     void start(std::string id);
     void stop(std::string id);
-
+    float getTime(std::string id);
     std::string getProfile();
 
 private:
@@ -42,6 +44,7 @@ private:
 
 
     std::map<std::string,TimeEntry> profiler_;
+    std::mutex mutex_;
 };
 
 }

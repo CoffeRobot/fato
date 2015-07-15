@@ -5,6 +5,10 @@ pinot/tracker_2d/update_votes: false
 pinot/tracker_2d/eps: 10
 pinot/tracker_2d/min_points: 5
 
+# pnp ransac parameters
+pinot/tracker_2d/ransac_iterations: 100
+pinot/tracker_2d/ransac_distance: 8.0
+
 
 
 
