@@ -3,6 +3,12 @@
 
 #include<cmath>
 #include <opencv2/core/core.hpp>
+#ifdef __WIN64
+#include <Eigen/Dense>
+#endif
+#ifdef __unix__
+#include <eigen3/Eigen/Dense>
+#endif
 
 namespace pinot_tracker{
 
@@ -43,6 +49,10 @@ inline cv::Point2f mult(const cv::Mat2f& rot, const cv::Point2f& p) {
 
 cv::Mat1b getMask(int rows, int cols, const cv::Point2d& begin,
                          const cv::Point2d& end);
+
+void opencvToEigen(const cv::Mat& rot, Eigen::Matrix3d& rotation);
+
+void eigenToOpencv(const Eigen::Matrix3d& src, cv::Mat& dst);
 
 
 } // end namespace

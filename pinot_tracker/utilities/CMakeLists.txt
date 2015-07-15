@@ -1,7 +1,14 @@
 cmake_minimum_required(VERSION 2.8.7)
 project(utilities)
 
+find_package(catkin REQUIRED COMPONENTS
+  cmake_modules
+)
+
 find_package(OpenCV REQUIRED)
+
+find_package(Eigen REQUIRED)
+add_definitions(${EIGEN_DEFINITIONS})
 
 catkin_package(
   INCLUDE_DIRS include
@@ -23,6 +30,7 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
 include_directories(include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
+  ${EIGEN_INCLUDE_DIR}
 )
 
 add_library(${PROJECT_NAME}
