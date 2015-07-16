@@ -40,7 +40,7 @@ void eigenToOpencv(const Eigen::Matrix3d& src, cv::Mat& dst) {
 }
 
 cv::Point2f projectPoint(const float focal, const cv::Point2f& center,
-                           const cv::Point3f& src) {
+                         const cv::Point3f& src) {
   cv::Point2f dst;
 
   dst.x = (focal * src.x / src.z) + center.x;
@@ -50,8 +50,7 @@ cv::Point2f projectPoint(const float focal, const cv::Point2f& center,
 }
 
 bool projectPoint(const float focal, const cv::Point2f& center,
-                    const cv::Point3f& src, cv::Point2f& dst) {
-
+                  const cv::Point3f& src, cv::Point2f& dst) {
   if (src.z == 0) return false;
 
   dst.x = (focal * src.x / src.z) + center.x;
@@ -63,6 +62,37 @@ bool projectPoint(const float focal, const cv::Point2f& center,
   if (isnan(dst.x) || isnan(dst.y)) return false;
 
   return true;
+}
+
+void disparityToDepth(const cv::Mat& disparity, float focal,
+                      cv::Mat& depth) {
+  int cols = disparity.cols;
+  int rows = disparity.rows;
+
+  float xc = cols / 2;
+  float yc = rows / 2;
+
+  depth = cv::Mat3f(rows, cols, cv::Vec3f(0,0,0));
+
+  for (size_t y = 0; y < rows; y++) {
+    for (size_t x = 0; x < cols; x++) {
+
+      float d = static_cast<float>(disparity.at<uint>(y, x));
+
+      if (d == 0) {
+        continue;
+      }
+
+      float xp = x - xc;
+      float yp = -(y - yc);
+
+      float Z = focal / d;
+      float X = xp * Z / focal;
+      float Y = yp * Z / focal;
+
+      depth.at<cv::Vec3f>(y, x) = cv::Vec3f(X, Y, Z);
+    }
+  }
 }
 
 }  // end namespace

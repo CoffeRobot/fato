@@ -18,38 +18,43 @@ using namespace cv;
 using namespace std;
 using namespace Eigen;
 
-
-namespace pinot_tracker{
+namespace pinot_tracker {
 
 Tracker3D::~Tracker3D() {}
 
-void Tracker3D::init(Mat &rgb, Mat &depth, Point2f &top_left, Point2f &bottom_right)
-{
-
+void Tracker3D::init(Mat& rgb, Mat& disparity, Point2d& top_left,
+                     Point2d& bottom_right) {
+  auto mask = getMask(rgb.rows, rgb.cols, top_left, bottom_right);
+  init(rgb, disparity, mask);
 }
 
-void Tracker3D::init(cv::Mat& rgb, cv::Mat& pointcloud, cv::Mat& mask,
-                     float focal) {
+void Tracker3D::init(cv::Mat& rgb, cv::Mat& disparity, cv::Mat& mask) {
   /****************************************************************************/
   /*                         DEBUG VARIABLES */
   /****************************************************************************/
-//  m_resultName = getResultName(m_configFile.m_dstPath);
-//  m_debugFile.open(m_configFile.m_dstPath + m_configFile.m_txtFile);
+  //  m_resultName = getResultName(m_configFile.m_dstPath);
+  //  m_debugFile.open(m_configFile.m_dstPath + m_configFile.m_txtFile);
   // m_matrixFile.open(m_configFile.m_dstPath + "video_results/" + m_resultName
   // + "matrix.txt");
-//  m_resultFile.open(m_configFile.m_dstPath + "our.txt");
-//  m_timeFile.open(m_configFile.m_dstPath + "/profilingV3.txt");
-//  cout << m_configFile.m_dstPath + "video_results/" + m_resultName << endl;
-//  m_debugWriter.open(m_configFile.m_dstPath + "video_result.avi",
-//                     CV_FOURCC('X', 'V', 'I', 'D'), 30, Size(854, 640), true);
+  //  m_resultFile.open(m_configFile.m_dstPath + "our.txt");
+  //  m_timeFile.open(m_configFile.m_dstPath + "/profilingV3.txt");
+  //  cout << m_configFile.m_dstPath + "video_results/" + m_resultName << endl;
+  //  m_debugWriter.open(m_configFile.m_dstPath + "video_result.avi",
+  //                     CV_FOURCC('X', 'V', 'I', 'D'), 30, Size(854, 640),
+  //                     true);
   // m_debugWriter.open(m_configFile.m_dstPath + "video_result.avi",
   //		CV_FOURCC('X', 'V', 'I', 'D'), 30, Size(1280, 480), true);
-//  m_pointsColor.resize(6, vector<Scalar>());
+  //  m_pointsColor.resize(6, vector<Scalar>());
   /****************************************************************************/
-
-  m_focal = focal;
+  cout << "1 " << endl;
+  m_focal = params_.camera_model.fx();
   m_imageCenter = Point2f(rgb.cols / 2, rgb.rows / 2);
 
+  //FIXME: disparity to 3d is wrong!
+  Mat pointcloud;
+  disparityToDepth(disparity, m_focal ,pointcloud );
+
+  cout << "1 " << endl;
   Mat grayImg;
   // check if image is grayscale
   checkImage(rgb, grayImg);
@@ -62,37 +67,51 @@ void Tracker3D::init(cv::Mat& rgb, cv::Mat& pointcloud, cv::Mat& mask,
   m_fstFrame = grayImg;
   // store keypoints of the orginal image
   m_initKeypoints = keypoints;
-
+  cout << "2 " << endl;
   // extract descriptors of the keypoint
   m_featuresDetector.compute(m_currFrame, keypoints,
                              m_fstCube.m_faceDescriptors[FACE::FRONT]);
 
   m_initKPCount = 0;
-
+  cout << "3 " << endl;
   random_device rd;
   default_random_engine engine(rd());
   uniform_int_distribution<unsigned int> uniform_dist(0, 255);
 
   m_isPointClustered.resize(6, vector<bool>());
+  m_pointsColor.resize(6, vector<Scalar>());
+
+  cout << "4 " << endl;
+  cout << "Init obj keypoints: " << m_initKPCount << endl;
+  cout << "Init keypoints: " << keypoints.size() << endl;
 
   // count valid keypoints that belong to the object
   for (int kp = 0; kp < keypoints.size(); ++kp) {
     keypoints[kp].class_id = kp;
-    if (mask.at<uchar>(keypoints[kp].pt) != 0) {
+    cout << "4-1 " << endl;
+    if (mask.at<uchar>(keypoints.at(kp).pt) != 0) {
+      cout << "4-2 " << endl;
       m_fstCube.m_pointStatus[FACE::FRONT].push_back(Status::INIT);
       m_isPointClustered[FACE::FRONT].push_back(true);
       m_initKPCount++;
     } else {
+      cout << "4-3 " << endl;
       m_fstCube.m_pointStatus[FACE::FRONT].push_back(Status::BACKGROUND);
       m_isPointClustered[FACE::FRONT].push_back(false);
     }
+    cout << "4-4 " << endl;
     m_pointsColor[FACE::FRONT].push_back(Scalar(
         uniform_dist(engine), uniform_dist(engine), uniform_dist(engine)));
-    Vec3f& tmp = pointcloud.at<Vec3f>(keypoints[kp].pt);
+    cout << "4-5 " << endl;
+    Vec3f& tmp = pointcloud.at<Vec3f>(keypoints.at(kp).pt);
     m_fstCube.m_cloudPoints[FACE::FRONT].push_back(
         Point3f(tmp[0], tmp[1], tmp[2]));
+    cout << "4-6 \n" << endl;
   }
 
+  cout << "5 " << endl;
+
+  //BUG: CRASHES AFTER THIS STEP
   keypoints.swap(m_fstCube.m_faceKeypoints[FACE::FRONT]);
   // compute starting centroid of the object to track
   initCentroid(m_fstCube.m_cloudPoints[FACE::FRONT], m_fstCube);
@@ -219,8 +238,11 @@ void Tracker3D::getCurrentPoints(
   m_clusteredBorderVotes.resize(pointsStatus.size(), false);
 }
 
-void Tracker3D::computeNext(const Mat& rgb, const Mat& cloud, Mat& out) {
+void Tracker3D::computeNext(const Mat& rgb, const Mat& disparity, Mat& out) {
   std::chrono::time_point<std::chrono::system_clock> start, end, frameStart;
+
+  Mat cloud;
+  disparityToDepth(disparity, params_.camera_model.fx(),cloud );
 
   Mat grayImg;
   checkImage(rgb, grayImg);
@@ -515,8 +537,9 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& cloud, Mat& out) {
 
         buildCompositeImg(grayImg, m_fstFrame, debug);
 
-//        drawObjectLocation(m_fstCube, m_updatedCube, m_visibleFaces, m_focal,
-//                           m_imageCenter, debug);
+        //        drawObjectLocation(m_fstCube, m_updatedCube, m_visibleFaces,
+        //        m_focal,
+        //                           m_imageCenter, debug);
 
         stringstream info;
         info << "Visible: ";
@@ -554,9 +577,10 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& cloud, Mat& out) {
 
         drawInformationHeader(Point2f(10, 10), info.str(), 0.5, 800, 30, debug);
 
-//        stringstream ss;
-//        ss << m_configFile.m_dstPath << "debug/" << m_numFrames << ".png";
-//        imwrite(ss.str(), debug);
+        //        stringstream ss;
+        //        ss << m_configFile.m_dstPath << "debug/" << m_numFrames <<
+        //        ".png";
+        //        imwrite(ss.str(), debug);
       }
     } else {
       /*m_debugFile << "Appearance has changed!\n";
@@ -880,9 +904,9 @@ cv::Mat Tracker3D::getRotationMatrixDebug(const Mat& rgbImg,
     }
   }
 
-//  stringstream imgName;
-//  imgName << m_configFile.m_dstPath << "debug/" << m_numFrames << ".png";
-//  imwrite(imgName.str(), debugImg);
+  //  stringstream imgName;
+  //  imgName << m_configFile.m_dstPath << "debug/" << m_numFrames << ".png";
+  //  imwrite(imgName.str(), debugImg);
 
   if (validCount > 0) {
     Mat currPoints(validCount, 3, CV_32FC1);
@@ -953,12 +977,11 @@ void Tracker3D::clusterVotes(vector<Status>& keypointStatus) {
     }
   }
 
-  clusterer.clusterPoints(&votes, params_.eps, params_.min_points,
-                          [](Point3f* a, Point3f* b) {
-                            return sqrt(pow(a->x - b->x, 2) +
-                                        pow(a->y - b->y, 2) +
-                                        pow(a->z - b->z, 2));
-                          });
+  clusterer.clusterPoints(
+      &votes, params_.eps, params_.min_points, [](Point3f* a, Point3f* b) {
+        return sqrt(pow(a->x - b->x, 2) + pow(a->y - b->y, 2) +
+                    pow(a->z - b->z, 2));
+      });
 
   auto res = clusterer.getClusters();
   // std::cout << "Size of clusters " << res.size() << "\n" << std::endl;
@@ -1009,12 +1032,11 @@ void Tracker3D::clusterVotesBorder(vector<Status*>& keypointStatus,
     }
   }
 
-  clusterer.clusterPoints(&votes, params_.eps, params_.min_points,
-                          [](Point3f* a, Point3f* b) {
-                            return sqrt(pow(a->x - b->x, 2) +
-                                        pow(a->y - b->y, 2) +
-                                        pow(a->z - b->z, 2));
-                          });
+  clusterer.clusterPoints(
+      &votes, params_.eps, params_.min_points, [](Point3f* a, Point3f* b) {
+        return sqrt(pow(a->x - b->x, 2) + pow(a->y - b->y, 2) +
+                    pow(a->z - b->z, 2));
+      });
 
   vector<bool> border;
   clusterer.getBorderClusters(clusters, border);
@@ -1049,7 +1071,8 @@ void Tracker3D::clusterVotesBorder(vector<Status*>& keypointStatus,
   m_clusteredBorderVotes.swap(borderPoints);
 }
 
-void Tracker3D::initCentroid(const vector<Point3f>& points, BoundingCube& cube) {
+void Tracker3D::initCentroid(const vector<Point3f>& points,
+                             BoundingCube& cube) {
   const vector<Status>& status = cube.m_pointStatus[FACE::FRONT];
 
   Point3f& centroid = cube.m_center;
@@ -1325,20 +1348,23 @@ bool Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
 
       rgb.copyTo(maskResult, mask);
 
-//      int imageCount =
-//          getFilesCount(m_configFile.m_dstPath + "learn3d", m_resultName);
+      //      int imageCount =
+      //          getFilesCount(m_configFile.m_dstPath + "learn3d",
+      //          m_resultName);
 
-//      stringstream imgName;
-//      imgName.precision(1);
-//      // imgName << "[" << rotation.at<float>(0, 2) << "," <<
-//      // rotation.at<float>(1, 2) <<
-//      //	"," << rotation.at<float>(2, 2) << "]";
-//      imgName << m_resultName << "_" << imageCount;
+      //      stringstream imgName;
+      //      imgName.precision(1);
+      //      // imgName << "[" << rotation.at<float>(0, 2) << "," <<
+      //      // rotation.at<float>(1, 2) <<
+      //      //	"," << rotation.at<float>(2, 2) << "]";
+      //      imgName << m_resultName << "_" << imageCount;
 
-//      imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + ".png",
-//              result);
-//      imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + "_mask.png",
-//              maskResult);
+      //      imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() +
+      //      ".png",
+      //              result);
+      //      imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() +
+      //      "_mask.png",
+      //              maskResult);
 
       m_fstCube.m_appearanceRatio[faceToLearn] = visibilityRatio[faceToLearn];
       m_fstCube.m_isLearned[faceToLearn] = true;
@@ -1384,27 +1410,31 @@ void Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
 
     rgb.copyTo(maskResult, mask);
 
-//    int imageCount =
-//        getFilesCount(m_configFile.m_dstPath + "learn3d", m_resultName);
+    //    int imageCount =
+    //        getFilesCount(m_configFile.m_dstPath + "learn3d", m_resultName);
 
-//    stringstream imgName;
-//    imgName.precision(1);
-//    imgName << m_resultName << "_[" << m_learnedFaceVisibility[faceToLearn]
-//            << "," << m_learnedFaceMedianAngle[faceToLearn] << "]";
+    //    stringstream imgName;
+    //    imgName.precision(1);
+    //    imgName << m_resultName << "_[" <<
+    //    m_learnedFaceVisibility[faceToLearn]
+    //            << "," << m_learnedFaceMedianAngle[faceToLearn] << "]";
 
-//    stringstream info;
-//    info.precision(2);
+    //    stringstream info;
+    //    info.precision(2);
 
-//    info << std::fixed << "V: " << m_learnedFaceVisibility[faceToLearn]
-//         << " A: " << m_learnedFaceMedianAngle[faceToLearn] << " KP: " << count
-//         << "/" << m_fstCube.m_faceKeypoints[faceToLearn].size();
+    //    info << std::fixed << "V: " << m_learnedFaceVisibility[faceToLearn]
+    //         << " A: " << m_learnedFaceMedianAngle[faceToLearn] << " KP: " <<
+    //         count
+    //         << "/" << m_fstCube.m_faceKeypoints[faceToLearn].size();
 
-//    drawInformationHeader(Point2f(10, 10), info.str(), 0.5, 640, 30, result);
+    //    drawInformationHeader(Point2f(10, 10), info.str(), 0.5, 640, 30,
+    //    result);
 
-//    imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + ".png",
-//            result);
-//    imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + "_mask.png",
-//            maskResult);
+    //    imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + ".png",
+    //            result);
+    //    imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() +
+    //    "_mask.png",
+    //            maskResult);
 
     m_fstCube.m_appearanceRatio[faceToLearn] =
         m_learnedFaceVisibility[faceToLearn];
@@ -1652,33 +1682,35 @@ void Tracker3D::debugTrackingStep(
   int bothPoints = 0;
 
   if (!isLost) {
-//    drawObjectLocation(m_fstCube, m_updatedCube, visibleFaces, m_focal,
-//                       m_imageCenter, out);
+    //    drawObjectLocation(m_fstCube, m_updatedCube, visibleFaces, m_focal,
+    //                       m_imageCenter, out);
   }
   // cout << "11-1 ";
-//  if (m_configFile.m_showMatching) {
-//    // cout << fstPoints.size() << " " << updPoints.size() << " " <<
-//    // pointsStatus.size()
-//    //	<< " " << colors.size() << "\n";
-//    drawPointsMatching(fstPoints, updPoints, pointsStatus, colors,
-//                       matchedPoints, trackedPoints, bothPoints,
-//                       m_configFile.m_drawMatchingLines, m_focal, m_imageCenter,
-//                       out);
-//  } else {
-//    countKeypointsMatching(pointsStatus, matchedPoints, trackedPoints,
-//                           bothPoints);
-//  }
+  //  if (m_configFile.m_showMatching) {
+  //    // cout << fstPoints.size() << " " << updPoints.size() << " " <<
+  //    // pointsStatus.size()
+  //    //	<< " " << colors.size() << "\n";
+  //    drawPointsMatching(fstPoints, updPoints, pointsStatus, colors,
+  //                       matchedPoints, trackedPoints, bothPoints,
+  //                       m_configFile.m_drawMatchingLines, m_focal,
+  //                       m_imageCenter,
+  //                       out);
+  //  } else {
+  //    countKeypointsMatching(pointsStatus, matchedPoints, trackedPoints,
+  //                           bothPoints);
+  //  }
   // cout << "11-2 ";
-//  if (m_configFile.m_showVoting) {
-//    // stringstream sstmp;
-//    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
-//    // ofstream tmpFile(sstmp.str());
-//    drawCentroidVotes(
-//        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
-//        m_clusteredBorderVotes, pointsStatus, m_configFile.m_drawVotingLines,
-//        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
-//    // tmpFile.close();
-//  }
+  //  if (m_configFile.m_showVoting) {
+  //    // stringstream sstmp;
+  //    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
+  //    // ofstream tmpFile(sstmp.str());
+  //    drawCentroidVotes(
+  //        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
+  //        m_clusteredBorderVotes, pointsStatus,
+  //        m_configFile.m_drawVotingLines,
+  //        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
+  //    // tmpFile.close();
+  //  }
   // cout << "11-3 ";
   // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints, bothPoints,
   // out);
@@ -1769,32 +1801,33 @@ void Tracker3D::debugTrackingStepICRA(
   int trackedPoints = 0;
   int bothPoints = 0;
 
-//  if (!isLost) {
-//    drawObjectLocation(m_updatedCube, visibleFaces, m_focal, m_imageCenter,
-//                       out);
-//  }
+  //  if (!isLost) {
+  //    drawObjectLocation(m_updatedCube, visibleFaces, m_focal, m_imageCenter,
+  //                       out);
+  //  }
 
-//  if (m_configFile.m_showMatching) {
-//    // cout << fstPoints.size() << " " << updPoints.size() << " " <<
-//    // pointsStatus.size()
-//    //	<< " " << colors.size() << "\n";
-//    drawPointsMatchingICRA(fstPoints, updPoints, pointsStatus, colors,
-//                           matchedPoints, trackedPoints, bothPoints,
-//                           m_configFile.m_drawMatchingLines, m_focal,
-//                           m_imageCenter, out);
-//  }
+  //  if (m_configFile.m_showMatching) {
+  //    // cout << fstPoints.size() << " " << updPoints.size() << " " <<
+  //    // pointsStatus.size()
+  //    //	<< " " << colors.size() << "\n";
+  //    drawPointsMatchingICRA(fstPoints, updPoints, pointsStatus, colors,
+  //                           matchedPoints, trackedPoints, bothPoints,
+  //                           m_configFile.m_drawMatchingLines, m_focal,
+  //                           m_imageCenter, out);
+  //  }
 
-//  // cout << "11-2 ";
-//  if (m_configFile.m_showVoting) {
-//    // stringstream sstmp;
-//    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
-//    // ofstream tmpFile(sstmp.str());
-//    drawCentroidVotes(
-//        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
-//        m_clusteredBorderVotes, pointsStatus, m_configFile.m_drawVotingLines,
-//        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
-//    // tmpFile.close();
-//  }
+  //  // cout << "11-2 ";
+  //  if (m_configFile.m_showVoting) {
+  //    // stringstream sstmp;
+  //    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
+  //    // ofstream tmpFile(sstmp.str());
+  //    drawCentroidVotes(
+  //        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
+  //        m_clusteredBorderVotes, pointsStatus,
+  //        m_configFile.m_drawVotingLines,
+  //        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
+  //    // tmpFile.close();
+  //  }
   // cout << "11-3 ";
   // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints, bothPoints,
   // out);
@@ -2068,5 +2101,4 @@ bool Tracker3D::findObject(BoundingCube& fst, BoundingCube& upd,
   return foundFace;
 }
 
-
-} // end namespace
+}  // end namespace

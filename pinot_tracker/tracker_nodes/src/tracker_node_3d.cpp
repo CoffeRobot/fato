@@ -1,10 +1,9 @@
 #include "../include/tracker_node_3d.h"
 #include "../../utilities/include/draw_functions.h"
+#include "../../utilities/include/profiler.h"
 #include <iostream>
 
-
-namespace pinot_tracker{
-
+namespace pinot_tracker {
 
 TrackerNode3D::TrackerNode3D()
     : nh_(),
@@ -20,21 +19,21 @@ TrackerNode3D::TrackerNode3D()
       camera_matrix_initialized_(false),
       mouse_start_(0, 0),
       mouse_end_(0, 0),
-      params_()
-{
-    cvStartWindowThread();
-    namedWindow("Tracker");
-    namedWindow("Tracker_d");
-    setMouseCallback("Tracker", TrackerNode3D::mouseCallback, this);
+      params_() {
+  cvStartWindowThread();
+  namedWindow("Tracker");
+  namedWindow("Tracker_d");
+//  namedWindow("debug");
+  setMouseCallback("Tracker", TrackerNode3D::mouseCallback, this);
 
-    initRGBD();
+  publisher_ = nh_.advertise<sensor_msgs::Image>("pinot_tracker/output", 1);
 
-    run();
+  initRGBD();
+
+  run();
 }
 
-
 void TrackerNode3D::mouseCallback(int event, int x, int y) {
-
   auto set_point = [this](int x, int y) {
     if (x < mouse_start_.x) {
       mouse_end_.x = mouse_start_.x;
@@ -64,7 +63,7 @@ void TrackerNode3D::mouseCallback(int event, int x, int y) {
 }
 
 void TrackerNode3D::mouseCallback(int event, int x, int y, int flags,
-                                 void *userdata) {
+                                  void *userdata) {
   auto manager = reinterpret_cast<TrackerNode3D *>(userdata);
   manager->mouseCallback(event, x, y);
 }
@@ -73,20 +72,22 @@ void TrackerNode3D::rgbdCallback(
     const sensor_msgs::ImageConstPtr &depth_msg,
     const sensor_msgs::ImageConstPtr &rgb_msg,
     const sensor_msgs::CameraInfoConstPtr &camera_info_msg) {
-
-
-  if(!camera_matrix_initialized_)
-  {
+  if (!camera_matrix_initialized_) {
     ROS_INFO("Init camera parameters");
-//    getCameraMatrix(camera_info_msg, params_.camera_matrix);
+    //    getCameraMatrix(camera_info_msg, params_.camera_matrix);
     params_.camera_model.fromCameraInfo(camera_info_msg);
 
-//    cout << params_.camera_matrix << endl;
-//    cout << params_.camera_model.projectionMatrix() << endl;
+    cout << "camera model: " << params_.camera_model.fx() << "\n";
 
-//    waitKey(0);
+    //    cout << params_.camera_matrix << endl;
+    //    cout << params_.camera_model.projectionMatrix() << endl;
+
+    //    waitKey(0);
     camera_matrix_initialized_ = true;
   }
+
+
+  cout << " encoding " << depth_msg->encoding << "\n"  << endl;
 
   cv::Mat rgb, depth;
 
@@ -101,7 +102,6 @@ void TrackerNode3D::rgbdCallback(
 void TrackerNode3D::rgbCallback(
     const sensor_msgs::ImageConstPtr &rgb_msg,
     const sensor_msgs::CameraInfoConstPtr &camera_info_msg) {
-
   cv::Mat rgb;
 
   readImage(rgb_msg, rgb);
@@ -126,76 +126,81 @@ void TrackerNode3D::initRGBD() {
       boost::bind(&TrackerNode3D::rgbdCallback, this, _1, _2, _3));
 }
 
-void TrackerNode3D::run()
-{
-    spinner_.start();
+void TrackerNode3D::run() {
+  spinner_.start();
 
-    ROS_INFO("INPUT: init tracker");
+  ROS_INFO("INPUT: init tracker");
 
-    Tracker3D tracker(params_);
+  Tracker3D tracker(params_);
 
-    ros::Rate r(1);
-    while (ros::ok()) {
-      // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
+  auto &profiler = Profiler::getInstance();
 
-      if (img_updated_) {
+  ros::Rate r(100);
+  while (ros::ok()) {
+    // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
 
-        if (mouse_start_.x != mouse_end_.x)
-          rectangle(rgb_image_, mouse_start_, mouse_end_, Scalar(255, 0, 0), 3);
-
-        if (init_requested_) {
-          ROS_INFO("INPUT: tracker intialization requested");
-
-          init_requested_ = false;
-          tracker_initialized_ = true;
-          ROS_INFO("Tracker initialized!");
-        }
-
-//        if (tracker_initialized_) {
-//          auto begin = chrono::high_resolution_clock::now();
-//          gpu_tracker.computeNext(rgb_image_);
-//          auto end = chrono::high_resolution_clock::now();
-//          auto time_span =
-//              chrono::duration_cast<chrono::milliseconds>(end - begin).count();
-//          stringstream ss;
-//          ss << "Tracker run in ms: " << time_span << "";
-//          ROS_INFO(ss.str().c_str());
-
-//          Point2f p = gpu_tracker.getCentroid();
-//          circle(rgb_image_, p, 5, Scalar(255, 0, 0), -1);
-//          Scalar color(255, 0, 0);
-//          drawBoundingBox(gpu_tracker.getBoundingBox(), color, rgb_image_);
-
-//        }
-
+    if (img_updated_) {
+      Mat tmp;
+      rgb_image_.copyTo(tmp);
+      if (mouse_start_.x != mouse_end_.x && !tracker_initialized_) {
+        rectangle(tmp, mouse_start_, mouse_end_, Scalar(255, 0, 0), 3);
+        img_updated_ = false;
+      }
+      if (!tracker_initialized_) {
         Mat depth_mapped;
         applyColorMap(depth_image_, depth_mapped);
-
-        cout << "depth img " << depth_image_.rows << " " <<depth_image_.cols
-             << "\n";
-        cout << "map img " << depth_mapped.rows << " " <<depth_mapped.cols
-             << "\n";
-
-        imshow("Tracker", rgb_image_);
+        imshow("Tracker", tmp);
         imshow("Tracker_d", depth_mapped);
-
-        img_updated_ = false;
         waitKey(1);
       }
 
-      // r.sleep();
+      if (init_requested_) {
+        ROS_INFO("INPUT: tracker intialization requested");
+        tracker.init(rgb_image_, depth_image_, mouse_start_, mouse_end_);
+        init_requested_ = false;
+        tracker_initialized_ = true;
+        ROS_INFO("Tracker initialized!");
+        destroyWindow("Tracker");
+        destroyWindow("Tracker_d");
+        waitKey(1);
+      }
+
+      if (tracker_initialized_) {
+        profiler->start("total");
+
+        cout << "Depth image type " << depth_image_.channels() << " "
+             << depth_image_.type();
+
+        Mat out;
+        tracker.computeNext(rgb_image_, depth_image_, out);
+        profiler->stop("total");
+
+        stringstream ss;
+        ss << "Tracker run in ms: " << profiler->getTime("total") << "\n";
+        ss << "Centroid " << tracker.getCurrentCentroid() << "\n";
+        ROS_INFO(ss.str().c_str());
+
+
+        cv_bridge::CvImage cv_img;
+        cv_img.image = out;
+        cv_img.encoding = sensor_msgs::image_encodings::BGR8;
+        publisher_.publish(cv_img.toImageMsg());
+        r.sleep();
+        img_updated_ = false;
+      }
     }
+
+    // r.sleep();
+  }
 }
 
-} // end namespace
+}  // end namespace
 
+int main(int argc, char *argv[]) {
+  ROS_INFO("Starting tracker input");
+  ros::init(argc, argv, "pinot_tracker_node_3d");
 
-int main(int argc, char* argv[])
-{
-    ROS_INFO("Starting tracker input");
-    ros::init(argc, argv, "pinot_tracker_node_3d");
+  pinot_tracker::TrackerNode3D tracker_node;
 
-    pinot_tracker::TrackerNode3D tracker_node;
-
-    return 0;
+  return 0;
 }

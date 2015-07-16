@@ -60,6 +60,9 @@ cv::Point2f projectPoint(const float focal, const cv::Point2f& center,
 bool projectPoint(const float focal, const cv::Point2f& center,
                     const cv::Point3f& src, cv::Point2f& dst);
 
+void disparityToDepth(const cv::Mat& disparity, float focal,
+                      cv::Mat& depth);
+
 
 } // end namespace
 

@@ -27,14 +27,12 @@ TrackerNode2D::TrackerNode2D()
       mouse_end_(0, 0),
       spinner_(0),
       params_(),
-      camera_matrix_initialized(false)
-{
+      camera_matrix_initialized(false) {
   cvStartWindowThread();
   namedWindow("Image Viewer");
   setMouseCallback("Image Viewer", TrackerNode2D::mouseCallback, this);
 
-  publisher_ =
-          nh_.advertise<sensor_msgs::Image>("pinot_tracker/output", 1);
+  publisher_ = nh_.advertise<sensor_msgs::Image>("pinot_tracker/output", 1);
 
   getTrackerParameters();
 
@@ -59,17 +57,15 @@ void TrackerNode2D::initRGB() {
 void TrackerNode2D::rgbCallback(
     const sensor_msgs::ImageConstPtr &rgb_msg,
     const sensor_msgs::CameraInfoConstPtr &camera_info_msg) {
-
-  if(!camera_matrix_initialized)
-  {
-      camera_matrix_ =
-          cv::Mat(3, 4, CV_64F, (void *)camera_info_msg->P.data()).clone();
-      camera_matrix_initialized = true;
+  if (!camera_matrix_initialized) {
+    camera_matrix_ =
+        cv::Mat(3, 4, CV_64F, (void *)camera_info_msg->P.data()).clone();
+    camera_matrix_initialized = true;
   }
 
   Mat rgb;
   readImage(rgb_msg, rgb);
-  cvtColor(rgb,rgb_image_, CV_RGB2BGR);
+  cvtColor(rgb, rgb_image_, CV_RGB2BGR);
   img_updated_ = true;
 }
 
@@ -103,14 +99,15 @@ void TrackerNode2D::getTrackerParameters() {
     ss << params_.min_points << "\n";
 
   ss << "ransac_iterations: ";
-  if (!ros::param::get("pinot/tracker_2d/ransac_iterations", params_.ransac_iterations))
+  if (!ros::param::get("pinot/tracker_2d/ransac_iterations",
+                       params_.ransac_iterations))
     ss << "failed \n";
   else
     ss << params_.ransac_iterations << "\n";
 
-
   ss << "ransac_distance: ";
-  if (!ros::param::get("pinot/tracker_2d/ransac_distance", params_.ransac_distance))
+  if (!ros::param::get("pinot/tracker_2d/ransac_distance",
+                       params_.ransac_distance))
     ss << "failed \n";
   else
     ss << params_.ransac_distance << "\n";
@@ -165,28 +162,24 @@ void TrackerNode2D::run() {
 
   spinner_.start();
 
-
   cout << params_.threshold << " " << params_.octaves << " "
        << params_.pattern_scale << endl;
 
-  //Tracker2D tracker(params_);
+  // Tracker2D tracker(params_);
   TrackerV2 tracker(params_, camera_matrix_);
 
-  auto& profiler = Profiler::getInstance();
+  auto &profiler = Profiler::getInstance();
 
   ros::Rate r(100);
   while (ros::ok()) {
     // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
 
     if (img_updated_) {
-
-      if (mouse_start_.x != mouse_end_.x && !tracker_initialized_)
-      {
+      if (mouse_start_.x != mouse_end_.x && !tracker_initialized_) {
         rectangle(rgb_image_, mouse_start_, mouse_end_, Scalar(255, 0, 0), 3);
         img_updated_ = false;
       }
-      if(!tracker_initialized_)
-      {
+      if (!tracker_initialized_) {
         imshow("Image Viewer", rgb_image_);
         waitKey(1);
       }
@@ -201,20 +194,21 @@ void TrackerNode2D::run() {
       }
 
       if (tracker_initialized_) {
-//        auto begin = chrono::high_resolution_clock::now();
+        //        auto begin = chrono::high_resolution_clock::now();
         profiler->start("total");
         Mat out;
         tracker.computeNext(rgb_image_);
         profiler->stop("total");
-//        auto end = chrono::high_resolution_clock::now();
-//        auto time_span =
-//            chrono::duration_cast<chrono::milliseconds>(end - begin).count();
+        //        auto end = chrono::high_resolution_clock::now();
+        //        auto time_span =
+        //            chrono::duration_cast<chrono::milliseconds>(end -
+        //            begin).count();
         stringstream ss;
         Point2f p = tracker.getCentroid();
         circle(rgb_image_, p, 5, Scalar(255, 0, 0), -1);
         vector<Point2f> bbox = tracker.getBoundingBox();
         drawBoundingBox(bbox, Scalar(255, 0, 0), 2, rgb_image_);
-//        ss << "Tracker run in ms: " << time_span << "";
+        //        ss << "Tracker run in ms: " << time_span << "";
         ss << "Profiler " << profiler->getProfile().c_str();
         ROS_INFO(ss.str().c_str());
 
@@ -223,10 +217,8 @@ void TrackerNode2D::run() {
         cv_img.encoding = sensor_msgs::image_encodings::BGR8;
         publisher_.publish(cv_img.toImageMsg());
         r.sleep();
-      } 
+      }
     }
-
-
   }
 }
 

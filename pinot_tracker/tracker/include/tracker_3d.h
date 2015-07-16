@@ -40,7 +40,7 @@ class Tracker3D {
         m_threshold(30),
         m_octave(3),
         m_patternScale(1.0f),
-        m_featuresDetector(m_threshold, m_octave, m_patternScale),
+        m_featuresDetector(),
         m_featureMatcher(new cv::BFMatcher(cv::NORM_HAMMING, true)),
         m_prevFrame(),
         m_dbClusterer(),
@@ -51,12 +51,12 @@ class Tracker3D {
 
   virtual ~Tracker3D();
 
-  void init(cv::Mat& rgb, cv::Mat& depth, cv::Point2f& top_left,
-            cv::Point2f& bottom_right);
+  void init(cv::Mat& rgb, cv::Mat& disaprity, cv::Point2d& top_left,
+            cv::Point2d& bottom_right);
 
-  void init(cv::Mat& rgb, cv::Mat& pointcloud, cv::Mat& mask, float focal);
+  void init(cv::Mat& rgb, cv::Mat& disparity, cv::Mat& mask);
 
-  void computeNext(const Mat& rgb, const Mat& cloud, Mat& out);
+  void computeNext(const Mat& rgb, const Mat& disparity, Mat& out);
 
   void drawResult(cv::Mat& out);
 
