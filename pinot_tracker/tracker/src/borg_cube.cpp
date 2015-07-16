@@ -7,7 +7,7 @@ using namespace cv;
 namespace pinot_tracker{
 
 
-BorgCube::BorgCube() :
+BoundingCube::BoundingCube() :
 	m_center(),
 	m_width(0),
 	m_height(0),
@@ -33,11 +33,11 @@ BorgCube::BorgCube() :
 }
 
 
-BorgCube::~BorgCube()
+BoundingCube::~BoundingCube()
 {
 }
 
-void BorgCube::initNormals()
+void BoundingCube::initNormals()
 {
 	m_eigNormals(FACE::LEFT, 0) = -1;
 	m_eigNormals(FACE::LEFT, 1) = 0;
@@ -90,7 +90,7 @@ void BorgCube::initNormals()
 	
 }
 
-void BorgCube::initCube(Point3f& centroid, vector<Point3f>& front, vector<Point3f>& back)
+void BoundingCube::initCube(Point3f& centroid, vector<Point3f>& front, vector<Point3f>& back)
 {
 	/*m_pointsFront = front;
 	m_pointsBack = back;
@@ -128,7 +128,7 @@ void BorgCube::initCube(Point3f& centroid, vector<Point3f>& front, vector<Point3
 	m_faceNormalPoints.at<float>(FACE::DOWN, 2) = front[0].z + depth;*/
 }
 
-vector<bool> BorgCube::getVisibility(const Mat& pov)
+vector<bool> BoundingCube::getVisibility(const Mat& pov)
 {
 	vector<bool> isVisible(6, false);
 	/*
@@ -150,7 +150,7 @@ vector<bool> BorgCube::getVisibility(const Mat& pov)
 	
 }
 
-vector<Point3f> BorgCube::getFacePoints(int face)
+vector<Point3f> BoundingCube::getFacePoints(int face)
 {
 	vector<Point3f> tmp;
 

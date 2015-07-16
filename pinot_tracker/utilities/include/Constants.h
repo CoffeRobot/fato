@@ -1,4 +1,7 @@
-#pragma once
+#ifndef CONSTANTS_H
+#define CONSTANTS_H
+
+//FIXME: fix error related to namespace here
 
 enum struct Status {
   INIT = 0,
@@ -20,6 +23,8 @@ enum FACE : int {
   FRONT,
   BACK
 };
+
+#endif
 
 // static const float FOCAL = 525.0f;
 // static const float BASELINE = 83.0f;

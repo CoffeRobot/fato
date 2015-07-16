@@ -18,6 +18,8 @@ void drawBoundingCube(const cv::Point3f& scdC,
                       const float focal, const cv::Point2f& imgCenter,
                       cv::Mat& out);
 
+void applyColorMap(const cv::Mat& in, cv::Mat& out);
+
 
 }// end namespace
 

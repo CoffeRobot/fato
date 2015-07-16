@@ -4,6 +4,9 @@
 #include "ToString.h"
 
 using namespace std;
+using namespace cv;
+
+namespace pinot_tracker{
 
 void DrawFlowPoints(const vector<Point2f>* points, const vector<Status>* pointsStatus,
 	const vector<int>* pointsIds, Mat& out)
@@ -109,3 +112,5 @@ void printPointsStatus(const vector<Point2f>* points, const vector<Status>* poin
 			 << "S: " << toString(pointsStatus->at(id)) << "\n";
 	}
 }
+
+} // end namesapce

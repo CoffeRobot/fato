@@ -4,7 +4,7 @@
 #include <sensor_msgs/CameraInfo.h>
 #include <image_transport/image_transport.h>
 #include <image_transport/subscriber_filter.h>
-#include <image_geometry/pinhole_camera_model.h>
+#include <sensor_msgs/CameraInfo.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
@@ -31,6 +31,9 @@ class TrackerNode {
 
   void readImage(const sensor_msgs::Image::ConstPtr msgImage,
                  cv::Mat& image) const;
+
+  void getCameraMatrix(const sensor_msgs::CameraInfo::ConstPtr info,
+                       cv::Mat& camera_matrix);
 };
 
 }  // end namespace

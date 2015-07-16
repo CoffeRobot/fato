@@ -13,12 +13,20 @@
 #include "../../utilities/include/utilities.h"
 #include "../../utilities/include/draw_functions.h"
 
-using namespace tbb;
 namespace fs = boost::filesystem;
+using namespace cv;
+using namespace std;
+using namespace Eigen;
+
 
 namespace pinot_tracker{
 
 Tracker3D::~Tracker3D() {}
+
+void Tracker3D::init(Mat &rgb, Mat &depth, Point2f &top_left, Point2f &bottom_right)
+{
+
+}
 
 void Tracker3D::init(cv::Mat& rgb, cv::Mat& pointcloud, cv::Mat& mask,
                      float focal) {
@@ -1041,7 +1049,7 @@ void Tracker3D::clusterVotesBorder(vector<Status*>& keypointStatus,
   m_clusteredBorderVotes.swap(borderPoints);
 }
 
-void Tracker3D::initCentroid(const vector<Point3f>& points, BorgCube& cube) {
+void Tracker3D::initCentroid(const vector<Point3f>& points, BoundingCube& cube) {
   const vector<Status>& status = cube.m_pointStatus[FACE::FRONT];
 
   Point3f& centroid = cube.m_center;
@@ -1069,7 +1077,7 @@ void Tracker3D::initCentroid(const vector<Point3f>& points, BorgCube& cube) {
   //	        << "," << m_firstCentroid.z << "]\n";
 }
 
-void Tracker3D::initRelativePosition(BorgCube& cube) {
+void Tracker3D::initRelativePosition(BoundingCube& cube) {
   const vector<Status>& status = cube.m_pointStatus[FACE::FRONT];
   const vector<Point3f>& points = cube.m_cloudPoints[FACE::FRONT];
   vector<Point3f>& relativePointsPos = cube.m_relativePointsPos[FACE::FRONT];
@@ -1411,7 +1419,7 @@ void Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
 }
 
 void Tracker3D::calculateVisibility(const Mat& rotation,
-                                    const BorgCube& fstCube,
+                                    const BoundingCube& fstCube,
                                     vector<bool>& isFaceVisible,
                                     vector<float>& visibilityRatio) {
   Mat pov(1, 3, CV_32FC1);
@@ -1434,7 +1442,7 @@ void Tracker3D::calculateVisibility(const Mat& rotation,
 }
 
 void Tracker3D::calculateVisibilityEigen(const Mat& rotation,
-                                         const BorgCube& fstCube,
+                                         const BoundingCube& fstCube,
                                          vector<bool>& isFaceVisible,
                                          vector<float>& visibilityRatio) {
   VectorXd pov(3);
@@ -1470,7 +1478,7 @@ void Tracker3D::calculateVisibilityEigen(const Mat& rotation,
 
 void Tracker3D::learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
                           const Mat& rotation, const int& face,
-                          BorgCube& fstCube, BorgCube& updatedCube) {
+                          BoundingCube& fstCube, BoundingCube& updatedCube) {
   random_device rd;
   default_random_engine engine(rd());
   uniform_int_distribution<unsigned int> uniform_dist(0, 255);
@@ -1533,8 +1541,8 @@ void Tracker3D::learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
 
 int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
                               const Mat& cloud, const Mat& rotation,
-                              const int& face, BorgCube& fstCube,
-                              BorgCube& updatedCube, Mat& out) {
+                              const int& face, BoundingCube& fstCube,
+                              BoundingCube& updatedCube, Mat& out) {
   random_device rd;
   default_random_engine engine(rd());
   uniform_int_distribution<unsigned int> uniform_dist(0, 255);
@@ -2018,7 +2026,7 @@ double Tracker3D::getQuaternionMedianDist(const vector<Quaterniond>& history,
   return median;
 }
 
-bool Tracker3D::findObject(BorgCube& fst, BorgCube& upd,
+bool Tracker3D::findObject(BoundingCube& fst, BoundingCube& upd,
                            const Mat& extractedDescriptors,
                            const vector<KeyPoint>& extractedKeypoints,
                            int& faceFound, int& matchesNum) {

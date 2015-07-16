@@ -1,5 +1,5 @@
-#ifndef PINOT_TRACKER3Dv2_H
-#define PINOT_TRACKER3Dv2_H
+#ifndef PINOT_TRACKER3D_H
+#define PINOT_TRACKER3D_H
 
 #include <iostream>
 #include <fstream>
@@ -31,20 +31,15 @@
 #include "../../utilities/include/DebugFunctions.h"
 #include "../include/params.h"
 
-using namespace cv;
-using namespace std;
-using namespace Eigen;
-
 namespace pinot_tracker {
 
 class Tracker3D {
  public:
-  Tracker3D(TrackerParams params, int thresh = 30, int ocataves = 3,
-            float patternScale = 1.0f)
+  Tracker3D(TrackerParams params)
       : params_(params),
-        m_threshold(thresh),
-        m_octave(ocataves),
-        m_patternScale(patternScale),
+        m_threshold(30),
+        m_octave(3),
+        m_patternScale(1.0f),
         m_featuresDetector(m_threshold, m_octave, m_patternScale),
         m_featureMatcher(new cv::BFMatcher(cv::NORM_HAMMING, true)),
         m_prevFrame(),
@@ -55,6 +50,9 @@ class Tracker3D {
   };
 
   virtual ~Tracker3D();
+
+  void init(cv::Mat& rgb, cv::Mat& depth, cv::Point2f& top_left,
+            cv::Point2f& bottom_right);
 
   void init(cv::Mat& rgb, cv::Mat& pointcloud, cv::Mat& mask, float focal);
 
@@ -68,9 +66,6 @@ class Tracker3D {
 
   std::vector<Point3f> getCurrentBB() { return m_updatedCube.m_pointsFront; }
 
-  int m_threshold;
-  int m_octave;
-  float m_patternScale;
 
  private:
   void getCurrentPoints(const vector<int>& currentFaces,
@@ -119,9 +114,9 @@ class Tracker3D {
                           vector<vector<int>>& clusters);
 
   // calcualte the centroid from the initial keypoints
-  void initCentroid(const std::vector<cv::Point3f>& points, BorgCube& cube);
+  void initCentroid(const std::vector<cv::Point3f>& points, BoundingCube& cube);
   // calculate the relative position of the initial keypoints
-  void initRelativePosition(BorgCube& cube);
+  void initRelativePosition(BoundingCube& cube);
 
   void updateCentroid(const vector<Status*>& keypointStatus,
                       const Mat& rotation);
@@ -144,12 +139,12 @@ class Tracker3D {
                   const Mat& rotation);
 
   void learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
-                 const Mat& rotation, const int& face, BorgCube& fstCube,
-                 BorgCube& updatedCube);
+                 const Mat& rotation, const int& face, BoundingCube& fstCube,
+                 BoundingCube& updatedCube);
 
   int learnFaceDebug(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
-                     const Mat& rotation, const int& face, BorgCube& fstCube,
-                     BorgCube& updatedCube, Mat& out);
+                     const Mat& rotation, const int& face, BoundingCube& fstCube,
+                     BoundingCube& updatedCube, Mat& out);
 
   void debugTrackingStep(
       const cv::Mat& fstFrame, const cv::Mat& scdFrame,
@@ -217,11 +212,11 @@ class Tracker3D {
     return m;
   }
 
-  void calculateVisibility(const Mat& rotation, const BorgCube& fstCube,
+  void calculateVisibility(const Mat& rotation, const BoundingCube& fstCube,
                            vector<bool>& isFaceVisible,
                            vector<float>& visibilityRatio);
 
-  void calculateVisibilityEigen(const Mat& rotation, const BorgCube& fstCube,
+  void calculateVisibilityEigen(const Mat& rotation, const BoundingCube& fstCube,
                                 vector<bool>& isFaceVisible,
                                 vector<float>& visibilityRatio);
 
@@ -237,10 +232,10 @@ class Tracker3D {
 
   void debugCalculations();
 
-  double getQuaternionMedianDist(const vector<Quaterniond>& history, int window,
-                                 const Quaterniond& q);
+  double getQuaternionMedianDist(const vector<Eigen::Quaterniond>& history, int window,
+                                 const Eigen::Quaterniond& q);
 
-  bool findObject(BorgCube& fst, BorgCube& upd, const Mat& extractedDescriptors,
+  bool findObject(BoundingCube& fst, BoundingCube& upd, const Mat& extractedDescriptors,
                   const vector<KeyPoint>& extractedKeypoints, int& faceFound,
                   int& matchesNum);
 
@@ -252,12 +247,14 @@ class Tracker3D {
   /*                          Configuration Parameters                        */
   /****************************************************************************/
   TrackerParams params_;
-
+  int m_threshold;
+  int m_octave;
+  float m_patternScale;
   /*********************************************************************************************/
   /*                          INITIAL MODEL */
   /*********************************************************************************************/
   cv::Mat m_fstFrame, m_firstCloud;
-  BorgCube m_fstCube;
+  BoundingCube m_fstCube;
   vector<vector<bool>> m_isPointClustered;
 
   /*********************************************************************************************/
@@ -266,7 +263,7 @@ class Tracker3D {
   // std::vector<cv::Point2f> m_matchedPoints;
   // std::vector<cv::Point2f> m_trackedPoints;
   cv::Mat m_currFrame, m_currCloud;
-  BorgCube m_updatedCube;
+  BoundingCube m_updatedCube;
   vector<int> m_currentFaces;
 
   /*********************************************************************************************/
@@ -332,7 +329,7 @@ class Tracker3D {
   /*********************************************************************************************/
   std::vector<cv::Mat> m_pointsOfView;
   std::vector<cv::Mat> m_learnedFaces;
-  vector<Quaterniond> m_quaternionHistory;
+  vector<Eigen::Quaterniond> m_quaternionHistory;
   vector<float> m_learnedFaceVisibility;
   vector<double> m_learnedFaceMedianAngle;
   /*********************************************************************************************/

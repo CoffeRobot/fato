@@ -1,0 +1,18 @@
+<launch>
+
+<!-- include the launch file of the desired camera
+<include file="$(find tracker_cameras)/launch/kinect_v1.launch"/>
+-->
+
+<rosparam command="load" file="$(find pinot_tracker_nodes)/config/tracker_parameters.yaml"/>
+
+<!-- uncomment to use the medium version-->
+ <node name="tracker" pkg="pinot_tracker_nodes" type="tracker_node_3d" output="screen">
+  <remap from="/tracker_input/rgb" to="/camera/rgb/image_color" />
+  <remap from="/tracker_input/rgb/compressed" to="/camera/rgb/image_color/compressed" />
+  <remap from="/tracker_input/depth" to="/camera/depth_registered/hw_registered/image_rect_raw" />
+  <remap from="/tracker_input/depth/compressed" to="/camera/depth_registered/hw_registered/image_rect_raw/compressedDepth" />
+  <remap from="/tracker_input/camera_info" to="/camera/rgb/camera_info" />
+  </node>
+  
+</launch>

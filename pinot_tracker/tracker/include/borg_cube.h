@@ -1,5 +1,5 @@
-#ifndef BORGCUBE_H
-#define BORGCUBE_H
+#ifndef BOUNDINGCUBE_H
+#define BOUNDINGCUBE_H
 
 #include <vector>
 #include <opencv2/core/core.hpp>
@@ -15,10 +15,10 @@
 
 namespace pinot_tracker{
 
-class BorgCube {
+class BoundingCube {
  public:
-  BorgCube();
-  virtual ~BorgCube();
+  BoundingCube();
+  virtual ~BoundingCube();
 
   void initCube(cv::Point3f& centroid, std::vector<cv::Point3f>& front,
                 std::vector<cv::Point3f>& back);

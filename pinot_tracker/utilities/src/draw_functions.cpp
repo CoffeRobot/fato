@@ -1,5 +1,6 @@
 #include "../include/draw_functions.h"
 #include "../include/utilities.h"
+#include <opencv2/contrib/contrib.hpp>
 
 using namespace std;
 using namespace cv;
@@ -58,6 +59,16 @@ void drawBoundingCube(const Point3f& scdC, const vector<Point3f>& scdFrontBox,
        projectPoint(focal, imgCenter, scdFrontBox[3]), Scalar(255, 0, 0), 3);
   line(out, projectPoint(focal, imgCenter, scdFrontBox[3]),
        projectPoint(focal, imgCenter, scdFrontBox[0]), Scalar(255, 0, 0), 3);
+}
+
+void applyColorMap(const Mat &src, Mat &dst)
+{
+    cv::Mat adjMap;
+    float min_distance = 400;
+    float max_distance = 8000;
+    double scale = 255.0 / double(max_distance - min_distance);
+    src.convertTo(adjMap, CV_8UC1, scale, min_distance / 100);
+    cv::applyColorMap(adjMap, dst, cv::COLORMAP_JET);
 }
 
 }

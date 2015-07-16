@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <utility>
 
+//FIXME: namespace standardized to the rest of the package
 namespace pinot {
 
 namespace gpu {
@@ -972,8 +973,8 @@ void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
   d_descriptors.download(descriptors);
   // draw mask of the object
   Mat1b mask(m_height, m_width, static_cast<uchar>(0));
-  drawTriangleMask(bbox[0], bbox[1], bbox[2], mask);
-  drawTriangleMask(bbox[0], bbox[2], bbox[3], mask);
+  pinot_tracker::drawTriangleMask(bbox[0], bbox[1], bbox[2], mask);
+  pinot_tracker::drawTriangleMask(bbox[0], bbox[2], bbox[3], mask);
 
   // Mat debug_img;
   // m_nextRgb.copyTo(debug_img);

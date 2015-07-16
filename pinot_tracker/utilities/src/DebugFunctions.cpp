@@ -1,6 +1,13 @@
-#include "DebugFunctions.h"
-#include "Constants.h"
+#include "../include/DebugFunctions.h"
+#include "../include/Constants.h"
+#include "../include/ToString.h"
 #include <sstream>
+
+using namespace cv;
+using namespace std;
+using namespace Eigen;
+
+namespace pinot_tracker{
 
 void cross(const cv::Point2f& p, const Scalar& c, int width, cv::Mat& out) {
   line(out, Point2f(p.x, p.y - 2), Point2f(p.x, p.y + 2), c, width);
@@ -719,66 +726,7 @@ bool reprojectPoint(const float focal, const Point2f& center,
   return true;
 }
 
-std::string toString(const Matrix3d& rotation) {
-  stringstream ss;
-  ss << "[";
-  for (int i = 0; i < rotation.rows(); ++i) {
-    ss << "[";
-    for (int j = 0; j < rotation.cols(); j++) {
-      ss << rotation(i, j);
-      if (j < rotation.cols() - 1) ss << ",";
-    }
-    ss << "]";
-    if (i < rotation.rows() - 1) ss << ",";
-  }
-  ss << "]";
 
-  return ss.str();
-}
-
-std::string toString(const Quaterniond& quaternion) {
-  stringstream ss;
-
-  ss << "[" << quaternion.w() << "," << quaternion.x() << "," << quaternion.y()
-     << "," << quaternion.z() << "]";
-
-  return ss.str();
-}
-
-string toPythonString(const Mat& rotation) {
-  if (rotation.cols != 3 || rotation.rows != 3) return "";
-
-  stringstream ss;
-  ss << "[";
-  for (size_t i = 0; i < 3; i++) {
-    ss << "[";
-    for (size_t j = 0; j < 3; j++) {
-      ss << rotation.at<float>(i, j);
-      if (j < 2) ss << ",";
-    }
-    ss << " ]";
-    if (i < 2) ss << ",";
-  }
-  ss << "]";
-
-  return ss.str();
-}
-
-string toPythonArray(const Mat& rotation) {
-  if (rotation.cols != 3 || rotation.rows != 3) return "";
-
-  stringstream ss;
-  ss << "[";
-  for (size_t i = 0; i < 3; i++) {
-    for (size_t j = 0; j < 3; j++) {
-      ss << rotation.at<float>(i, j);
-      if (i != 2 || j != 2) ss << ",";
-    }
-  }
-  ss << "]";
-
-  return ss.str();
-}
 
 std::string faceToString(int face) {
   switch (face) {
@@ -799,20 +747,12 @@ std::string faceToString(int face) {
   }
 }
 
-std::string toPythonString(const std::vector<cv::Point3f>& cloud) {
-  stringstream ss;
-  ss << "[";
-  for (size_t j = 0; j < cloud.size(); j++) {
-    if (cloud[j].z != 0) ss << toString(cloud[j]);
-    if (cloud[j].z != 0 && j < cloud.size() - 1) ss << ",";
-  }
-  ss << "]";
-
-  return ss.str();
-}
 
 void drawVotes(const std::vector<Point2f>& votes, cv::Scalar& color, Mat& out) {
   for (size_t i = 0; i < votes.size(); i++) {
     circle(out, votes[i], 2, color, -1);
   }
+}
+
+
 }

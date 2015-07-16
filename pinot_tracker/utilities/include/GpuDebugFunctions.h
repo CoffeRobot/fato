@@ -10,6 +10,8 @@
 
 #include "Constants.h"
 
+namespace pinot_tracker {
+
 void DrawFlowPoints(const std::vector<cv::Point2f>* points,
                     const std::vector<Status>* pointsStatus,
                     const std::vector<int>* pointsIds, cv::Mat& out);
@@ -28,3 +30,5 @@ void printPointsStatus(const std::vector<cv::Point2f>* points,
                        const std::vector<Status>* pointsStatus,
                        const std::vector<cv::Point2f>* votes,
                        const std::vector<int>* pointsIds, std::ofstream& file);
+
+}  // end namespace

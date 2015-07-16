@@ -83,24 +83,33 @@ endif()
 
 
 add_executable(tracker_node_2d
-    src/tracker_node.cpp
-    src/tracker_node_2d.cpp)
+  src/tracker_node.cpp
+  src/tracker_node_2d.cpp)
 
 
-  target_link_libraries(tracker_node_2d
-    ${catkin_LIBRARIES}
-    ${OpenCV_LIBS}
-  )
+target_link_libraries(tracker_node_2d
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+)
 
+add_executable(tracker_node_3d
+  src/tracker_node.cpp
+  src/tracker_node_3d.cpp)
+
+
+target_link_libraries(tracker_node_3d
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+)
 
 add_executable(tracker_node_offline
-    src/tracker_offline.cpp)
+  src/tracker_offline.cpp)
 
 
-  target_link_libraries(tracker_node_offline
-    ${catkin_LIBRARIES}
-    ${OpenCV_LIBS}
-  )
+target_link_libraries(tracker_node_offline
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+)
 
 #add_executable(cloud_publisher
 #    src/cloud_publisher.cpp)
