@@ -11,6 +11,7 @@
 
 #include "../include/pose_estimation.h"
 #include "../../utilities/include/utilities.h"
+#include "../../utilities/include/draw_functions.h"
 
 using namespace tbb;
 namespace fs = boost::filesystem;
@@ -36,7 +37,7 @@ void Tracker3D::init(cv::Mat& rgb, cv::Mat& pointcloud, cv::Mat& mask,
   // m_debugWriter.open(m_configFile.m_dstPath + "video_result.avi",
   //		CV_FOURCC('X', 'V', 'I', 'D'), 30, Size(1280, 480), true);
 //  m_pointsColor.resize(6, vector<Scalar>());
-  /*********************************************************************************************/
+  /****************************************************************************/
 
   m_focal = focal;
   m_imageCenter = Point2f(rgb.cols / 2, rgb.rows / 2);
@@ -401,20 +402,20 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& cloud, Mat& out) {
   Point2f a, b, c, d;
   bool isValA, isValB, isValC, isValD;
 
-  isValA = reprojectPoint(m_focal, m_imageCenter, facePoints[0], a);
-  isValB = reprojectPoint(m_focal, m_imageCenter, facePoints[1], b);
-  isValC = reprojectPoint(m_focal, m_imageCenter, facePoints[2], c);
-  isValD = reprojectPoint(m_focal, m_imageCenter, facePoints[3], d);
+  isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
+  isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
+  isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
+  isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
 
   boxstring << a.x << "," << a.y << "," << b.x << "," << b.y << "," << c.x
             << "," << c.y << "," << d.x << "," << d.y << ",";
 
   facePoints = m_updatedCube.getFacePoints(FACE::BACK);
 
-  isValA = reprojectPoint(m_focal, m_imageCenter, facePoints[0], a);
-  isValB = reprojectPoint(m_focal, m_imageCenter, facePoints[1], b);
-  isValC = reprojectPoint(m_focal, m_imageCenter, facePoints[2], c);
-  isValD = reprojectPoint(m_focal, m_imageCenter, facePoints[3], d);
+  isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
+  isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
+  isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
+  isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
 
   boxstring << a.x << "," << a.y << "," << b.x << "," << b.y << "," << c.x
             << "," << c.y << "," << d.x << "," << d.y << "\n";
@@ -506,8 +507,8 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& cloud, Mat& out) {
 
         buildCompositeImg(grayImg, m_fstFrame, debug);
 
-        drawObjectLocation(m_fstCube, m_updatedCube, m_visibleFaces, m_focal,
-                           m_imageCenter, debug);
+//        drawObjectLocation(m_fstCube, m_updatedCube, m_visibleFaces, m_focal,
+//                           m_imageCenter, debug);
 
         stringstream info;
         info << "Visible: ";
@@ -545,9 +546,9 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& cloud, Mat& out) {
 
         drawInformationHeader(Point2f(10, 10), info.str(), 0.5, 800, 30, debug);
 
-        stringstream ss;
-        ss << m_configFile.m_dstPath << "debug/" << m_numFrames << ".png";
-        imwrite(ss.str(), debug);
+//        stringstream ss;
+//        ss << m_configFile.m_dstPath << "debug/" << m_numFrames << ".png";
+//        imwrite(ss.str(), debug);
       }
     } else {
       /*m_debugFile << "Appearance has changed!\n";
@@ -598,9 +599,9 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& cloud, Mat& out) {
   m_partialTimes[14] +=
       chrono::duration_cast<chrono::milliseconds>(end - start).count();
   cout << "14 ";
-  /*********************************************************************************************/
-  /*                            RECOVERY */
-  /*********************************************************************************************/
+  /****************************************************************************/
+  /*                            RECOVERY                                      */
+  /****************************************************************************/
   start = chrono::system_clock::now();
   if (isLost) {
     int faceFound, matchedNum;
@@ -866,14 +867,14 @@ cv::Mat Tracker3D::getRotationMatrixDebug(const Mat& rgbImg,
       // m_debugFile << i << ": " <<toString(*initPoints[i]) << " "
       //	        << toString(*updPoints[i]) << "\n";
       Point2f tmp;
-      reprojectPoint(m_focal, m_imageCenter, *updPoints[i], tmp);
+      projectPoint(m_focal, m_imageCenter, *updPoints[i], tmp);
       circle(debugImg, tmp, 5, Scalar(255, 0, 0), 3, 1);
     }
   }
 
-  stringstream imgName;
-  imgName << m_configFile.m_dstPath << "debug/" << m_numFrames << ".png";
-  imwrite(imgName.str(), debugImg);
+//  stringstream imgName;
+//  imgName << m_configFile.m_dstPath << "debug/" << m_numFrames << ".png";
+//  imwrite(imgName.str(), debugImg);
 
   if (validCount > 0) {
     Mat currPoints(validCount, 3, CV_32FC1);
@@ -944,7 +945,7 @@ void Tracker3D::clusterVotes(vector<Status>& keypointStatus) {
     }
   }
 
-  clusterer.clusterPoints(&votes, m_configFile.m_eps, m_configFile.m_minPts,
+  clusterer.clusterPoints(&votes, params_.eps, params_.min_points,
                           [](Point3f* a, Point3f* b) {
                             return sqrt(pow(a->x - b->x, 2) +
                                         pow(a->y - b->y, 2) +
@@ -1000,7 +1001,7 @@ void Tracker3D::clusterVotesBorder(vector<Status*>& keypointStatus,
     }
   }
 
-  clusterer.clusterPoints(&votes, m_configFile.m_eps, m_configFile.m_minPts,
+  clusterer.clusterPoints(&votes, params_.eps, params_.min_points,
                           [](Point3f* a, Point3f* b) {
                             return sqrt(pow(a->x - b->x, 2) +
                                         pow(a->y - b->y, 2) +
@@ -1300,10 +1301,10 @@ bool Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
     Point2f a, b, c, d;
     bool isValA, isValB, isValC, isValD;
 
-    isValA = reprojectPoint(m_focal, m_imageCenter, facePoints[0], a);
-    isValB = reprojectPoint(m_focal, m_imageCenter, facePoints[1], b);
-    isValC = reprojectPoint(m_focal, m_imageCenter, facePoints[2], c);
-    isValD = reprojectPoint(m_focal, m_imageCenter, facePoints[3], d);
+    isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
+    isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
+    isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
+    isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
 
     if (isValA && isValB && isValC && isValD) {
       drawTriangleMask(a, b, c, mask);
@@ -1316,20 +1317,20 @@ bool Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
 
       rgb.copyTo(maskResult, mask);
 
-      int imageCount =
-          getFilesCount(m_configFile.m_dstPath + "learn3d", m_resultName);
+//      int imageCount =
+//          getFilesCount(m_configFile.m_dstPath + "learn3d", m_resultName);
 
-      stringstream imgName;
-      imgName.precision(1);
-      // imgName << "[" << rotation.at<float>(0, 2) << "," <<
-      // rotation.at<float>(1, 2) <<
-      //	"," << rotation.at<float>(2, 2) << "]";
-      imgName << m_resultName << "_" << imageCount;
+//      stringstream imgName;
+//      imgName.precision(1);
+//      // imgName << "[" << rotation.at<float>(0, 2) << "," <<
+//      // rotation.at<float>(1, 2) <<
+//      //	"," << rotation.at<float>(2, 2) << "]";
+//      imgName << m_resultName << "_" << imageCount;
 
-      imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + ".png",
-              result);
-      imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + "_mask.png",
-              maskResult);
+//      imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + ".png",
+//              result);
+//      imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + "_mask.png",
+//              maskResult);
 
       m_fstCube.m_appearanceRatio[faceToLearn] = visibilityRatio[faceToLearn];
       m_fstCube.m_isLearned[faceToLearn] = true;
@@ -1358,10 +1359,10 @@ void Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
   Point2f a, b, c, d;
   bool isValA, isValB, isValC, isValD;
 
-  isValA = reprojectPoint(m_focal, m_imageCenter, facePoints[0], a);
-  isValB = reprojectPoint(m_focal, m_imageCenter, facePoints[1], b);
-  isValC = reprojectPoint(m_focal, m_imageCenter, facePoints[2], c);
-  isValD = reprojectPoint(m_focal, m_imageCenter, facePoints[3], d);
+  isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
+  isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
+  isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
+  isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
 
   if (isValA && isValB && isValC && isValD) {
     drawTriangleMask(a, b, c, mask);
@@ -1375,27 +1376,27 @@ void Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
 
     rgb.copyTo(maskResult, mask);
 
-    int imageCount =
-        getFilesCount(m_configFile.m_dstPath + "learn3d", m_resultName);
+//    int imageCount =
+//        getFilesCount(m_configFile.m_dstPath + "learn3d", m_resultName);
 
-    stringstream imgName;
-    imgName.precision(1);
-    imgName << m_resultName << "_[" << m_learnedFaceVisibility[faceToLearn]
-            << "," << m_learnedFaceMedianAngle[faceToLearn] << "]";
+//    stringstream imgName;
+//    imgName.precision(1);
+//    imgName << m_resultName << "_[" << m_learnedFaceVisibility[faceToLearn]
+//            << "," << m_learnedFaceMedianAngle[faceToLearn] << "]";
 
-    stringstream info;
-    info.precision(2);
+//    stringstream info;
+//    info.precision(2);
 
-    info << std::fixed << "V: " << m_learnedFaceVisibility[faceToLearn]
-         << " A: " << m_learnedFaceMedianAngle[faceToLearn] << " KP: " << count
-         << "/" << m_fstCube.m_faceKeypoints[faceToLearn].size();
+//    info << std::fixed << "V: " << m_learnedFaceVisibility[faceToLearn]
+//         << " A: " << m_learnedFaceMedianAngle[faceToLearn] << " KP: " << count
+//         << "/" << m_fstCube.m_faceKeypoints[faceToLearn].size();
 
-    drawInformationHeader(Point2f(10, 10), info.str(), 0.5, 640, 30, result);
+//    drawInformationHeader(Point2f(10, 10), info.str(), 0.5, 640, 30, result);
 
-    imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + ".png",
-            result);
-    imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + "_mask.png",
-            maskResult);
+//    imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + ".png",
+//            result);
+//    imwrite(m_configFile.m_dstPath + "learn3d/" + imgName.str() + "_mask.png",
+//            maskResult);
 
     m_fstCube.m_appearanceRatio[faceToLearn] =
         m_learnedFaceVisibility[faceToLearn];
@@ -1643,33 +1644,33 @@ void Tracker3D::debugTrackingStep(
   int bothPoints = 0;
 
   if (!isLost) {
-    drawObjectLocation(m_fstCube, m_updatedCube, visibleFaces, m_focal,
-                       m_imageCenter, out);
+//    drawObjectLocation(m_fstCube, m_updatedCube, visibleFaces, m_focal,
+//                       m_imageCenter, out);
   }
   // cout << "11-1 ";
-  if (m_configFile.m_showMatching) {
-    // cout << fstPoints.size() << " " << updPoints.size() << " " <<
-    // pointsStatus.size()
-    //	<< " " << colors.size() << "\n";
-    drawPointsMatching(fstPoints, updPoints, pointsStatus, colors,
-                       matchedPoints, trackedPoints, bothPoints,
-                       m_configFile.m_drawMatchingLines, m_focal, m_imageCenter,
-                       out);
-  } else {
-    countKeypointsMatching(pointsStatus, matchedPoints, trackedPoints,
-                           bothPoints);
-  }
+//  if (m_configFile.m_showMatching) {
+//    // cout << fstPoints.size() << " " << updPoints.size() << " " <<
+//    // pointsStatus.size()
+//    //	<< " " << colors.size() << "\n";
+//    drawPointsMatching(fstPoints, updPoints, pointsStatus, colors,
+//                       matchedPoints, trackedPoints, bothPoints,
+//                       m_configFile.m_drawMatchingLines, m_focal, m_imageCenter,
+//                       out);
+//  } else {
+//    countKeypointsMatching(pointsStatus, matchedPoints, trackedPoints,
+//                           bothPoints);
+//  }
   // cout << "11-2 ";
-  if (m_configFile.m_showVoting) {
-    // stringstream sstmp;
-    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
-    // ofstream tmpFile(sstmp.str());
-    drawCentroidVotes(
-        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
-        m_clusteredBorderVotes, pointsStatus, m_configFile.m_drawVotingLines,
-        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
-    // tmpFile.close();
-  }
+//  if (m_configFile.m_showVoting) {
+//    // stringstream sstmp;
+//    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
+//    // ofstream tmpFile(sstmp.str());
+//    drawCentroidVotes(
+//        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
+//        m_clusteredBorderVotes, pointsStatus, m_configFile.m_drawVotingLines,
+//        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
+//    // tmpFile.close();
+//  }
   // cout << "11-3 ";
   // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints, bothPoints,
   // out);
@@ -1681,10 +1682,10 @@ void Tracker3D::debugTrackingStep(
       Point2f a, b, c, d;
       bool isValA, isValB, isValC, isValD;
 
-      isValA = reprojectPoint(m_focal, m_imageCenter, facePoints[0], a);
-      isValB = reprojectPoint(m_focal, m_imageCenter, facePoints[1], b);
-      isValC = reprojectPoint(m_focal, m_imageCenter, facePoints[2], c);
-      isValD = reprojectPoint(m_focal, m_imageCenter, facePoints[3], d);
+      isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
+      isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
+      isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
+      isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
 
       if (isValA && isValB && isValC && isValD) {
         drawTriangle(a, b, c, m_faceColors[i], 0.4, out);
@@ -1760,32 +1761,32 @@ void Tracker3D::debugTrackingStepICRA(
   int trackedPoints = 0;
   int bothPoints = 0;
 
-  if (!isLost) {
-    drawObjectLocation(m_updatedCube, visibleFaces, m_focal, m_imageCenter,
-                       out);
-  }
+//  if (!isLost) {
+//    drawObjectLocation(m_updatedCube, visibleFaces, m_focal, m_imageCenter,
+//                       out);
+//  }
 
-  if (m_configFile.m_showMatching) {
-    // cout << fstPoints.size() << " " << updPoints.size() << " " <<
-    // pointsStatus.size()
-    //	<< " " << colors.size() << "\n";
-    drawPointsMatchingICRA(fstPoints, updPoints, pointsStatus, colors,
-                           matchedPoints, trackedPoints, bothPoints,
-                           m_configFile.m_drawMatchingLines, m_focal,
-                           m_imageCenter, out);
-  }
+//  if (m_configFile.m_showMatching) {
+//    // cout << fstPoints.size() << " " << updPoints.size() << " " <<
+//    // pointsStatus.size()
+//    //	<< " " << colors.size() << "\n";
+//    drawPointsMatchingICRA(fstPoints, updPoints, pointsStatus, colors,
+//                           matchedPoints, trackedPoints, bothPoints,
+//                           m_configFile.m_drawMatchingLines, m_focal,
+//                           m_imageCenter, out);
+//  }
 
-  // cout << "11-2 ";
-  if (m_configFile.m_showVoting) {
-    // stringstream sstmp;
-    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
-    // ofstream tmpFile(sstmp.str());
-    drawCentroidVotes(
-        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
-        m_clusteredBorderVotes, pointsStatus, m_configFile.m_drawVotingLines,
-        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
-    // tmpFile.close();
-  }
+//  // cout << "11-2 ";
+//  if (m_configFile.m_showVoting) {
+//    // stringstream sstmp;
+//    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
+//    // ofstream tmpFile(sstmp.str());
+//    drawCentroidVotes(
+//        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
+//        m_clusteredBorderVotes, pointsStatus, m_configFile.m_drawVotingLines,
+//        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
+//    // tmpFile.close();
+//  }
   // cout << "11-3 ";
   // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints, bothPoints,
   // out);
@@ -1797,10 +1798,10 @@ void Tracker3D::debugTrackingStepICRA(
       Point2f a, b, c, d;
       bool isValA, isValB, isValC, isValD;
 
-      isValA = reprojectPoint(m_focal, m_imageCenter, facePoints[0], a);
-      isValB = reprojectPoint(m_focal, m_imageCenter, facePoints[1], b);
-      isValC = reprojectPoint(m_focal, m_imageCenter, facePoints[2], c);
-      isValD = reprojectPoint(m_focal, m_imageCenter, facePoints[3], d);
+      isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
+      isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
+      isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
+      isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
 
       if (isValA && isValB && isValC && isValD) {
         drawTriangle(a, b, c, m_faceColors[i], 0.4, out);
@@ -1975,10 +1976,10 @@ void Tracker3D::drawLearnedFace(const Mat& rgb, int face, Mat& out) {
   Point2f a, b, c, d;
   bool isValA, isValB, isValC, isValD;
 
-  isValA = reprojectPoint(m_focal, m_imageCenter, facePoints[0], a);
-  isValB = reprojectPoint(m_focal, m_imageCenter, facePoints[1], b);
-  isValC = reprojectPoint(m_focal, m_imageCenter, facePoints[2], c);
-  isValD = reprojectPoint(m_focal, m_imageCenter, facePoints[3], d);
+  isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
+  isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
+  isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
+  isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
 
   if (isValA && isValB && isValC && isValD) {
     line(out, a, b, m_faceColors[face], 3);

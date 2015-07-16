@@ -1,6 +1,11 @@
-#include "BorgCube.h"
+#include "../include/borg_cube.h"
 
 using namespace Eigen;
+using namespace std;
+using namespace cv;
+
+namespace pinot_tracker{
+
 
 BorgCube::BorgCube() :
 	m_center(),
@@ -188,3 +193,5 @@ vector<Point3f> BorgCube::getFacePoints(int face)
 
 	return tmp;
 }
+
+} // end namespace

@@ -54,6 +54,12 @@ void opencvToEigen(const cv::Mat& rot, Eigen::Matrix3d& rotation);
 
 void eigenToOpencv(const Eigen::Matrix3d& src, cv::Mat& dst);
 
+cv::Point2f projectPoint(const float focal, const cv::Point2f& center,
+                           const cv::Point3f& src);
+
+bool projectPoint(const float focal, const cv::Point2f& center,
+                    const cv::Point3f& src, cv::Point2f& dst);
+
 
 } // end namespace
 

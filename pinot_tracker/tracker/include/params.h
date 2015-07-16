@@ -24,6 +24,16 @@ struct TrackerParams {
         ransac_iterations(100),
         ransac_distance(8.0f)
   {}
+
+  TrackerParams(const TrackerParams& other)
+    : eps(other.eps),
+      min_points(other.min_points),
+      threshold(other.threshold),
+      octaves(other.octaves),
+      pattern_scale(other.pattern_scale),
+      ransac_distance(other.ransac_distance),
+      ransac_iterations(other.ransac_iterations)
+  {}
 };
 
 }

@@ -25,12 +25,12 @@ class BorgCube {
 
   std::vector<cv::Point3f> getFacePoints(int face);
 
-  std::vector<bool> getVisibility(const Mat& pov);
+  std::vector<bool> getVisibility(const cv::Mat& pov);
 
   void resetFace(int face) {
     m_cloudPoints[face].clear();
     m_pointStatus[face].clear();
-    m_faceDescriptors[face] = Mat();
+    m_faceDescriptors[face] = cv::Mat();
     m_faceKeypoints[face].clear();
     m_relativePointsPos[face].clear();
   };

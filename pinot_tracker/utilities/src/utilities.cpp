@@ -1,9 +1,9 @@
 #include "../include/utilities.h"
 
-namespace pinot_tracker{
+namespace pinot_tracker {
 
 cv::Mat1b getMask(int rows, int cols, const cv::Point2d& begin,
-                         const cv::Point2d& end) {
+                  const cv::Point2d& end) {
   cv::Mat1b mask(rows, cols, static_cast<uchar>(0));
   rectangle(mask, begin, end, static_cast<uchar>(255), -1);
   return mask;
@@ -39,5 +39,30 @@ void eigenToOpencv(const Eigen::Matrix3d& src, cv::Mat& dst) {
   dst.at<float>(2, 2) = static_cast<float>(src(2, 1));
 }
 
-} // end namespace
+cv::Point2f projectPoint(const float focal, const cv::Point2f& center,
+                           const cv::Point3f& src) {
+  cv::Point2f dst;
 
+  dst.x = (focal * src.x / src.z) + center.x;
+  dst.y = (center.y - (focal * src.y / src.z));
+
+  return dst;
+}
+
+bool projectPoint(const float focal, const cv::Point2f& center,
+                    const cv::Point3f& src, cv::Point2f& dst) {
+
+  if (src.z == 0) return false;
+
+  dst.x = (focal * src.x / src.z) + center.x;
+  dst.y = (center.y - (focal * src.y / src.z));
+
+  if (dst.x < 0 || dst.x > center.x * 2) return false;
+  if (dst.y < 0 || dst.y > center.y * 2) return false;
+
+  if (isnan(dst.x) || isnan(dst.y)) return false;
+
+  return true;
+}
+
+}  // end namespace

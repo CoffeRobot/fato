@@ -74,11 +74,7 @@ void drawObjectLocation(const BorgCube& updCube,
                         const Point2f& imgCenter, Mat& out);
 */
 
-void drawBoundingCube(const cv::Point3f& scdC,
-                      const std::vector<cv::Point3f>& scdFrontBox,
-                      const std::vector<cv::Point3f>& scdBackBox,
-                      const float focal, const cv::Point2f& imgCenter,
-                      cv::Mat& out);
+
 
 void drawKeypointsMatching(const vector<KeyPoint>& fstPoint,
                            const vector<KeyPoint>& scdPoints,
