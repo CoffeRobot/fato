@@ -27,6 +27,8 @@ class BoundingCube {
 
   std::vector<bool> getVisibility(const cv::Mat& pov);
 
+  void restCube();
+
   void resetFace(int face) {
     m_cloudPoints[face].clear();
     m_pointStatus[face].clear();

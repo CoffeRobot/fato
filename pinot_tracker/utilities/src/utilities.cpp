@@ -1,4 +1,5 @@
 #include "../include/utilities.h"
+#include <iostream>
 
 namespace pinot_tracker {
 
@@ -64,35 +65,70 @@ bool projectPoint(const float focal, const cv::Point2f& center,
   return true;
 }
 
-void disparityToDepth(const cv::Mat& disparity, float focal,
-                      cv::Mat& depth) {
+//template <typename T>
+//void disparityToDepth(const sensor_msgs::ImageConstPtr &depth_msg,
+//                      const image_geometry::PinholeCameraModel& model,
+//                      cv::Mat& cloud)
+//{
+
+
+//}
+
+void disparityToDepth(const cv::Mat& disparity, float cx, float cy,
+                      float fx, float fy, cv::Mat3f& depth) {
   int cols = disparity.cols;
   int rows = disparity.rows;
 
-  float xc = cols / 2;
-  float yc = rows / 2;
-
-  depth = cv::Mat3f(rows, cols, cv::Vec3f(0,0,0));
+  assert(depth.cols != 0 && depth.rows != 0);
+  assert(fx != 0 && fy != 0);
 
   for (size_t y = 0; y < rows; y++) {
     for (size_t x = 0; x < cols; x++) {
 
-      float d = static_cast<float>(disparity.at<uint>(y, x));
 
-      if (d == 0) {
-        continue;
-      }
+      unsigned short val = disparity.at<unsigned short>(y, x);
+      float d = static_cast<float>(val);
 
-      float xp = x - xc;
-      float yp = -(y - yc);
+      if(!is_valid(val))
+          continue;
+      if(val == 0)
+          continue;
 
-      float Z = focal / d;
-      float X = xp * Z / focal;
-      float Y = yp * Z / focal;
+      if(d == 0)
+          continue;
+
+      float xp = x - cx;
+      float yp = -(y - cy);
+
+      float Z = fx / d;
+      float X = xp * Z / fx;
+      float Y = yp * Z / fy;
 
       depth.at<cv::Vec3f>(y, x) = cv::Vec3f(X, Y, Z);
     }
   }
+}
+
+template<typename T>
+bool is_infinite( const T &value )
+{
+    T max_value = std::numeric_limits<T>::max();
+    T min_value = - max_value;
+
+    return ! ( min_value <= value && value <= max_value );
+}
+
+template<typename T>
+bool is_nan( const T &value )
+{
+    // True if NAN
+    return value != value;
+}
+
+template<typename T>
+bool is_valid( const T &value )
+{
+    return ! is_infinite(value) && ! is_nan(value);
 }
 
 }  // end namespace

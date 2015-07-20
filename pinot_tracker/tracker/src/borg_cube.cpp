@@ -32,9 +32,23 @@ BoundingCube::BoundingCube() :
 
 }
 
-
 BoundingCube::~BoundingCube()
 {
+}
+
+void BoundingCube::restCube()
+{
+    initNormals();
+
+    m_cloudPoints = vector< vector<Point3f> >(6, vector<Point3f>());
+
+    m_pointStatus = vector< vector<Status> >(6,vector<Status>());
+
+    m_faceDescriptors = vector<Mat>(6, Mat());
+
+    m_faceKeypoints = vector< vector<KeyPoint> >(6, vector<KeyPoint>());
+
+    m_relativePointsPos = vector< vector<Point3f> >(6, vector<Point3f>());
 }
 
 void BoundingCube::initNormals()

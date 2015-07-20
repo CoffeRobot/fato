@@ -7,7 +7,7 @@ using namespace cv;
 using namespace std;
 using namespace Eigen;
 
-namespace pinot_tracker{
+namespace pinot_tracker {
 
 void cross(const cv::Point2f& p, const Scalar& c, int width, cv::Mat& out) {
   line(out, Point2f(p.x, p.y - 2), Point2f(p.x, p.y + 2), c, width);
@@ -166,7 +166,6 @@ void drawCentroidVotes(const vector<Point3f*>& keypoints,
                   *status[i] == Status::MATCH);
 
     if (clustered[i] && valid) {
-
       Point2f tmp = reprojectPoint(focal, center, votes[i]);
       Point2f kp = reprojectPoint(focal, center, *keypoints[i]);
 
@@ -222,7 +221,6 @@ void drawCentroidVotes(const vector<Point3f*>& keypoints,
                   *status[i] == Status::MATCH);
 
     if (clustered[i] && valid && keypoints[i]->z != 0) {
-
       Point2f tmp = reprojectPoint(focal, center, votes[i]);
       Point2f kp = reprojectPoint(focal, center, *keypoints[i]);
 
@@ -277,7 +275,6 @@ void drawCentroidVotes(const vector<Point3f*>& keypoints,
 }
 
 void buildCompositeImg(const Mat& fst, const Mat& scd, Mat& out) {
-
   unsigned int cols = scd.cols;
   unsigned int rows = scd.rows;
 
@@ -301,7 +298,6 @@ void buildCompositeImg(const Mat& fst, const Mat& scd, Mat& out) {
 void drawObjectLocation(const Point2f& fstC, const vector<Point2f>& fstBBox,
                         const Point2f& scdC, const vector<Point2f>& scdBBox,
                         Mat& out) {
-
   int cols = out.cols / 2;
 
   Point2f tmp = fstC;
@@ -310,16 +306,20 @@ void drawObjectLocation(const Point2f& fstC, const vector<Point2f>& fstBBox,
   Point2f offset(cols, 0);
 
   circle(out, tmp, 5, Scalar(255, 0, 0), -1);
-  line(out, fstBBox[0] + offset, fstBBox[1] + offset, Scalar(255, 0, 0), 3);
-  line(out, fstBBox[1] + offset, fstBBox[2] + offset, Scalar(255, 0, 0), 3);
-  line(out, fstBBox[2] + offset, fstBBox[3] + offset, Scalar(255, 0, 0), 3);
-  line(out, fstBBox[3] + offset, fstBBox[0] + offset, Scalar(255, 0, 0), 3);
+  line(out, fstBBox.at(0) + offset, fstBBox.at(1) + offset, Scalar(255, 0, 0),
+       3);
+  line(out, fstBBox.at(1) + offset, fstBBox.at(2) + offset, Scalar(255, 0, 0),
+       3);
+  line(out, fstBBox.at(2) + offset, fstBBox.at(3) + offset, Scalar(255, 0, 0),
+       3);
+  line(out, fstBBox.at(3) + offset, fstBBox.at(0) + offset, Scalar(255, 0, 0),
+       3);
 
   circle(out, scdC, 5, Scalar(255, 0, 0), -1);
-  line(out, scdBBox[0], scdBBox[1], Scalar(255, 0, 0), 3);
-  line(out, scdBBox[1], scdBBox[2], Scalar(255, 0, 0), 3);
-  line(out, scdBBox[2], scdBBox[3], Scalar(255, 0, 0), 3);
-  line(out, scdBBox[3], scdBBox[0], Scalar(255, 0, 0), 3);
+  line(out, scdBBox.at(0), scdBBox.at(1), Scalar(255, 0, 0), 3);
+  line(out, scdBBox.at(1), scdBBox.at(2), Scalar(255, 0, 0), 3);
+  line(out, scdBBox.at(2), scdBBox.at(3), Scalar(255, 0, 0), 3);
+  line(out, scdBBox.at(3), scdBBox.at(0), Scalar(255, 0, 0), 3);
 }
 
 void drawKeypointsMatching(const vector<KeyPoint>& fstPoint,
@@ -328,7 +328,6 @@ void drawKeypointsMatching(const vector<KeyPoint>& fstPoint,
                            const vector<Scalar>& colors, int& numMatch,
                            int& numTrack, int& numBoth, bool drawLines,
                            Mat& out) {
-
   int cols = out.cols / 2;
 
   for (size_t i = 0; i < scdPoints.size(); i++) {
@@ -348,7 +347,6 @@ void drawKeypointsMatching(const vector<KeyPoint>& fstPoint,
       if (drawLines) line(out, scd, fstOffset, color, 1);
       numMatch++;
     } else if (s == Status::TRACK) {
-
       Rect prev(fst.x - 2 + cols, fst.y - 2, 5, 5);
       Rect next(scd.x - 2, scd.y - 2, 5, 5);
 
@@ -393,7 +391,6 @@ void drawPointsMatching(const vector<Point3f>& fstPoints,
       if (drawLines) line(out, scd, fstOffset, color, 1);
       numMatch++;
     } else if (s == Status::TRACK) {
-
       Rect prev(fst.x - 2 + cols, fst.y - 2, 5, 5);
       Rect next(scd.x - 2, scd.y - 2, 5, 5);
 
@@ -437,7 +434,6 @@ void drawPointsMatching(const vector<Point3f*>& fstPoints,
     fstOffset.x += cols;
 
     if (s == Status::MATCH) {
-
       circle(out, fstOffset, 3, color, 1);
       circle(out, scd, 3, color, 1);
       if (drawLines) line(out, scd, fstOffset, color, 1);
@@ -486,7 +482,6 @@ void drawPointsMatchingICRA(const vector<Point3f*>& fstPoints,
     bool scdVal = reprojectPoint(focal, center, *scdPoints[i], scd);
 
     if (s == Status::MATCH) {
-
       circle(out, scd, 3, color, 1);
       numMatch++;
     } else if (s == Status::TRACK) {
@@ -545,7 +540,6 @@ void countKeypointsMatching(const vector<Status*>& pointStatus, int& numMatch,
 
 void drawKeipointsStats(const int init, const int matched, const int tracked,
                         const int both, Mat& out) {
-
   int rows = out.rows;
   int cols = out.cols / 2;
 
@@ -597,11 +591,9 @@ void drawInformationHeader(const int numFrames, const float scale,
 
 void drawInformationHeader(const Point2f& top, const string information,
                            float alpha, int width, int height, Mat& out) {
-
   for (int i = top.y; i < top.y + height; ++i) {
     for (int j = 0; j < width; j++) {
-        out.at<Vec3b>(i, j) = (1 - alpha) * out.at<Vec3b>(i, j);
-
+      out.at<Vec3b>(i, j) = (1 - alpha) * out.at<Vec3b>(i, j);
     }
   }
   // rectangle(out, Rect(0, 0, (out.cols * 0.75), 30), Scalar(0, 0, 0), -1);
@@ -712,7 +704,6 @@ cv::Point2f reprojectPoint(const float focal, const Point2f& center,
 
 bool reprojectPoint(const float focal, const Point2f& center,
                     const Point3f& src, Point2f& dst) {
-
   if (src.z == 0) return false;
 
   dst.x = (focal * src.x / src.z) + center.x;
@@ -725,8 +716,6 @@ bool reprojectPoint(const float focal, const Point2f& center,
 
   return true;
 }
-
-
 
 std::string faceToString(int face) {
   switch (face) {
@@ -747,12 +736,9 @@ std::string faceToString(int face) {
   }
 }
 
-
 void drawVotes(const std::vector<Point2f>& votes, cv::Scalar& color, Mat& out) {
   for (size_t i = 0; i < votes.size(); i++) {
     circle(out, votes[i], 2, color, -1);
   }
 }
-
-
 }

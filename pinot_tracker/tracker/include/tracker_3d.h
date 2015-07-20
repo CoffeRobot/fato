@@ -35,8 +35,8 @@ namespace pinot_tracker {
 
 class Tracker3D {
  public:
-  Tracker3D(TrackerParams params)
-      : params_(params),
+  Tracker3D()
+      : params_(),
         m_threshold(30),
         m_octave(3),
         m_patternScale(1.0f),
@@ -45,18 +45,21 @@ class Tracker3D {
         m_prevFrame(),
         m_dbClusterer(),
         m_fstCube(),
-        m_updatedCube() {
+        m_updatedCube(),
+        log_header("TRACKER: ") {
     m_featuresDetector.create("Feature2D.BRISK");
   };
 
-  virtual ~Tracker3D();
+  ~Tracker3D();
 
-  void init(cv::Mat& rgb, cv::Mat& disaprity, cv::Point2d& top_left,
-            cv::Point2d& bottom_right);
+  int init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
+            cv::Point2d& top_left, cv::Point2d& bottom_right);
 
-  void init(cv::Mat& rgb, cv::Mat& disparity, cv::Mat& mask);
+  int init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask);
 
-  void computeNext(const Mat& rgb, const Mat& disparity, Mat& out);
+  void clear();
+
+  void computeNext(const Mat& rgb, const Mat& points, Mat& out);
 
   void drawResult(cv::Mat& out);
 
@@ -66,6 +69,7 @@ class Tracker3D {
 
   std::vector<Point3f> getCurrentBB() { return m_updatedCube.m_pointsFront; }
 
+  void drawObjectLocation(Mat& out);
 
  private:
   void getCurrentPoints(const vector<int>& currentFaces,
@@ -114,7 +118,7 @@ class Tracker3D {
                           vector<vector<int>>& clusters);
 
   // calcualte the centroid from the initial keypoints
-  void initCentroid(const std::vector<cv::Point3f>& points, BoundingCube& cube);
+  bool initCentroid(const std::vector<cv::Point3f>& points, BoundingCube& cube);
   // calculate the relative position of the initial keypoints
   void initRelativePosition(BoundingCube& cube);
 
@@ -143,8 +147,9 @@ class Tracker3D {
                  BoundingCube& updatedCube);
 
   int learnFaceDebug(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
-                     const Mat& rotation, const int& face, BoundingCube& fstCube,
-                     BoundingCube& updatedCube, Mat& out);
+                     const Mat& rotation, const int& face,
+                     BoundingCube& fstCube, BoundingCube& updatedCube,
+                     Mat& out);
 
   void debugTrackingStep(
       const cv::Mat& fstFrame, const cv::Mat& scdFrame,
@@ -216,7 +221,8 @@ class Tracker3D {
                            vector<bool>& isFaceVisible,
                            vector<float>& visibilityRatio);
 
-  void calculateVisibilityEigen(const Mat& rotation, const BoundingCube& fstCube,
+  void calculateVisibilityEigen(const Mat& rotation,
+                                const BoundingCube& fstCube,
                                 vector<bool>& isFaceVisible,
                                 vector<float>& visibilityRatio);
 
@@ -232,10 +238,11 @@ class Tracker3D {
 
   void debugCalculations();
 
-  double getQuaternionMedianDist(const vector<Eigen::Quaterniond>& history, int window,
-                                 const Eigen::Quaterniond& q);
+  double getQuaternionMedianDist(const vector<Eigen::Quaterniond>& history,
+                                 int window, const Eigen::Quaterniond& q);
 
-  bool findObject(BoundingCube& fst, BoundingCube& upd, const Mat& extractedDescriptors,
+  bool findObject(BoundingCube& fst, BoundingCube& upd,
+                  const Mat& extractedDescriptors,
                   const vector<KeyPoint>& extractedKeypoints, int& faceFound,
                   int& matchesNum);
 
@@ -253,19 +260,19 @@ class Tracker3D {
   /*********************************************************************************************/
   /*                          INITIAL MODEL */
   /*********************************************************************************************/
-  cv::Mat m_fstFrame, m_firstCloud;
+  cv::Mat m_fstFrame;
   BoundingCube m_fstCube;
   vector<vector<bool>> m_isPointClustered;
-
+  cv::Mat3f m_firstCloud;
   /*********************************************************************************************/
   /*                          UPDATED MODEL */
   /*********************************************************************************************/
   // std::vector<cv::Point2f> m_matchedPoints;
   // std::vector<cv::Point2f> m_trackedPoints;
-  cv::Mat m_currFrame, m_currCloud;
+  cv::Mat m_currFrame;
   BoundingCube m_updatedCube;
   vector<int> m_currentFaces;
-
+  cv::Mat3f  m_currCloud;
   /*********************************************************************************************/
   /*                          VOTING VARIABLES */
   /*********************************************************************************************/
@@ -342,6 +349,8 @@ class Tracker3D {
   std::string toPythonString2(const vector<Point3f>& firstFrameCloud,
                               const vector<Point3f>& updatedFrameCloud,
                               const vector<Status>& keypointStatus);
+
+  string log_header;
 };
 
 }  // end namespace

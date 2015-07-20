@@ -118,12 +118,12 @@ string toPythonArray(const Mat& rotation) {
 }
 
 template <typename T>
-std::string toString(const cv::Mat& rotation, int precision) {
+std::string toString(const cv::Mat& mat, int precision) {
   std::stringstream ss;
   ss.precision(precision);
-  for (size_t i = 0; i < rotation.rows; i++) {
-    for (size_t j = 0; j < rotation.cols; j++) {
-      ss << " | " << std::fixed << rotation.at<T>(i, j);
+  for (size_t i = 0; i < mat.rows; i++) {
+    for (size_t j = 0; j < mat.cols; j++) {
+      ss << " | " << std::fixed << mat.at<T>(i, j);
     }
     ss << " |\n";
   }

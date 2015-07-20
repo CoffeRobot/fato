@@ -3,6 +3,7 @@
 
 #include <opencv2/core/core.hpp>
 #include <image_geometry/pinhole_camera_model.h>
+#include <string>
 
 namespace pinot_tracker
 {
@@ -18,6 +19,7 @@ struct TrackerParams {
   int ransac_iterations;
   float ransac_distance;
   image_geometry::PinholeCameraModel camera_model;
+  std::string debug_path;
 
 
   TrackerParams()

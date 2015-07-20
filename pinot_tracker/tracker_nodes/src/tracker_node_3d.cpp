@@ -23,7 +23,7 @@ TrackerNode3D::TrackerNode3D()
   cvStartWindowThread();
   namedWindow("Tracker");
   namedWindow("Tracker_d");
-//  namedWindow("debug");
+  //  namedWindow("debug");
   setMouseCallback("Tracker", TrackerNode3D::mouseCallback, this);
 
   publisher_ = nh_.advertise<sensor_msgs::Image>("pinot_tracker/output", 1);
@@ -86,8 +86,7 @@ void TrackerNode3D::rgbdCallback(
     camera_matrix_initialized_ = true;
   }
 
-
-  cout << " encoding " << depth_msg->encoding << "\n"  << endl;
+  cout << " encoding " << depth_msg->encoding << "\n" << endl;
 
   cv::Mat rgb, depth;
 
@@ -131,7 +130,7 @@ void TrackerNode3D::run() {
 
   ROS_INFO("INPUT: init tracker");
 
-  Tracker3D tracker(params_);
+  Tracker3D tracker;
 
   auto &profiler = Profiler::getInstance();
 
@@ -156,7 +155,8 @@ void TrackerNode3D::run() {
 
       if (init_requested_) {
         ROS_INFO("INPUT: tracker intialization requested");
-        tracker.init(rgb_image_, depth_image_, mouse_start_, mouse_end_);
+        tracker.init(params_, rgb_image_, depth_image_, mouse_start_,
+                     mouse_end_);
         init_requested_ = false;
         tracker_initialized_ = true;
         ROS_INFO("Tracker initialized!");
@@ -179,7 +179,6 @@ void TrackerNode3D::run() {
         ss << "Tracker run in ms: " << profiler->getTime("total") << "\n";
         ss << "Centroid " << tracker.getCurrentCentroid() << "\n";
         ROS_INFO(ss.str().c_str());
-
 
         cv_bridge::CvImage cv_img;
         cv_img.image = out;
