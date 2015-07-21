@@ -13,11 +13,11 @@
 #include <vector>
 #include <memory>
 #include <set>
-
-#include <DBScanClustering.h>
-#include <DebugFunctions.h>
-#include <Constants.h>
-#include "../../utilities/include/profiler.h" // ugly include for auto completion
+//TODO: find a nicer way to help qtcreator finds headers
+#include "../../clustering/include/DBScanClustering.h"
+#include "../../utilities/include/DebugFunctions.h"
+#include "../../utilities/include/constants.h"
+#include "../../utilities/include/profiler.h"
 // #include <profiler.h>
 
 #include "matcher.h"

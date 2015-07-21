@@ -1,7 +1,7 @@
 #include "../include/draw_functions.h"
 #include "../include/utilities.h"
 #include <opencv2/contrib/contrib.hpp>
-#include "../include/Constants.h"
+#include "../include/constants.h"
 #include <iostream>
 
 using namespace std;
@@ -23,15 +23,13 @@ void drawBoundingCube(const Point3f& center, const vector<Point3f>& front_box,
   int cols = out.cols;
   Point2f tmp;
 
-  if(back_box.size() < 4)
-  {
-      cout << "DRAW_FUNCTIONS: error back_box size is " << back_box.size();
-      return;
+  if (back_box.size() < 4) {
+    cout << "DRAW_FUNCTIONS: error back_box size is " << back_box.size();
+    return;
   }
-  if(front_box.size() < 4)
-  {
-      cout << "DRAW_FUNCTIONS: error front_box size is " << front_box.size();
-      return;
+  if (front_box.size() < 4) {
+    cout << "DRAW_FUNCTIONS: error front_box size is " << front_box.size();
+    return;
   }
 
   /*********************************************************************************************/
@@ -84,8 +82,7 @@ void applyColorMap(const Mat& src, Mat& dst) {
 }
 
 void drawObjectLocation(const vector<Point3f>& back_box,
-                        const vector<Point3f>& front_box,
-                        const Point3f& center,
+                        const vector<Point3f>& front_box, const Point3f& center,
                         const vector<bool>& visibleFaces, const float focal,
                         const Point2f& imgCenter, Mat& out) {
   int cols = out.cols / 2;
@@ -93,20 +90,17 @@ void drawObjectLocation(const vector<Point3f>& back_box,
   int lineWidth = 1;
   Scalar color(255, 255, 255);
 
-  if(visibleFaces.size() < 6)
-  {
-      cout << "DRAW_FUNCTIONS: error visible faces size";
-      return;
+  if (visibleFaces.size() < 6) {
+    cout << "DRAW_FUNCTIONS: error visible faces size";
+    return;
   }
-  if(back_box.size() < 4)
-  {
-      cout << "DRAW_FUNCTIONS: error back_box size";
-      return;
+  if (back_box.size() < 4) {
+    cout << "DRAW_FUNCTIONS: error back_box size";
+    return;
   }
-  if(front_box.size() < 4)
-  {
-      cout << "DRAW_FUNCTIONS: error front_box size";
-      return;
+  if (front_box.size() < 4) {
+    cout << "DRAW_FUNCTIONS: error front_box size";
+    return;
   }
   /*********************************************************************************************/
   /*                  Draw back face */
@@ -230,4 +224,20 @@ void drawObjectLocation(const vector<Point3f>& back_box,
   line(out, projectPoint(focal, imgCenter, front_box[3]),
        projectPoint(focal, imgCenter, front_box[0]), color, lineWidth);
 }
+
+void drawCentroidVotes(const vector<Point3f*>& points,
+                       const vector<Point3f*>& votes, const cv::Point2f& center,
+                       bool drawLines, const float focal, Mat& out) {
+  for (size_t i = 0; i < points.size(); i++) {
+    Point2f vote_prj, point_prj;
+    projectPoint(focal, center, votes.at(i), vote_prj);
+    projectPoint(focal, center, points.at(i), point_prj);
+    Scalar color(0,255,0);
+    circle(out, vote_prj, 2, color, -1);
+    circle(out, point_prj, 3, color, 1);
+    if (drawLines)
+         line(out, vote_prj, point_prj, color, 1);
+  }
 }
+
+}  // end namespace

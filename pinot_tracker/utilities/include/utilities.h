@@ -66,6 +66,8 @@ cv::Point2f projectPoint(const float focal, const cv::Point2f& center,
 bool projectPoint(const float focal, const cv::Point2f& center,
                     const cv::Point3f& src, cv::Point2f& dst);
 
+bool projectPoint(const float focal, const cv::Point2f& center,
+                  const cv::Point3f* src, cv::Point2f& dst);
 
 void depthTo3d(const cv::Mat& disparity, float cx, float cy,
                       float fx, float fy, cv::Mat3f &depth);

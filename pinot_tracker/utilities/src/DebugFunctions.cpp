@@ -1,5 +1,5 @@
 #include "../include/DebugFunctions.h"
-#include "../include/Constants.h"
+#include "../include/constants.h"
 #include "../include/ToString.h"
 #include <sstream>
 
@@ -152,60 +152,6 @@ void drawCentroidVotes(const vector<Point3f>& keypoints,
   }
 }
 
-void drawCentroidVotes(const vector<Point3f*>& keypoints,
-                       const vector<Point3f>& votes,
-                       const vector<bool>& clustered,
-                       const vector<bool>& border,
-                       const vector<Status*>& status, bool drawLines,
-                       bool drawFalse, const float focal, const Point2f& center,
-                       Mat& out) {
-  for (size_t i = 0; i < clustered.size(); i++) {
-    Scalar color;
-
-    bool valid = (*status[i] == Status::BOTH || *status[i] == Status::TRACK ||
-                  *status[i] == Status::MATCH);
-
-    if (clustered[i] && valid) {
-      Point2f tmp = reprojectPoint(focal, center, votes[i]);
-      Point2f kp = reprojectPoint(focal, center, *keypoints[i]);
-
-      if (border[i])
-        color = Scalar(0, 255, 255);
-      else
-        color = Scalar(0, 255, 0);
-
-      circle(out, tmp, 3, color, 1);
-
-      if (drawLines) {
-        line(out, tmp, kp, color, 1);
-      }
-    }
-    if (!clustered[i] && valid && votes[i].z != 0) {
-      Point2f tmp = reprojectPoint(focal, center, votes[i]);
-      Point2f kp = reprojectPoint(focal, center, *keypoints[i]);
-
-      color = Scalar(0, 0, 255);
-
-      circle(out, tmp, 3, color, 1);
-
-      if (drawLines) {
-        line(out, tmp, kp, color, 1);
-      }
-    }
-    if (*status[i] == Status::NOCLUSTER) {
-      Point2f tmp = reprojectPoint(focal, center, votes[i]);
-      Point2f kp = reprojectPoint(focal, center, *keypoints[i]);
-
-      color = Scalar(255, 0, 255);
-
-      circle(out, tmp, 3, color, 1);
-
-      if (drawLines) {
-        line(out, tmp, kp, color, 1);
-      }
-    }
-  }
-}
 
 void drawCentroidVotes(const vector<Point3f*>& keypoints,
                        const vector<Point3f>& votes,

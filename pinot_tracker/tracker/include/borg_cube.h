@@ -11,7 +11,7 @@
 #include <Eigen/Dense>
 #endif
 
-#include "../../utilities/include/Constants.h"
+#include "../../utilities/include/constants.h"
 
 namespace pinot_tracker{
 

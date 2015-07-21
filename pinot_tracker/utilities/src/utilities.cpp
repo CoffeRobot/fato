@@ -50,6 +50,16 @@ cv::Point2f projectPoint(const float focal, const cv::Point2f& center,
   return dst;
 }
 
+cv::Point2f projectPoint(const float focal, const cv::Point2f& center,
+                         const cv::Point3f* src) {
+  cv::Point2f dst;
+
+  dst.x = (focal * src->x / src->z) + center.x;
+  dst.y = (center.y - (focal * src->y / src->z));
+
+  return dst;
+}
+
 bool projectPoint(const float focal, const cv::Point2f& center,
                   const cv::Point3f& src, cv::Point2f& dst) {
   if (src.z == 0) return false;
@@ -63,6 +73,22 @@ bool projectPoint(const float focal, const cv::Point2f& center,
   if (isnan(dst.x) || isnan(dst.y)) return false;
 
   return true;
+}
+
+bool projectPoint(const float focal, const cv::Point2f& center,
+                  const cv::Point3f* src, cv::Point2f& dst)
+{
+    if (src->z == 0) return false;
+
+    dst.x = (focal * src->x / src->z) + center.x;
+    dst.y = (center.y - (focal * src->y / src->z));
+
+    if (dst.x < 0 || dst.x > center.x * 2) return false;
+    if (dst.y < 0 || dst.y > center.y * 2) return false;
+
+    if (isnan(dst.x) || isnan(dst.y)) return false;
+
+    return true;
 }
 
 void depthTo3d(const cv::Mat& disparity, float cx, float cy,

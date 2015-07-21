@@ -12,6 +12,7 @@
 #include "../include/pose_estimation.h"
 #include "../../utilities/include/utilities.h"
 #include "../../utilities/include/draw_functions.h"
+#include "../../utilities/include/profiler.h"
 
 // TOFIX: replace all vector<T>[] with vector<T>.at() better for debugging
 
@@ -83,12 +84,12 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
     m_fstCube.m_cloudPoints[FACE::FRONT].push_back(
         Point3f(tmp[0], tmp[1], tmp[2]));
   }
-  cout << "7 " << endl;
+  //  cout << "7 " << endl;
 
-  cout << "Init obj keypoints: " << m_initKPCount << endl;
-  cout << "Face points size " << m_fstCube.m_cloudPoints[FACE::FRONT].size()
-       << "\n";
-  cout << "8 " << endl;
+  //  cout << "Init obj keypoints: " << m_initKPCount << endl;
+  //  cout << "Face points size " << m_fstCube.m_cloudPoints[FACE::FRONT].size()
+  //       << "\n";
+  //  cout << "8 " << endl;
 
   // BUG: CRASHES AFTER THIS STEP
   keypoints.swap(m_fstCube.m_faceKeypoints[FACE::FRONT]);
@@ -100,7 +101,7 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
     clear();
     return -1;
   }
-  cout << "9 " << endl;
+  // cout << "9 " << endl;
   // initialize bounding box of the learned face
   initBBox(points);
   //
@@ -115,7 +116,7 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
   m_updatedCube.m_pointStatus = m_fstCube.m_pointStatus;
   m_updatedCube.m_faceKeypoints = m_fstCube.m_faceKeypoints;
 
-  cout << "10 " << endl;
+  // cout << "10 " << endl;
 
   m_centroidVotes.resize(m_fstCube.m_faceKeypoints.at(FACE::FRONT).size(),
                          Point3f(0, 0, 0));
@@ -127,25 +128,25 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
   m_fstCube.m_isLearned.at(FACE::FRONT) = true;
   m_fstCube.m_appearanceRatio.at(FACE::FRONT) = 1;
 
-  cout << "11 " << endl;
+  //  cout << "11 " << endl;
 
   m_numFrames = 0;
   m_clusterVoteSize = 0;
 
-  cout << "11-a " << endl;
+  //  cout << "11-a " << endl;
 
   // adding to the set of learned frames the initial frame with angle 0 and
   // scale 1
   m_learnedFrames.insert(pair<int, int>(0, 0));
 
-  cout << "11-b " << endl;
+  //  cout << "11-b " << endl;
 
-  cout << "Points size " << points.cols << " " << points.rows << endl;
+  //  cout << "Points size " << points.cols << " " << points.rows << endl;
 
   points.copyTo(m_firstCloud);
   points.copyTo(m_currCloud);
 
-  cout << "11-c " << endl;
+  //  cout << "11-c " << endl;
 
   // init learning step
   Mat pov(1, 3, CV_32FC1);
@@ -157,7 +158,7 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
 
   m_currentFaces.push_back(FACE::FRONT);
 
-  cout << "12 " << endl;
+  //  cout << "12 " << endl;
 
   // m_debugFile << "Center: \n";
   // m_debugFile << toString(m_fstCube.m_center) << "\n";
@@ -202,6 +203,17 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
   return 0;
 }
 
+void Tracker3D::getActivePoints(std::vector<Point3f*>& points,
+                                std::vector<Point3f*>& votes)
+{
+    cout << "Requested Point size " << m_votingPoints.size() << endl;
+    for(auto i = 0; i < m_votingPoints.size(); ++i)
+    {
+       votes.push_back(&m_votedPoints.at(i));
+       points.push_back(&m_votingPoints.at(i));
+    }
+}
+
 void Tracker3D::getCurrentPoints(
     const vector<int>& currentFaces, vector<Status*>& pointsStatus,
     vector<Point3f*>& fstPoints, vector<Point3f*>& updPoints,
@@ -209,26 +221,26 @@ void Tracker3D::getCurrentPoints(
     vector<Point3f*>& relPointPos, Mat& fstDescriptors, vector<Scalar*>& colors,
     vector<bool*>& isClustered) {
   for (size_t i = 0; i < currentFaces.size(); i++) {
-    int face = currentFaces[i];
+    int face = currentFaces.at(i);
 
-    if (!m_fstCube.m_isLearned[face]) continue;
+    if (!m_fstCube.m_isLearned.at(face)) continue;
 
-    for (int j = 0; j < m_fstCube.m_pointStatus[face].size(); j++) {
-      pointsStatus.push_back(&m_fstCube.m_pointStatus[face][j]);
-      fstPoints.push_back(&m_fstCube.m_cloudPoints[face][j]);
-      fstKeypoints.push_back(&m_fstCube.m_faceKeypoints[face][j]);
-      updPoints.push_back(&m_updatedCube.m_cloudPoints[face][j]);
-      updKeypoints.push_back(&m_updatedCube.m_faceKeypoints[face][j]);
-      relPointPos.push_back(&m_fstCube.m_relativePointsPos[face][j]);
-      colors.push_back(&m_pointsColor[face][j]);
+    for (int j = 0; j < m_fstCube.m_pointStatus.at(face).size(); j++) {
+      pointsStatus.push_back(&m_fstCube.m_pointStatus.at(face).at(j));
+      fstPoints.push_back(&m_fstCube.m_cloudPoints.at(face).at(j));
+      fstKeypoints.push_back(&m_fstCube.m_faceKeypoints.at(face).at(j));
+      updPoints.push_back(&m_updatedCube.m_cloudPoints.at(face).at(j));
+      updKeypoints.push_back(&m_updatedCube.m_faceKeypoints.at(face).at(j));
+      relPointPos.push_back(&m_fstCube.m_relativePointsPos.at(face).at(j));
+      colors.push_back(&m_pointsColor.at(face).at(j));
     }
 
     // vconcat(m_fstCube.m_faceDescriptors[face], fstDescriptors);
 
     if (fstDescriptors.empty())
-      vconcat(m_fstCube.m_faceDescriptors[face], fstDescriptors);
+      vconcat(m_fstCube.m_faceDescriptors.at(face), fstDescriptors);
     else
-      vconcat(m_fstCube.m_faceDescriptors[face], fstDescriptors,
+      vconcat(m_fstCube.m_faceDescriptors.at(face), fstDescriptors,
               fstDescriptors);
   }
   m_centroidVotes.resize(pointsStatus.size(), Point3f(0, 0, 0));
@@ -275,25 +287,26 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
   vector<bool*> isClustered;
 
   Mat fstDescriptors;
-  frameStart = chrono::system_clock::now();
+
+  auto& profiler = Profiler::getInstance();
+
   /****************************************************************************/
   /*                             PICK FACES                                   */
   /****************************************************************************/
   cout << "-1 ";
-  //  start = chrono::system_clock::now();
+  profiler->start("pick_face");
   getCurrentPoints(m_currentFaces, pointsStatus, fstPoints, updPoints,
                    fstKeypoint, updKeypoint, relPointPos, fstDescriptors,
                    colors, isClustered);
-  end = chrono::system_clock::now();
-  //  m_partialTimes[0] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
+  profiler->stop("pick_face");
   cout << "0 ";
   /****************************************************************************/
   /*                             TRACKING */
   /****************************************************************************/
-  //  start = chrono::system_clock::now();
+  profiler->start("optical_flow");
   int activeKp = trackFeatures(grayImg, points, pointsStatus, updPoints,
                                updKeypoint, numTracked, numBoth);
+  profiler->stop("optical_flow");
   //  end = chrono::system_clock::now();
   //  m_partialTimes[1] +=
   //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
@@ -301,23 +314,12 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
   /****************************************************************************/
   /*                             ROTATION MATRIX */
   /****************************************************************************/
-  //  start = chrono::system_clock::now();
-  Point3f fstMean, updMean;
-  // Mat rotation = getRotationMatrixDebug(rgb, fstPoints, updPoints,
-  // pointsStatus);
+  profiler->start("rotation");
   Mat rotation = getRotationMatrix(fstPoints, updPoints, pointsStatus);
+  profiler->stop("rotation");
   if (rotation.empty()) {
-    // cout << "Matrix is empty, object lost!" << endl;
-    // cout << "Tracked points " << activeKp << endl;
     isLost = true;
-    // m_matrixFile << toPythonArray(Mat(3, 3, CV_32FC1, Scalar::all(0))) <<
-    // ",\n";
-  } else {
-    // m_matrixFile << toPythonArray(rotation) << ",\n";
   }
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[2] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
   cout << "2 ";
   /*********************************************************************************************/
   /*                             CALCULATING QUATERNION */
@@ -325,45 +327,28 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
   double angularDist = 0;
   //  start = chrono::system_clock::now();
   if (!isLost) {
+    profiler->start("quaternion");
     Matrix3d eigRot;
     opencvToEigen(rotation, eigRot);
     Quaterniond q(eigRot);
     angularDist = getQuaternionMedianDist(m_quaternionHistory, 10, q);
     m_quaternionHistory.push_back(q);
-
-    /*if (angularDist > 8.0f)
-    {
-            Quaterniond& last = m_quaternionHistory.back();
-            eigenToOpencv(last.toRotationMatrix(), rotation);
-            m_quaternionHistory.push_back(last);
-    }
-    else
-    {
-            m_quaternionHistory.push_back(q);
-    }*/
+    profiler->stop("quaternion");
   }
   //  end = chrono::system_clock::now();
   //  m_partialTimes[3] +=
   //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
   cout << "3 ";
   /*********************************************************************************************/
-  /*                             KEYPOINT STATUS */
-  /*********************************************************************************************/
-  // start = chrono::system_clock::now();
-  // end = chrono::system_clock::now();
-  // m_updateT += chrono::duration_cast<chrono::milliseconds>(end -
-  // start).count();
-  // cout << "4 ";
-  /*********************************************************************************************/
   /*                             VOTING */
   /*********************************************************************************************/
   //  start = chrono::system_clock::now();
-  if (!isLost)
+  if (!isLost) {
+    profiler->start("voting");
     getVotes(points, pointsStatus, fstKeypoint, updKeypoint, relPointPos,
              rotation);
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[4] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
+    profiler->stop("voting");
+  }
   cout << "4 ";
   /*********************************************************************************************/
   /*                             CLUSTERING */
@@ -373,8 +358,11 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
   vector<int> indices;
   vector<vector<int>> clusters;
   //  start = chrono::system_clock::now();
-  if (!isLost)
+  if (!isLost) {
+    profiler->start("clustering");
     clusterVotesBorder(pointsStatus, m_centroidVotes, indices, clusters);
+    profiler->stop("clustering");
+  }
   //  end = chrono::system_clock::now();
   //  m_partialTimes[5] +=
   //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
@@ -391,81 +379,62 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
   /*                             UPDATE OBJECT CENTER */
   /*********************************************************************************************/
   //  start = chrono::system_clock::now();
-  if (!isLost) updateCentroid(pointsStatus, rotation);
+  if (!isLost) {
+    profiler->start("update");
+    updateCentroid(pointsStatus, rotation);
+    profiler->stop("update");
+  }
   m_updatedCube.m_center = m_updatedCentroid;
   //  end = chrono::system_clock::now();
   //  m_partialTimes[7] +=
   //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
+  cout << "6 ";
+  /****************************************************************************/
+  /*                             UPDATE STATUS OF NOT CLUSTERED POINTS        */
+  /****************************************************************************/
+  if (!isLost) {
+    profiler->start("update_status");
+    updatePointsStatus(pointsStatus, m_clusteredCentroidVotes);
+    profiler->stop("update_status");
+  }
   cout << "7 ";
-  /*********************************************************************************************/
-  /*                             UPDATE STATUS OF NOT CLUSTERED POINTS */
-  /*********************************************************************************************/
-  // Matching originally after this step
-  //  start = chrono::system_clock::now();
-  if (!isLost) updatePointsStatus(pointsStatus, m_clusteredCentroidVotes);
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[8] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
-  cout << "8 ";
-  /*********************************************************************************************/
-  /*                            COMPUTING VISIBILITY */
-  /*********************************************************************************************/
+  /****************************************************************************/
+  /*                            STORE CURRENT RESULT                          */
+  /****************************************************************************/
+  m_votingPoints.clear();
+  m_votedPoints.clear();
+  int counter = 0;
+  for(auto i = 0; i < m_centroidVotes.size(); ++i)
+  {
+    Status s = *pointsStatus.at(i);
+    if(s == Status::BOTH || s == Status::TRACK || s == Status::MATCH)
+    {
+        m_votingPoints.push_back(*updPoints.at(i));
+        m_votedPoints.push_back(m_centroidVotes.at(i));
+        counter++;
+    }
+  }
+  cout << "Point status size " << m_centroidVotes.size() << " valid "
+       << counter << endl;
+
+  /****************************************************************************/
+  /*                            COMPUTING VISIBILITY                          */
+  /****************************************************************************/
   vector<bool> isFaceVisible(6, false);
   vector<float> visibilityRatio(6, 0);
   vector<bool> isVisibleEig(6, false);
   vector<float> visibilityEig(6, 0);
   //  start = chrono::system_clock::now();
   if (!isLost) {
+    profiler->start("visibility");
     calculateVisibilityEigen(rotation, m_fstCube, isFaceVisible,
                              visibilityRatio);
+    profiler->stop("visibility");
   }
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[9] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
-  cout << "9 ";
-  /*********************************************************************************************/
-  /*                             DRAW */
-  /*********************************************************************************************/
-  //  start = chrono::system_clock::now();
-  //  debugTrackingStepICRA(rgb, m_fstFrame, indices, clusters, isLost, false,
-  //                        pointsStatus, fstKeypoint, fstPoints, updPoints,
-  //                        updKeypoint, colors, isFaceVisible, visibilityRatio,
-  //                        angularDist, out);
-  //  //  end = chrono::system_clock::now();
-  //  m_partialTimes[10] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
-  cout << "10 ";
-  /*********************************************************************************************/
-  /*                             SAVE ESTIMATED */
-  /*********************************************************************************************/
-  //  stringstream boxstring;
-  //  vector<Point3f> facePoints = m_updatedCube.getFacePoints(FACE::FRONT);
-  //  Point2f a, b, c, d;
-  //  bool isValA, isValB, isValC, isValD;
-
-  //  isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
-  //  isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
-  //  isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
-  //  isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
-
-  //  boxstring << a.x << "," << a.y << "," << b.x << "," << b.y << "," << c.x
-  //            << "," << c.y << "," << d.x << "," << d.y << ",";
-
-  //  facePoints = m_updatedCube.getFacePoints(FACE::BACK);
-
-  //  isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
-  //  isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
-  //  isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
-  //  isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
-
-  //  boxstring << a.x << "," << a.y << "," << b.x << "," << b.y << "," << c.x
-  //            << "," << c.y << "," << d.x << "," << d.y << "\n";
-
-  //  m_resultFile << boxstring.str();
-
-  /*********************************************************************************************/
-  /*                             LEARN NEW APPEARANCE */
-  /*********************************************************************************************/
+  cout << "8 ";
+  /****************************************************************************/
+  /*                             LEARN NEW APPEARANCE                         */
+  /****************************************************************************/
   bool learning = false;
   //  start = chrono::system_clock::now();
   if (!isLost && isAppearanceNew(rotation) && angularDist < 4.00) {
@@ -481,10 +450,7 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
       learnFrame(rgb, points, ftl, rotation);
     }
   }
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[11] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
-  cout << "11 ";
+  cout << "9 ";
   /*********************************************************************************************/
   /*                            CHOOSE VISIBLE FACES */
   /*********************************************************************************************/
@@ -506,26 +472,18 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
       } else {
         m_visibleFaces[i] = false;
       }
-
-      // ss << faceToString(i) << " " << m_fstCube.m_isLearned[i] << "\n";
     }
-    // m_debugFile << "\n";
-    // m_debugFile << ss.str();
   }
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[12] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
-  cout << "12 ";
+  cout << "10 ";
   /*********************************************************************************************/
   /*                             EXTRACTION */
   /*********************************************************************************************/
   //  start = chrono::system_clock::now();
+  profiler->start("feature_extraction");
   m_featuresDetector.detect(grayImg, nextKeypoints);
   m_featuresDetector.compute(grayImg, nextKeypoints, nextDescriptors);
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[13] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
-  cout << "13 ";
+  profiler->stop("feature_extraction");
+  cout << "11 ";
   /*********************************************************************************************/
   /*                             MATCHING */
   /*********************************************************************************************/
@@ -542,57 +500,26 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
     if (!statusChanged) {
       // numMatches = matchFeaturesCustom(fstDescriptors, fstKeypoint,
       //	nextDescriptors, nextKeypoints, updKeypoint, pointsStatus);
-
+      // TOFIX: check here, seems wrong
       if (m_currentFaces.size() > 0) {
-        Mat debug;
-        rgb.copyTo(debug);
-
-        buildCompositeImg(grayImg, m_fstFrame, debug);
-
-        //        drawObjectLocation(m_fstCube, m_updatedCube, m_visibleFaces,
-        //        m_focal,
-        //                           m_imageCenter, debug);
-
-        stringstream info;
-        info << "Visible: ";
-
         for (size_t i = 0; i < m_currentFaces.size(); i++) {
           int face = m_currentFaces[i];
           fstKeypoint.clear();
           updKeypoint.clear();
           pointsStatus.clear();
-          Mat& descriptors = m_fstCube.m_faceDescriptors[face];
+          Mat& descriptors = m_fstCube.m_faceDescriptors.at(face);
 
-          for (int j = 0; j < m_fstCube.m_faceKeypoints[face].size(); j++) {
-            fstKeypoint.push_back(&m_fstCube.m_faceKeypoints[face][j]);
-            pointsStatus.push_back(&m_fstCube.m_pointStatus[face][j]);
-            updKeypoint.push_back(&m_updatedCube.m_faceKeypoints[face][j]);
+          for (int j = 0; j < m_fstCube.m_faceKeypoints.at(face).size(); j++) {
+            fstKeypoint.push_back(&m_fstCube.m_faceKeypoints.at(face).at(j));
+            pointsStatus.push_back(&m_fstCube.m_pointStatus.at(face).at(j));
+            updKeypoint.push_back(
+                &m_updatedCube.m_faceKeypoints.at(face).at(j));
           }
 
           numMatches =
               matchFeaturesCustom(descriptors, fstKeypoint, nextDescriptors,
                                   nextKeypoints, updKeypoint, pointsStatus);
-
-          for (int j = 0; j < updKeypoint.size(); j++) {
-            if (*pointsStatus[j] == Status::MATCH ||
-                *pointsStatus[j] == Status::BOTH) {
-              Point2f tmp = fstKeypoint[j]->pt;
-              tmp.x += 640;
-              circle(debug, updKeypoint[j]->pt, 3, m_faceColors[face], 2);
-              circle(debug, tmp, 3, m_faceColors[face], 2);
-              line(debug, updKeypoint[j]->pt, tmp, m_faceColors[face], 1);
-            }
-          }
-
-          info << faceToString(face) << " ";
         }
-
-        drawInformationHeader(Point2f(10, 10), info.str(), 0.5, 800, 30, debug);
-
-        //        stringstream ss;
-        //        ss << m_configFile.m_dstPath << "debug/" << m_numFrames <<
-        //        ".png";
-        //        imwrite(ss.str(), debug);
       }
     } else {
       /*m_debugFile << "Appearance has changed!\n";
@@ -654,9 +581,9 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
                             nextKeypoints, faceFound, matchedNum);
 
     if (found) {
-      m_debugFile << m_numFrames
-                  << " Object found again: " << faceToString(faceFound)
-                  << " num matches: " << matchedNum << "\n";
+//      m_debugFile << m_numFrames
+//                  << " Object found again: " << faceToString(faceFound)
+//                  << " num matches: " << matchedNum << "\n";
       m_currentFaces.clear();
       m_currentFaces.push_back(faceFound);
       isLost = false;
@@ -686,24 +613,24 @@ void Tracker3D::close() {
 
   float frames = static_cast<float>(m_numFrames);
 
-  for (size_t i = 0; i < m_partialTimes.size(); ++i) {
-    m_timeFile << "Step " << i << ": " << (m_partialTimes[i] / frames) << "\n";
-  }
+//  for (size_t i = 0; i < m_partialTimes.size(); ++i) {
+//    m_timeFile << "Step " << i << ": " << (m_partialTimes[i] / frames) << "\n";
+//  }
 
-  m_timeFile << "Average time per frame: " << (m_frameTime / frames) << "\n";
-  m_timeFile << "FPS: " << 1000 / (m_frameTime / frames) << "\n";
-  m_timeFile << "FPS no draw: "
-             << 1000 / ((m_frameTime - m_partialTimes[10]) / frames);
+//  m_timeFile << "Average time per frame: " << (m_frameTime / frames) << "\n";
+//  m_timeFile << "FPS: " << 1000 / (m_frameTime / frames) << "\n";
+//  m_timeFile << "FPS no draw: "
+//             << 1000 / ((m_frameTime - m_partialTimes[10]) / frames);
 
-  m_timeFile.close();
+//  m_timeFile.close();
 
-  // m_matrixFile << "\n Quaternions: \n" << m_quaterionStream.str();
+//  // m_matrixFile << "\n Quaternions: \n" << m_quaterionStream.str();
 
-  // m_matrixFile.close();
+//  // m_matrixFile.close();
 
-  m_resultFile.close();
+//  m_resultFile.close();
 
-  cout << "Crushing here 2" << endl;
+//  cout << "Crushing here 2" << endl;
 }
 
 int Tracker3D::matchFeaturesCustom(const Mat& fstDescriptors,
@@ -749,9 +676,6 @@ int Tracker3D::matchFeaturesCustom(const Mat& fstDescriptors,
       matchesCount++;
     }
   }
-
-  // m_debugFile << "------------------------------- \n\n";
-
   return matchesCount;
 }
 
@@ -1305,15 +1229,15 @@ bool Tracker3D::isCurrentApperanceToLearn(const vector<float>& visibilityRatio,
     m_learnedFaceVisibility[faceToLearn] = visibilityRatio[faceToLearn];
     m_learnedFaceMedianAngle[faceToLearn] = medianAngle;
 
-    m_debugFile << m_numFrames << ": v[";
-    for (size_t i = 0; i < 6; i++) {
-      m_debugFile << m_learnedFaceVisibility[i] << " ";
-    }
-    m_debugFile << "] a[";
-    for (size_t i = 0; i < 6; i++) {
-      m_debugFile << m_learnedFaceMedianAngle[i] << " ";
-    }
-    m_debugFile << "]\n";
+//    m_debugFile << m_numFrames << ": v[";
+//    for (size_t i = 0; i < 6; i++) {
+//      m_debugFile << m_learnedFaceVisibility[i] << " ";
+//    }
+//    m_debugFile << "] a[";
+//    for (size_t i = 0; i < 6; i++) {
+//      m_debugFile << m_learnedFaceMedianAngle[i] << " ";
+//    }
+//    m_debugFile << "]\n";
   }
 
   return toLearn;
@@ -1491,9 +1415,7 @@ void Tracker3D::calculateVisibilityEigen(const Mat& rotation,
                                          const BoundingCube& fstCube,
                                          vector<bool>& isFaceVisible,
                                          vector<float>& visibilityRatio) {
-
-
-  //FIXME: calculation is non correct for perspective camera
+  // FIXME: calculation is non correct for perspective camera
   VectorXd pov(3);
   pov(0) = rotation.at<float>(0, 2);
   pov(1) = rotation.at<float>(1, 2);
@@ -1675,7 +1597,7 @@ int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
   return kpCount;
 }
 
-//void Tracker3D::debugTrackingStep(
+// void Tracker3D::debugTrackingStep(
 //    const cv::Mat& fstFrame, const cv::Mat& scdFrame,
 //    const std::vector<int>& indices, std::vector<vector<int>>& clusters,
 //    const bool isLost, const bool isLearning,
@@ -1718,7 +1640,8 @@ int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
 //  // cout << "11-2 ";
 //  //  if (m_configFile.m_showVoting) {
 //  //    // stringstream sstmp;
-//  //    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
+//  //    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames <<
+//  ".txt";
 //  //    // ofstream tmpFile(sstmp.str());
 //  //    drawCentroidVotes(
 //  //        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
@@ -1728,7 +1651,8 @@ int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
 //  //    // tmpFile.close();
 //  //  }
 //  // cout << "11-3 ";
-//  // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints, bothPoints,
+//  // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints,
+//  bothPoints,
 //  // out);
 //  // cout << "11-4 ";
 //  for (size_t i = 0; i < 6; i++) {
@@ -1790,7 +1714,7 @@ int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
 //  m_debugWriter << out;
 //}
 
-//void Tracker3D::debugTrackingStepICRA(
+// void Tracker3D::debugTrackingStepICRA(
 //    const cv::Mat& fstFrame, const cv::Mat& scdFrame,
 //    const std::vector<int>& indices, std::vector<vector<int>>& clusters,
 //    const bool isLost, const bool isLearning,
@@ -1827,7 +1751,8 @@ int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
 //  //  // cout << "11-2 ";
 //  //  if (m_configFile.m_showVoting) {
 //  //    // stringstream sstmp;
-//  //    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
+//  //    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames <<
+//  ".txt";
 //  //    // ofstream tmpFile(sstmp.str());
 //  //    drawCentroidVotes(
 //  //        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
@@ -1837,7 +1762,8 @@ int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
 //  //    // tmpFile.close();
 //  //  }
 //  // cout << "11-3 ";
-//  // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints, bothPoints,
+//  // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints,
+//  bothPoints,
 //  // out);
 //  // cout << "11-4 ";*/
 //  for (size_t i = 0; i < 6; i++) {
@@ -1918,42 +1844,42 @@ void Tracker3D::debugLearnedModel(const Mat& rgb, int face,
                                   const Mat& rotation) {
   Mat result;
   rgb.copyTo(result);
-  m_debugFile << "\n\n\n Debugging learned mode of face: " << faceToString(face)
-              << "\n";
+//  m_debugFile << "\n\n\n Debugging learned mode of face: " << faceToString(face)
+//              << "\n";
 
-  m_debugFile << "Centroid\n";
-  m_debugFile << toString(m_updatedCentroid);
+//  m_debugFile << "Centroid\n";
+//  m_debugFile << toString(m_updatedCentroid);
 
-  m_debugFile << "\n Bounding Box:\n";
-  m_debugFile << "[" << toString(m_updatedCube.m_pointsFront[0]) << ","
-              << toString(m_updatedCube.m_pointsFront[1]) << ","
-              << toString(m_updatedCube.m_pointsFront[2]) << ","
-              << toString(m_updatedCube.m_pointsFront[3]) << ","
-              << toString(m_updatedCube.m_pointsBack[0]) << ","
-              << toString(m_updatedCube.m_pointsBack[1]) << ","
-              << toString(m_updatedCube.m_pointsBack[2]) << ","
-              << toString(m_updatedCube.m_pointsBack[3]) << "]\n\n";
+//  m_debugFile << "\n Bounding Box:\n";
+//  m_debugFile << "[" << toString(m_updatedCube.m_pointsFront[0]) << ","
+//              << toString(m_updatedCube.m_pointsFront[1]) << ","
+//              << toString(m_updatedCube.m_pointsFront[2]) << ","
+//              << toString(m_updatedCube.m_pointsFront[3]) << ","
+//              << toString(m_updatedCube.m_pointsBack[0]) << ","
+//              << toString(m_updatedCube.m_pointsBack[1]) << ","
+//              << toString(m_updatedCube.m_pointsBack[2]) << ","
+//              << toString(m_updatedCube.m_pointsBack[3]) << "]\n\n";
 
-  m_debugFile << "Rotation matrix:\n";
-  m_debugFile << toPythonString(rotation);
+//  m_debugFile << "Rotation matrix:\n";
+//  m_debugFile << toPythonString(rotation);
 
-  m_debugFile << "\nProjected points:\n";
+//  m_debugFile << "\nProjected points:\n";
 
-  vector<Point3f>& points2 = m_updatedCube.m_cloudPoints[face];
-  vector<Point3f>& points = m_fstCube.m_cloudPoints[face];
-  m_debugFile << "[";
-  for (size_t j = 0; j < points2.size(); j++) {
-    if (points[j].z != 0) m_debugFile << toString(points[j]);
-    if (points[j].z != 0 && j < points2.size() - 1) m_debugFile << ",";
-  }
-  m_debugFile << "]";
-  m_debugFile << "\nExtracted points:\n";
-  m_debugFile << "[";
-  for (size_t j = 0; j < points2.size(); j++) {
-    if (points[j].z != 0) m_debugFile << toString(points2[j]);
-    if (points[j].z != 0 && j < points.size() - 1) m_debugFile << ",";
-  }
-  m_debugFile << "]\n";
+//  vector<Point3f>& points2 = m_updatedCube.m_cloudPoints[face];
+//  vector<Point3f>& points = m_fstCube.m_cloudPoints[face];
+//  m_debugFile << "[";
+//  for (size_t j = 0; j < points2.size(); j++) {
+//    if (points[j].z != 0) m_debugFile << toString(points[j]);
+//    if (points[j].z != 0 && j < points2.size() - 1) m_debugFile << ",";
+//  }
+//  m_debugFile << "]";
+//  m_debugFile << "\nExtracted points:\n";
+//  m_debugFile << "[";
+//  for (size_t j = 0; j < points2.size(); j++) {
+//    if (points[j].z != 0) m_debugFile << toString(points2[j]);
+//    if (points[j].z != 0 && j < points.size() - 1) m_debugFile << ",";
+//  }
+//  m_debugFile << "]\n";
 }
 
 string Tracker3D::getResultName(string path) {
@@ -2098,8 +2024,8 @@ bool Tracker3D::findObject(BoundingCube& fst, BoundingCube& upd,
         foundFace = true;
       }
 
-      m_debugFile << faceToString(i) << " descriptors " << fstDescriptors.size()
-                  << " " << numMatches << "\n";
+//      m_debugFile << faceToString(i) << " descriptors " << fstDescriptors.size()
+//                  << " " << numMatches << "\n";
     }
   }
 

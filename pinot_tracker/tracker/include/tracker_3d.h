@@ -27,7 +27,7 @@
 #include "../include/params.h"
 #include "../../clustering/include/DBScanClustering.h"
 #include "../include/borg_cube.h"
-#include "../../utilities/include/Constants.h"
+#include "../../utilities/include/constants.h"
 #include "../../utilities/include/DebugFunctions.h"
 #include "../include/params.h"
 
@@ -69,6 +69,9 @@ class Tracker3D {
 
   std::vector<cv::Point3f> getFrontBB() { return m_updatedCube.m_pointsFront; }
   std::vector<cv::Point3f> getBackBB() { return m_updatedCube.m_pointsBack; }
+
+  void getActivePoints(std::vector<cv::Point3f *> &points,
+                        std::vector<cv::Point3f *> &votes);
 
   void drawObjectLocation(cv::Mat& out);
 
@@ -156,27 +159,6 @@ class Tracker3D {
                      const cv::Mat& cloud, const cv::Mat& rotation,
                      const int& face, BoundingCube& fstCube,
                      BoundingCube& updatedCube, cv::Mat& out);
-
-  //  void debugTrackingStep(
-  //      const cv::Mat& fstFrame, const cv::Mat& scdFrame,
-  //      const std::vector<int>& indices, std::vector<std::vector<int>>&
-  //      clusters,
-  //      const bool isLost, const bool isLearning,
-  //      const vector<Status*>& pointsStatus, vector<KeyPoint*>& fstKeypoints,
-  //      const vector<Point3f*>& fstPoints, const vector<Point3f*>& updPoints,
-  //      const vector<KeyPoint*>& updKeypoints, const vector<Scalar*>& colors,
-  //      std::vector<bool> visibleFaces, std::vector<float>& visibilityRatio,
-  //      double angularDistance, Mat& out);
-
-  //  void debugTrackingStepICRA(
-  //      const cv::Mat& fstFrame, const cv::Mat& scdFrame,
-  //      const std::vector<int>& indices, std::vector<vector<int>>& clusters,
-  //      const bool isLost, const bool isLearning,
-  //      const vector<Status*>& pointsStatus, vector<KeyPoint*>& fstKeypoints,
-  //      const vector<Point3f*>& fstPoints, const vector<Point3f*>& updPoints,
-  //      const vector<KeyPoint*>& updKeypoints, const vector<Scalar*>& colors,
-  //      std::vector<bool> visibleFaces, std::vector<float>& visibilityRatio,
-  //      double angularDistance, Mat& out);
 
   void debugTrackingStepPar(cv::Mat fstFrame, cv::Mat scdFrame);
 
@@ -326,17 +308,18 @@ class Tracker3D {
   std::vector<float> m_partialTimes;
   float m_frameTime;
 
-  /*********************************************************************************************/
+  /****************************************************************************/
   /*                   RESULTS AND DEBUG */
-  /*********************************************************************************************/
-  std::ofstream m_debugFile, m_timeFile, m_matrixFile, m_resultFile;
-  cv::VideoWriter m_debugWriter;
+  /****************************************************************************/
   std::vector<std::vector<cv::Scalar>> m_pointsColor;
   std::string m_resultName;
   std::vector<cv::Scalar> m_faceColors;
   cv::Mat m_prevRotation;
   cv::Mat m_initRotation;
   std::stringstream m_quaterionStream;
+
+  std::vector<cv::Point3f> m_votingPoints;
+  std::vector<cv::Point3f> m_votedPoints;
 
   /*********************************************************************************************/
   /*                        LEARNING */

@@ -291,7 +291,7 @@ void Projection::publishPose(Point3f &center, std::vector<Point3f> &back_points,
   auto scale_x = front_points.at(1).x - front_points.at(0).x;
 
   marker.pose.position.x = center.z;
-  marker.pose.position.y = center.x + scale_x/2.0f;
+  marker.pose.position.y = center.x + scale_x / 2.0f;
   marker.pose.position.z = center.y;
   marker.scale.x = back_points.at(0).z - front_points.at(0).z;
   marker.scale.y = front_points.at(1).x - front_points.at(0).x;
@@ -308,7 +308,7 @@ void Projection::run() {
   params_.debug_path = "/home/alessandro/Debug";
   Tracker3D tracker;
 
-  auto& profiler = Profiler::getInstance();
+  auto &profiler = Profiler::getInstance();
   Point3f mean_pt, min_pt, max_pt;
 
   ros::Rate r(100);
@@ -400,10 +400,12 @@ void Projection::run() {
         // max_pt);
         Mat out;
         publishPose(pt, back_points, front_points);
-        //publishPose(mean_pt, min_pt, max_pt);
+        // publishPose(mean_pt, min_pt, max_pt);
         profiler->start("frame_time");
         tracker.computeNext(rgb_image_, points, out);
         profiler->stop("frame_time");
+        float elapsed = profiler->getTime("frame_time");
+        cout << "Average time: " << elapsed << " ms \n";
 
         rgb_image_.copyTo(out);
         tracker.drawObjectLocation(out);
@@ -413,6 +415,17 @@ void Projection::run() {
             Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
             tracker.getCurrentCentroid(), center);
         circle(out, center, 5, Scalar(255, 0, 0), -1);
+
+        vector<Point3f *> pts, votes;
+        tracker.getActivePoints(pts, votes);
+
+        cout << "Pts size " << pts.size() << " votes " << votes.size() << endl;
+
+        drawCentroidVotes(
+            pts, votes,
+            Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
+            true, params_.camera_model.fx(), out);
+
         imshow("Tracker", out);
 
         waitKey(30);

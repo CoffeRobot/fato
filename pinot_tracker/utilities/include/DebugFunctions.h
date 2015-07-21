@@ -13,7 +13,7 @@
 #endif
 #include <fstream>
 
-#include "Constants.h"
+#include "constants.h"
 #include "ToString.h"
 
 namespace pinot_tracker{
@@ -36,13 +36,7 @@ void drawCentroidVotes(const std::vector<cv::Point3f>& keypoints,
                        const cv::Point2f& center, std::ofstream& file,
                        cv::Mat& out);
 
-void drawCentroidVotes(const std::vector<cv::Point3f>& keypoints,
-                       std::vector<cv::Point3f>& points,
-                       const std::vector<bool>& clustered,
-                       const std::vector<bool>& border,
-                       const std::vector<Status>& status, bool drawLines,
-                       bool drawFalse, const float focal,
-                       const cv::Point2f& center, cv::Mat& out);
+
 
 void drawCentroidVotes(const std::vector<cv::Point3f*>& keypoints,
                        const std::vector<cv::Point3f>& votes,
