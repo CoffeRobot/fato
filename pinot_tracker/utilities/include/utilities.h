@@ -66,67 +66,32 @@ cv::Point2f projectPoint(const float focal, const cv::Point2f& center,
 bool projectPoint(const float focal, const cv::Point2f& center,
                     const cv::Point3f& src, cv::Point2f& dst);
 
-template <typename T>
-void disparityToDepth(const sensor_msgs::ImageConstPtr& depth_msg,
-                      const image_geometry::PinholeCameraModel& model,
-                      cv::Mat3f& cloud)
-{
-    double range_max = 0.0;
-    // Use correct principal point from calibration
-    float center_x = model.cx();
-    float center_y = model.cy();
 
-    assert(cloud.cols != 0 && cloud.rows != 0);
-
-    // Combine unit conversion (if necessary) with scaling by focal length for
-    // computing (X,Y)
-    double unit_scaling = DepthTraits<T>::toMeters(T(1));
-    float constant_x = unit_scaling / model.fx();
-    float constant_y = unit_scaling / model.fy();
-    float bad_point = std::numeric_limits<float>::quiet_NaN();
-
-    const T* depth_row = reinterpret_cast<const T*>(&depth_msg->data[0]);
-    int row_step = depth_msg->step / sizeof(T);
-
-    for (int v = 0; v < (int)depth_msg->height; ++v, depth_row += row_step) {
-      for (int u = 0; u < (int)depth_msg->width; ++u) {
-        T depth = depth_row[u];
-        //int data_id = (u * 4) + (v * row_offset);
-
-        // Missing points denoted by NaNs
-        if (!DepthTraits<T>::valid(depth)) {
-          if (range_max != 0.0) {
-            depth = DepthTraits<T>::fromMeters(range_max);
-          } else {
-            depth = bad_point;
-            continue;
-          }
-        }
-
-        float x = (u - center_x) * depth * constant_x;
-        float y = (v - center_y) * depth * constant_y;
-        float z = DepthTraits<T>::toMeters(depth);
-
-        cloud.at<cv::Vec3f>(u,v)[0] = x;
-        cloud.at<cv::Vec3f>(u,v)[1] = y;
-        cloud.at<cv::Vec3f>(u,v)[2] = z;
-
-      }
-    }
-}
-
-
-void disparityToDepth(const cv::Mat& disparity, float cx, float cy,
+void depthTo3d(const cv::Mat& disparity, float cx, float cy,
                       float fx, float fy, cv::Mat3f &depth);
 
+template<typename T>
+bool is_infinite( const T &value )
+{
+    T max_value = std::numeric_limits<T>::max();
+    T min_value = - max_value;
 
+    return ! ( min_value <= value && value <= max_value );
+}
 
 template<typename T>
-bool is_infinite( const T &value );
+bool is_nan( const T &value )
+{
+    // True if NAN
+    return value != value;
+}
+
 template<typename T>
-bool is_nan( const T &value );
-template<typename T>
-bool is_valid( const T &value );
+bool is_valid( const T &value )
+{
+    return ! is_infinite(value) && ! is_nan(value);
+}
+
 
 
 } // end namespace

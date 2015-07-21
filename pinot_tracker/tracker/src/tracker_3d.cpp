@@ -25,14 +25,13 @@ namespace pinot_tracker {
 Tracker3D::~Tracker3D() { clear(); }
 
 int Tracker3D::init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
-                     cv::Point2d& top_left, cv::Point2d& bottom_right) {
+                    cv::Point2d& top_left, cv::Point2d& bottom_right) {
   params_ = params;
   auto mask = getMask(rgb.rows, rgb.cols, top_left, bottom_right);
   return init(rgb, points, mask);
 }
 
 int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
-
   m_focal = params_.camera_model.fx();
   m_imageCenter = Point2f(rgb.cols / 2, rgb.rows / 2);
 
@@ -120,10 +119,10 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
 
   m_centroidVotes.resize(m_fstCube.m_faceKeypoints.at(FACE::FRONT).size(),
                          Point3f(0, 0, 0));
-  m_clusteredCentroidVotes.resize(m_fstCube.m_faceKeypoints.at(FACE::FRONT).size(),
-                                  true);
-  m_clusteredBorderVotes.resize(m_fstCube.m_faceKeypoints.at(FACE::FRONT).size(),
-                                false);
+  m_clusteredCentroidVotes.resize(
+      m_fstCube.m_faceKeypoints.at(FACE::FRONT).size(), true);
+  m_clusteredBorderVotes.resize(
+      m_fstCube.m_faceKeypoints.at(FACE::FRONT).size(), false);
 
   m_fstCube.m_isLearned.at(FACE::FRONT) = true;
   m_fstCube.m_appearanceRatio.at(FACE::FRONT) = 1;
@@ -173,11 +172,11 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
           << toString(m_fstCube.m_pointsBack[2]) << ","
           << toString(m_fstCube.m_pointsBack[3]) << "]\n\n";*/
 
-//  vector<Point3f>& points = m_fstCube.m_cloudPoints[FACE::FRONT];
-//  for (size_t j = 0; j < points.size(); j++) {
-//    if (m_fstCube.m_pointStatus[FACE::FRONT][j] == Status::INIT)
-//      m_debugFile << toString(points[j]) << "\n";
-//  }
+  //  vector<Point3f>& points = m_fstCube.m_cloudPoints[FACE::FRONT];
+  //  for (size_t j = 0; j < points.size(); j++) {
+  //    if (m_fstCube.m_pointStatus[FACE::FRONT][j] == Status::INIT)
+  //      m_debugFile << toString(points[j]) << "\n";
+  //  }
 
   hasAppearanceToChange = true;
 
@@ -428,11 +427,11 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
   /*                             DRAW */
   /*********************************************************************************************/
   //  start = chrono::system_clock::now();
-//  debugTrackingStepICRA(rgb, m_fstFrame, indices, clusters, isLost, false,
-//                        pointsStatus, fstKeypoint, fstPoints, updPoints,
-//                        updKeypoint, colors, isFaceVisible, visibilityRatio,
-//                        angularDist, out);
-//  //  end = chrono::system_clock::now();
+  //  debugTrackingStepICRA(rgb, m_fstFrame, indices, clusters, isLost, false,
+  //                        pointsStatus, fstKeypoint, fstPoints, updPoints,
+  //                        updKeypoint, colors, isFaceVisible, visibilityRatio,
+  //                        angularDist, out);
+  //  //  end = chrono::system_clock::now();
   //  m_partialTimes[10] +=
   //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
   cout << "10 ";
@@ -470,7 +469,8 @@ void Tracker3D::computeNext(const Mat& rgb, const Mat& points, Mat& out) {
   bool learning = false;
   //  start = chrono::system_clock::now();
   if (!isLost && isAppearanceNew(rotation) && angularDist < 4.00) {
-    learning = learnFrame(rgb, points, isFaceVisible, visibilityRatio, rotation);
+    learning =
+        learnFrame(rgb, points, isFaceVisible, visibilityRatio, rotation);
   }
 
   bool newLearning = false;
@@ -1209,9 +1209,6 @@ void Tracker3D::initBBox(const Mat& cloud) {
   maxY = maxY;
   minY = minY;
 
-  m_debugFile << "Max Y " << maxY << " minY " << minY << "\n";
-  m_debugFile << "-------------------------------------\n\n\n\n\n\n";
-
   float deltaX = maxX - minX;
   float deltaY = maxY - minY;
   float depth = min(deltaX, deltaY);
@@ -1494,6 +1491,9 @@ void Tracker3D::calculateVisibilityEigen(const Mat& rotation,
                                          const BoundingCube& fstCube,
                                          vector<bool>& isFaceVisible,
                                          vector<float>& visibilityRatio) {
+
+
+  //FIXME: calculation is non correct for perspective camera
   VectorXd pov(3);
   pov(0) = rotation.at<float>(0, 2);
   pov(1) = rotation.at<float>(1, 2);
@@ -1520,9 +1520,6 @@ void Tracker3D::calculateVisibilityEigen(const Mat& rotation,
 
     visibilityRatio[i] = res(2, i);
   }
-
-  // m_debugFile << " \n\n Debugging rotation ! \n\n";
-  // m_debugFile << res << "\n";
 }
 
 void Tracker3D::learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
@@ -1678,243 +1675,244 @@ int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
   return kpCount;
 }
 
-void Tracker3D::debugTrackingStep(
-    const cv::Mat& fstFrame, const cv::Mat& scdFrame,
-    const std::vector<int>& indices, std::vector<vector<int>>& clusters,
-    const bool isLost, const bool isLearning,
-    const vector<Status*>& pointsStatus, vector<KeyPoint*>& fstKeypoints,
-    const vector<Point3f*>& fstPoints, const vector<Point3f*>& updPoints,
-    const vector<KeyPoint*>& updKeypoints, const vector<Scalar*>& colors,
-    std::vector<bool> visibleFaces, std::vector<float>& visibilityRatio,
-    double angularDistance, Mat& out) {
-  random_device rd;
-  default_random_engine engine(rd());
-  uniform_int_distribution<unsigned int> uniform_dist(0, 255);
+//void Tracker3D::debugTrackingStep(
+//    const cv::Mat& fstFrame, const cv::Mat& scdFrame,
+//    const std::vector<int>& indices, std::vector<vector<int>>& clusters,
+//    const bool isLost, const bool isLearning,
+//    const vector<Status*>& pointsStatus, vector<KeyPoint*>& fstKeypoints,
+//    const vector<Point3f*>& fstPoints, const vector<Point3f*>& updPoints,
+//    const vector<KeyPoint*>& updKeypoints, const vector<Scalar*>& colors,
+//    std::vector<bool> visibleFaces, std::vector<float>& visibilityRatio,
+//    double angularDistance, Mat& out) {
+//  random_device rd;
+//  default_random_engine engine(rd());
+//  uniform_int_distribution<unsigned int> uniform_dist(0, 255);
 
-  int cols = fstFrame.cols;
-  int rows = fstFrame.rows;
+//  int cols = fstFrame.cols;
+//  int rows = fstFrame.rows;
 
-  buildCompositeImg(fstFrame, scdFrame, out);
+//  buildCompositeImg(fstFrame, scdFrame, out);
 
-  int matchedPoints = 0;
-  int trackedPoints = 0;
-  int bothPoints = 0;
+//  int matchedPoints = 0;
+//  int trackedPoints = 0;
+//  int bothPoints = 0;
 
-  if (!isLost) {
-    //    drawObjectLocation(m_fstCube, m_updatedCube, visibleFaces, m_focal,
-    //                       m_imageCenter, out);
-  }
-  // cout << "11-1 ";
-  //  if (m_configFile.m_showMatching) {
-  //    // cout << fstPoints.size() << " " << updPoints.size() << " " <<
-  //    // pointsStatus.size()
-  //    //	<< " " << colors.size() << "\n";
-  //    drawPointsMatching(fstPoints, updPoints, pointsStatus, colors,
-  //                       matchedPoints, trackedPoints, bothPoints,
-  //                       m_configFile.m_drawMatchingLines, m_focal,
-  //                       m_imageCenter,
-  //                       out);
-  //  } else {
-  //    countKeypointsMatching(pointsStatus, matchedPoints, trackedPoints,
-  //                           bothPoints);
-  //  }
-  // cout << "11-2 ";
-  //  if (m_configFile.m_showVoting) {
-  //    // stringstream sstmp;
-  //    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
-  //    // ofstream tmpFile(sstmp.str());
-  //    drawCentroidVotes(
-  //        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
-  //        m_clusteredBorderVotes, pointsStatus,
-  //        m_configFile.m_drawVotingLines,
-  //        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
-  //    // tmpFile.close();
-  //  }
-  // cout << "11-3 ";
-  // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints, bothPoints,
-  // out);
-  // cout << "11-4 ";
-  for (size_t i = 0; i < 6; i++) {
-    if (visibleFaces[i] && visibilityRatio[i] > 0.5f) {
-      vector<Point3f> facePoints = m_updatedCube.getFacePoints(i);
+//  if (!isLost) {
+//    //    drawObjectLocation(m_fstCube, m_updatedCube, visibleFaces, m_focal,
+//    //                       m_imageCenter, out);
+//  }
+//  // cout << "11-1 ";
+//  //  if (m_configFile.m_showMatching) {
+//  //    // cout << fstPoints.size() << " " << updPoints.size() << " " <<
+//  //    // pointsStatus.size()
+//  //    //	<< " " << colors.size() << "\n";
+//  //    drawPointsMatching(fstPoints, updPoints, pointsStatus, colors,
+//  //                       matchedPoints, trackedPoints, bothPoints,
+//  //                       m_configFile.m_drawMatchingLines, m_focal,
+//  //                       m_imageCenter,
+//  //                       out);
+//  //  } else {
+//  //    countKeypointsMatching(pointsStatus, matchedPoints, trackedPoints,
+//  //                           bothPoints);
+//  //  }
+//  // cout << "11-2 ";
+//  //  if (m_configFile.m_showVoting) {
+//  //    // stringstream sstmp;
+//  //    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
+//  //    // ofstream tmpFile(sstmp.str());
+//  //    drawCentroidVotes(
+//  //        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
+//  //        m_clusteredBorderVotes, pointsStatus,
+//  //        m_configFile.m_drawVotingLines,
+//  //        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
+//  //    // tmpFile.close();
+//  //  }
+//  // cout << "11-3 ";
+//  // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints, bothPoints,
+//  // out);
+//  // cout << "11-4 ";
+//  for (size_t i = 0; i < 6; i++) {
+//    if (visibleFaces[i] && visibilityRatio[i] > 0.5f) {
+//      vector<Point3f> facePoints = m_updatedCube.getFacePoints(i);
 
-      Point2f a, b, c, d;
-      bool isValA, isValB, isValC, isValD;
+//      Point2f a, b, c, d;
+//      bool isValA, isValB, isValC, isValD;
 
-      isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
-      isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
-      isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
-      isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
+//      isValA = projectPoint(m_focal, m_imageCenter, facePoints[0], a);
+//      isValB = projectPoint(m_focal, m_imageCenter, facePoints[1], b);
+//      isValC = projectPoint(m_focal, m_imageCenter, facePoints[2], c);
+//      isValD = projectPoint(m_focal, m_imageCenter, facePoints[3], d);
 
-      if (isValA && isValB && isValC && isValD) {
-        drawTriangle(a, b, c, m_faceColors[i], 0.4, out);
-        drawTriangle(a, c, d, m_faceColors[i], 0.4, out);
-      }
-    }
-  }
+//      if (isValA && isValB && isValC && isValD) {
+//        drawTriangle(a, b, c, m_faceColors[i], 0.4, out);
+//        drawTriangle(a, c, d, m_faceColors[i], 0.4, out);
+//      }
+//    }
+//  }
 
-  int width = 106;
-  int height = 80;
-  int left = out.cols - width;
-  int top = 0;
-  for (int i = 0; i < 6; i++) {
-    Mat tmp;
-    resize(m_learnedFaces[i], tmp, Size(width, height));
-    rectangle(tmp, Rect(0, 0, 54, 18), Scalar(0, 0, 0), -1);
-    rectangle(tmp, Rect(0, 0, out.cols, out.rows), m_faceColors[i], 3);
-    putText(tmp, faceToString(i), Point2f(5, 15), FONT_HERSHEY_PLAIN, 1,
-            m_faceColors[i], 1);
+//  int width = 106;
+//  int height = 80;
+//  int left = out.cols - width;
+//  int top = 0;
+//  for (int i = 0; i < 6; i++) {
+//    Mat tmp;
+//    resize(m_learnedFaces[i], tmp, Size(width, height));
+//    rectangle(tmp, Rect(0, 0, 54, 18), Scalar(0, 0, 0), -1);
+//    rectangle(tmp, Rect(0, 0, out.cols, out.rows), m_faceColors[i], 3);
+//    putText(tmp, faceToString(i), Point2f(5, 15), FONT_HERSHEY_PLAIN, 1,
+//            m_faceColors[i], 1);
 
-    tmp.copyTo(out(Rect(left, top, width, height)));
-    top += height;
-  }
+//    tmp.copyTo(out(Rect(left, top, width, height)));
+//    top += height;
+//  }
 
-  int totM = matchedPoints + bothPoints;
-  int totT = trackedPoints + bothPoints;
+//  int totM = matchedPoints + bothPoints;
+//  int totT = trackedPoints + bothPoints;
 
-  stringstream ss;
-  ss.precision(2);
+//  stringstream ss;
+//  ss.precision(2);
 
-  ss << std::fixed << "Frame: " << m_numFrames << " ANG: " << angularDistance
-     << " VISIBLE: ";
+//  ss << std::fixed << "Frame: " << m_numFrames << " ANG: " << angularDistance
+//     << " VISIBLE: ";
 
-  ss << "[";
-  for (size_t i = 0; i < 6; i++) {
-    ss << visibilityRatio[i];
-    if (i < 5) ss << ",";
-  }
-  ss << "]";
+//  ss << "[";
+//  for (size_t i = 0; i < 6; i++) {
+//    ss << visibilityRatio[i];
+//    if (i < 5) ss << ",";
+//  }
+//  ss << "]";
 
-  if (isLearning) ss << " Learning Frame";
-  if (isLost) ss << " Lost";
+//  if (isLearning) ss << " Learning Frame";
+//  if (isLost) ss << " Lost";
 
-  drawInformationHeader(Point2f(10, 10), ss.str(), 0.5, 640, 30, out);
+//  drawInformationHeader(Point2f(10, 10), ss.str(), 0.5, 640, 30, out);
 
-  m_debugWriter << out;
-}
+//  m_debugWriter << out;
+//}
 
-void Tracker3D::debugTrackingStepICRA(
-    const cv::Mat& fstFrame, const cv::Mat& scdFrame,
-    const std::vector<int>& indices, std::vector<vector<int>>& clusters,
-    const bool isLost, const bool isLearning,
-    const vector<Status*>& pointsStatus, vector<KeyPoint*>& fstKeypoints,
-    const vector<Point3f*>& fstPoints, const vector<Point3f*>& updPoints,
-    const vector<KeyPoint*>& updKeypoints, const vector<Scalar*>& colors,
-    std::vector<bool> visibleFaces, std::vector<float>& visibilityRatio,
-    double angularDistance, Mat& out) {
-  random_device rd;
-  default_random_engine engine(rd());
-  uniform_int_distribution<unsigned int> uniform_dist(0, 255);
+//void Tracker3D::debugTrackingStepICRA(
+//    const cv::Mat& fstFrame, const cv::Mat& scdFrame,
+//    const std::vector<int>& indices, std::vector<vector<int>>& clusters,
+//    const bool isLost, const bool isLearning,
+//    const vector<Status*>& pointsStatus, vector<KeyPoint*>& fstKeypoints,
+//    const vector<Point3f*>& fstPoints, const vector<Point3f*>& updPoints,
+//    const vector<KeyPoint*>& updKeypoints, const vector<Scalar*>& colors,
+//    std::vector<bool> visibleFaces, std::vector<float>& visibilityRatio,
+//    double angularDistance, Mat& out) {
+//  random_device rd;
+//  default_random_engine engine(rd());
+//  uniform_int_distribution<unsigned int> uniform_dist(0, 255);
 
-  int cols = fstFrame.cols;
-  int rows = fstFrame.rows;
+//  int cols = fstFrame.cols;
+//  int rows = fstFrame.rows;
 
-  Size size(cols + 214, rows + 160);
-  out.create(size, fstFrame.type());
+//  Size size(cols + 214, rows + 160);
+//  out.create(size, fstFrame.type());
 
-  fstFrame.copyTo(out(Rect(0, 0, cols, rows)));
+//  fstFrame.copyTo(out(Rect(0, 0, cols, rows)));
 
-  if (out.channels() == 1) cvtColor(out, out, CV_GRAY2BGR);
+//  if (out.channels() == 1) cvtColor(out, out, CV_GRAY2BGR);
 
-  int matchedPoints = 0;
-  int trackedPoints = 0;
-  int bothPoints = 0;
+//  int matchedPoints = 0;
+//  int trackedPoints = 0;
+//  int bothPoints = 0;
 
-  if (!isLost) {
-//    drawObjectLocation(m_updatedCube.m_pointsBack, m_updatedCube.m_pointsFront,
-//                       m_updatedCube.m_center, visibleFaces, m_focal,
-//                       m_imageCenter, out);
-  }
+//  if (!isLost) {
+//    //    drawObjectLocation(m_updatedCube.m_pointsBack,
+//    //    m_updatedCube.m_pointsFront,
+//    //                       m_updatedCube.m_center, visibleFaces, m_focal,
+//    //                       m_imageCenter, out);
+//  }
 
-  //  // cout << "11-2 ";
-  //  if (m_configFile.m_showVoting) {
-  //    // stringstream sstmp;
-  //    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
-  //    // ofstream tmpFile(sstmp.str());
-  //    drawCentroidVotes(
-  //        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
-  //        m_clusteredBorderVotes, pointsStatus,
-  //        m_configFile.m_drawVotingLines,
-  //        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
-  //    // tmpFile.close();
-  //  }
-  // cout << "11-3 ";
-  // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints, bothPoints,
-  // out);
-  // cout << "11-4 ";*/
-  for (size_t i = 0; i < 6; i++) {
-    if (visibleFaces.at(i) && visibilityRatio.at(i) > 0.5f) {
-      vector<Point3f> facePoints = m_updatedCube.getFacePoints(i);
+//  //  // cout << "11-2 ";
+//  //  if (m_configFile.m_showVoting) {
+//  //    // stringstream sstmp;
+//  //    // sstmp << m_configFile.m_dstPath + "/debug/" << m_numFrames << ".txt";
+//  //    // ofstream tmpFile(sstmp.str());
+//  //    drawCentroidVotes(
+//  //        updPoints, m_centroidVotes, m_clusteredCentroidVotes,
+//  //        m_clusteredBorderVotes, pointsStatus,
+//  //        m_configFile.m_drawVotingLines,
+//  //        m_configFile.m_drawVotingFalse, m_focal, m_imageCenter, out);
+//  //    // tmpFile.close();
+//  //  }
+//  // cout << "11-3 ";
+//  // drawKeipointsStats(m_initKPCount, matchedPoints, trackedPoints, bothPoints,
+//  // out);
+//  // cout << "11-4 ";*/
+//  for (size_t i = 0; i < 6; i++) {
+//    if (visibleFaces.at(i) && visibilityRatio.at(i) > 0.5f) {
+//      vector<Point3f> facePoints = m_updatedCube.getFacePoints(i);
 
-      Point2f a, b, c, d;
-      bool isValA, isValB, isValC, isValD;
+//      Point2f a, b, c, d;
+//      bool isValA, isValB, isValC, isValD;
 
-      isValA = projectPoint(m_focal, m_imageCenter, facePoints.at(0), a);
-      isValB = projectPoint(m_focal, m_imageCenter, facePoints.at(1), b);
-      isValC = projectPoint(m_focal, m_imageCenter, facePoints.at(2), c);
-      isValD = projectPoint(m_focal, m_imageCenter, facePoints.at(3), d);
+//      isValA = projectPoint(m_focal, m_imageCenter, facePoints.at(0), a);
+//      isValB = projectPoint(m_focal, m_imageCenter, facePoints.at(1), b);
+//      isValC = projectPoint(m_focal, m_imageCenter, facePoints.at(2), c);
+//      isValD = projectPoint(m_focal, m_imageCenter, facePoints.at(3), d);
 
-      if (isValA && isValB && isValC && isValD) {
-        drawTriangle(a, b, c, m_faceColors.at(i), 0.4, out);
-        drawTriangle(a, c, d, m_faceColors.at(i), 0.4, out);
-      }
-    }
-  }
+//      if (isValA && isValB && isValC && isValD) {
+//        drawTriangle(a, b, c, m_faceColors.at(i), 0.4, out);
+//        drawTriangle(a, c, d, m_faceColors.at(i), 0.4, out);
+//      }
+//    }
+//  }
 
-  //  int width = 214;
-  //  int height = 160;
-  //  int left = 0;
-  //  int top = 0;
-  //  for (int i = 0; i < 6; i++) {
-  //    Mat tmp;
-  //    //resize(m_learnedFaces.at(i), tmp, Size(width, height));
-  //    rectangle(tmp, Rect(0, 0, 214, 18), Scalar(0, 0, 0), -1);
-  //    rectangle(tmp, Rect(0, 0, tmp.cols, tmp.rows), m_faceColors[i], 3);
+//  //  int width = 214;
+//  //  int height = 160;
+//  //  int left = 0;
+//  //  int top = 0;
+//  //  for (int i = 0; i < 6; i++) {
+//  //    Mat tmp;
+//  //    //resize(m_learnedFaces.at(i), tmp, Size(width, height));
+//  //    rectangle(tmp, Rect(0, 0, 214, 18), Scalar(0, 0, 0), -1);
+//  //    rectangle(tmp, Rect(0, 0, tmp.cols, tmp.rows), m_faceColors[i], 3);
 
-  //    stringstream ss;
-  //    ss << faceToString(i) << " " << fixed << setprecision(2)
-  //       << visibilityRatio[i];
+//  //    stringstream ss;
+//  //    ss << faceToString(i) << " " << fixed << setprecision(2)
+//  //       << visibilityRatio[i];
 
-  //    putText(tmp, ss.str(), Point2f(5, 15), FONT_HERSHEY_PLAIN, 1,
-  //            m_faceColors[i], 1);
+//  //    putText(tmp, ss.str(), Point2f(5, 15), FONT_HERSHEY_PLAIN, 1,
+//  //            m_faceColors[i], 1);
 
-  //    if (i >= 3) {
-  //      left = (i % 3) * width;
-  //      top = out.rows - height;
-  //    } else {
-  //      left = out.cols - width;
-  //      top = (i % 3) * height;
-  //    }
+//  //    if (i >= 3) {
+//  //      left = (i % 3) * width;
+//  //      top = out.rows - height;
+//  //    } else {
+//  //      left = out.cols - width;
+//  //      top = (i % 3) * height;
+//  //    }
 
-  //    tmp.copyTo(out(Rect(left, top, width, height)));
-  //  }
+//  //    tmp.copyTo(out(Rect(left, top, width, height)));
+//  //  }
 
-  stringstream ss, ss1, ss2;
-  ss.precision(2);
-  ss1.precision(2);
-  ss2.precision(2);
+//  stringstream ss, ss1, ss2;
+//  ss.precision(2);
+//  ss1.precision(2);
+//  ss2.precision(2);
 
-  ss << std::fixed << "Frame: " << m_numFrames;
-  ss1 << "ANGLE: " << angularDistance;
+//  ss << std::fixed << "Frame: " << m_numFrames;
+//  ss1 << "ANGLE: " << angularDistance;
 
-  ss2 << "[";
-  for (size_t i = 0; i < 6; i++) {
-    ss2 << fixed << std::setprecision(2) << visibilityRatio[i];
-    if (i < 5) ss2 << ",";
-  }
-  ss2 << "]";
-  ss2.precision(2);
+//  ss2 << "[";
+//  for (size_t i = 0; i < 6; i++) {
+//    ss2 << fixed << std::setprecision(2) << visibilityRatio[i];
+//    if (i < 5) ss2 << ",";
+//  }
+//  ss2 << "]";
+//  ss2.precision(2);
 
-  // if (isLearning)
-  //	ss << " Learning Frame";
-  // if (isLost)
-  //	ss << " Lost";
-  Point2f resolution(640, 480);
-  drawInformationHeaderICRA(resolution, ss.str(), ss1.str(), ss2.str(), 0.5,
-                            240, 160, out);
+//  // if (isLearning)
+//  //	ss << " Learning Frame";
+//  // if (isLost)
+//  //	ss << " Lost";
+//  Point2f resolution(640, 480);
+//  drawInformationHeaderICRA(resolution, ss.str(), ss1.str(), ss2.str(), 0.5,
+//                            240, 160, out);
 
-  m_debugWriter << out;
-}
+//  m_debugWriter << out;
+//}
 
 void Tracker3D::debugLearnedModel(const Mat& rgb, int face,
                                   const Mat& rotation) {
@@ -2111,10 +2109,9 @@ bool Tracker3D::findObject(BoundingCube& fst, BoundingCube& upd,
   return foundFace;
 }
 
-void Tracker3D::drawObjectLocation(Mat &out)
-{
-    drawBoundingCube(m_updatedCube.m_center, m_updatedCube.m_pointsBack,
-                     m_updatedCube.m_pointsFront, m_focal, m_imageCenter, out);
+void Tracker3D::drawObjectLocation(Mat& out) {
+  drawBoundingCube(m_updatedCube.m_center, m_updatedCube.m_pointsBack,
+                   m_updatedCube.m_pointsFront, m_focal, m_imageCenter, out);
 }
 
 }  // end namespace

@@ -63,8 +63,8 @@ class Tracker2D {
   // find matches using brisk features
   void matchFeatures(const cv::Mat& grayImg);
   // find matches using custom match class
-  int matchFeaturesCustom(const Mat& grayImg, vector<KeyPoint>& nextKeypoint,
-                          Mat& nextDescriptors);
+  int matchFeaturesCustom(const cv::Mat& grayImg, std::vector<cv::KeyPoint>& nextKeypoint,
+                          cv::Mat& nextDescriptors);
   // uses lucas kanade to track keypoints, faster implemetation
   void trackFeatures(const cv::Mat& grayImg, int& trackedCount, int& bothCount);
   // check if image is grayscale
@@ -118,7 +118,7 @@ class Tracker2D {
 
   void debugTrackingStep(const cv::Mat& fstFrame, const cv::Mat& scdFrame,
                          const std::vector<int>& indices,
-                         std::vector<vector<int>>& clusters, Mat& out);
+                         std::vector<std::vector<int>>& clusters, cv::Mat& out);
 
   void parDebugtrackingStep(const cv::Mat& fstFrame, const cv::Mat& scdFrame);
 
@@ -189,9 +189,9 @@ class Tracker2D {
   cv::Point2f m_updatedCentroid;
 
   cv::Rect m_fstBBox;
-  std::vector<Point2f> m_fstRelativeBBPoints;
-  std::vector<Point2f> m_fstBBPoints;
-  std::vector<Point2f> m_updatedBBPoints;
+  std::vector<cv::Point2f> m_fstRelativeBBPoints;
+  std::vector<cv::Point2f> m_fstBBPoints;
+  std::vector<cv::Point2f> m_updatedBBPoints;
 
   std::vector<uchar> m_status;
   std::vector<float> m_errors;
@@ -204,7 +204,7 @@ class Tracker2D {
   cv::Mat m_fstFrame;
 
   // variables used to find new learning frames
-  std::set<pair<int, int>> m_learnedFrames;
+  std::set<std::pair<int, int>> m_learnedFrames;
   float m_angleStep;
   float m_scaleStep;
   float m_lastAngle;

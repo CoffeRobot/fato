@@ -1,12 +1,10 @@
-#pragma once
+#ifndef DBSCAN_H
+#define DBSCAN_H
+
+
 #include<vector>
-#include<opencv/cv.h>
 #include <memory>
 #include <functional>
-
-
-using namespace std;
-using namespace cv;
 
 template <class T>
 class DBScanClustering
@@ -58,7 +56,7 @@ private:
 	void clusterPoints()
 	{
 		int clusterId = 0;
-		m_clusters.push_back(vector<int>());
+        m_clusters.push_back(std::vector<int>());
 		for (int i = 0; i < m_points->size(); i++)
 		{
 			if (m_visited[i])
@@ -66,7 +64,7 @@ private:
 
 			m_visited[i] = true;
 
-			vector<int> indices;
+            std::vector<int> indices;
 
 			regionQuery(i, indices);
 
@@ -76,7 +74,7 @@ private:
 			{
 				expandCluster(i, indices, clusterId);
 				clusterId++;
-				m_clusters.push_back(vector<int>());
+                m_clusters.push_back(std::vector<int>());
 				m_border[i] = false;
 			}
 
@@ -107,7 +105,7 @@ private:
 			if (!m_visited[ng])
 			{
 				m_visited[ng] = true;
-				vector<int> newNeighbors;
+                std::vector<int> newNeighbors;
 				regionQuery(ng, newNeighbors);
 
 				if (newNeighbors.size() >= m_minPoints)
@@ -129,14 +127,14 @@ private:
 
 	unsigned int m_minPoints;
 
-	vector<bool> m_noise;
-	vector<bool> m_visited;
-	vector<bool> m_clustered;
-	vector<bool> m_border;
+    std::vector<bool> m_noise;
+    std::vector<bool> m_visited;
+    std::vector<bool> m_clustered;
+    std::vector<bool> m_border;
 
-	vector<T>* m_points;
+    std::vector<T>* m_points;
 	
-	vector<vector<int> > m_clusters;
+    std::vector<std::vector<int> > m_clusters;
 
 	std::function<float(T,T)> m_getDistance;
 	
@@ -145,3 +143,4 @@ private:
 
 };
 
+#endif

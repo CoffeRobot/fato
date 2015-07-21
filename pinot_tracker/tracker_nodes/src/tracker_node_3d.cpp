@@ -3,6 +3,10 @@
 #include "../../utilities/include/profiler.h"
 #include <iostream>
 
+
+using namespace cv;
+using namespace std;
+
 namespace pinot_tracker {
 
 TrackerNode3D::TrackerNode3D()

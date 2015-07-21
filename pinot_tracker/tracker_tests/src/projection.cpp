@@ -3,6 +3,10 @@
 #include "../../utilities/include/profiler.h"
 #include "../../utilities/include/utilities.h"
 #include <iostream>
+#include <visualization_msgs/Marker.h>
+
+using namespace cv;
+using namespace std;
 
 namespace pinot_tracker {
 
@@ -28,6 +32,8 @@ Projection::Projection()
   setMouseCallback("Tracker", Projection::mouseCallback, this);
 
   publisher_ = nh_.advertise<sensor_msgs::Image>("pinot_tracker/output", 1);
+  markers_publisher_ =
+      nh_.advertise<visualization_msgs::Marker>("pinot_tracker/pose", 10);
 
   initRGBD();
 
@@ -100,18 +106,6 @@ void Projection::rgbdCallback(
 
   readImage(rgb_msg, rgb);
   readImage(depth_msg, depth);
-  Mat3f cloud(depth_msg->width, depth_msg->height, Vec3f(0, 0, 0));
-  if (depth_msg->encoding == sensor_msgs::image_encodings::TYPE_16UC1) {
-    disparityToDepth<uint16_t>(depth_msg, params_.camera_model, cloud);
-  } else if (depth_msg->encoding == sensor_msgs::image_encodings::TYPE_32FC1) {
-    disparityToDepth<float>(depth_msg, params_.camera_model, cloud);
-  } else {
-    ROS_WARN("Warning: unsupported depth image format!");
-    // ROS_INFO("Mutex unlocked by cloud message");
-    return;
-  }
-
-  cloud_image_ = cloud.clone();
 
   rgb_image_ = rgb;
   depth_image_ = depth;
@@ -145,21 +139,42 @@ void Projection::initRGBD() {
       boost::bind(&Projection::rgbdCallback, this, _1, _2, _3));
 }
 
-void Projection::analyzeCube(cv::Mat &disparity, Point2d &top_left,
-                             Point2d &bottom_right) {
+void Projection::analyzeCube(const cv::Mat &disparity, const Point2d &top_left,
+                             const Point2d &bottom_right, Point3f &median_p,
+                             Point3f &min_p, Point3f &max_p) {
   Mat1b mask(disparity.rows, disparity.cols, uchar(0));
   rectangle(mask, top_left, bottom_right, 255, -1);
 
   vector<float> depth_x, depth_y, depth_z;
+  Point3f min_depth(numeric_limits<float>::max(), numeric_limits<float>::max(),
+                    numeric_limits<float>::max());
+  Point3f max_depth(-numeric_limits<float>::max(),
+                    -numeric_limits<float>::max(),
+                    -numeric_limits<float>::max());
+
   float average = 0;
   float counter = 0;
   for (int i = 0; i < disparity.rows; ++i) {
     for (int j = 0; j < disparity.cols; ++j) {
-      if (mask.at<uchar>(i, j) == 255 && disparity.at<Vec3f>(i, j)[2] != 0) {
-        depth_z.push_back(disparity.at<Vec3f>(i, j)[2]);
-        depth_x.push_back(disparity.at<Vec3f>(i, j)[0]);
-        depth_y.push_back(disparity.at<Vec3f>(i, j)[1]);
-        average += disparity.at<Vec3f>(i, j)[2];
+      if (mask.at<uchar>(i, j) == 255 && disparity.at<Vec3f>(i, j)[2] != 0 &&
+          is_valid<float>(disparity.at<Vec3f>(i, j)[2])) {
+        float x = disparity.at<Vec3f>(i, j)[0];
+        float y = disparity.at<Vec3f>(i, j)[1];
+        float z = disparity.at<Vec3f>(i, j)[2];
+
+        depth_z.push_back(z);
+        depth_x.push_back(x);
+        depth_y.push_back(y);
+        average += z;
+
+        min_depth.x = std::min(min_depth.x, x);
+        min_depth.y = std::min(min_depth.y, y);
+        min_depth.z = std::min(min_depth.z, z);
+
+        max_depth.x = std::max(max_depth.x, x);
+        max_depth.y = std::max(max_depth.y, y);
+        max_depth.z = std::max(max_depth.z, z);
+
         counter++;
       }
     }
@@ -171,6 +186,10 @@ void Projection::analyzeCube(cv::Mat &disparity, Point2d &top_left,
 
   auto size = depth_x.size();
 
+  if (size == 0) {
+    cout << "No point to calculate median \n";
+    return;
+  }
   float median_x, median_y, median_z;
 
   if (size % 2 == 0) {
@@ -183,8 +202,102 @@ void Projection::analyzeCube(cv::Mat &disparity, Point2d &top_left,
     median_z = depth_z.at(size / 2);
   }
 
+  median_p.x = median_x;
+  median_p.y = median_y;
+  median_p.z = median_z;
+
+  min_p = min_depth;
+  max_p = max_depth;
+
   cout << "depth: avg " << average / counter << " median x " << median_x
-       << " median y " << median_y << " median z " << median_z << endl;
+       << " median y " << median_y << " median z " << median_z
+       << "\n min point " << min_depth << " max point " << max_depth << endl;
+}
+
+void Projection::publishPose(cv::Point3f &mean_point, cv::Point3f &min_point,
+                             cv::Point3f &max_point) {
+  tf::Vector3 centroid(mean_point.z, -mean_point.x, mean_point.y);
+
+  tf::Transform transform;
+  transform.setOrigin(centroid);
+  transform.setRotation(tf::createIdentityQuaternion());
+
+  transform_broadcaster_.sendTransform(tf::StampedTransform(
+      transform, ros::Time::now(), "camera_rgb_frame", "mean_centroid"));
+
+  visualization_msgs::Marker marker;
+  marker.header.frame_id = "camera_rgb_frame";
+
+  marker.header.stamp = ros::Time::now();
+  marker.type = visualization_msgs::Marker::CUBE;
+  marker.ns = "mean_cuboid";
+  marker.id = 1;
+  marker.action = visualization_msgs::Marker::ADD;
+
+  marker.pose.orientation.x = 0.0;
+  marker.pose.orientation.y = 0.0;
+  marker.pose.orientation.z = 0.0;
+  marker.pose.orientation.w = 1.0;
+
+  marker.color.r = 1.0f;
+  marker.color.g = 0.0f;
+  marker.color.b = 0.0f;
+  marker.color.a = 0.3;
+
+  auto scale_x = max_point.x - min_point.x;
+  auto scale_y = max_point.y - min_point.y;
+  auto scale_z = std::min(scale_x, scale_y);
+
+  marker.pose.position.x = mean_point.z;
+  marker.pose.position.y = mean_point.x;
+  marker.pose.position.z = mean_point.y;
+  marker.scale.x = scale_z;
+  marker.scale.y = scale_x;
+  marker.scale.z = scale_y;
+
+  markers_publisher_.publish(marker);
+}
+
+void Projection::publishPose(Point3f &center, std::vector<Point3f> &back_points,
+                             std::vector<Point3f> &front_points) {
+  tf::Vector3 centroid(center.z, -center.x, center.y);
+
+  tf::Transform transform;
+  transform.setOrigin(centroid);
+  transform.setRotation(tf::createIdentityQuaternion());
+
+  transform_broadcaster_.sendTransform(tf::StampedTransform(
+      transform, ros::Time::now(), "camera_rgb_frame", "object_centroid"));
+
+  visualization_msgs::Marker marker;
+  marker.header.frame_id = "camera_rgb_frame";
+
+  marker.header.stamp = ros::Time::now();
+  marker.type = visualization_msgs::Marker::CUBE;
+  marker.ns = "bounding_cuboid";
+  marker.id = 1;
+  marker.action = visualization_msgs::Marker::ADD;
+
+  marker.pose.orientation.x = 0.0;
+  marker.pose.orientation.y = 0.0;
+  marker.pose.orientation.z = 0.0;
+  marker.pose.orientation.w = 1.0;
+
+  marker.color.r = 0.0f;
+  marker.color.g = 1.0f;
+  marker.color.b = 0.0f;
+  marker.color.a = 0.3;
+
+  auto scale_x = front_points.at(1).x - front_points.at(0).x;
+
+  marker.pose.position.x = center.z;
+  marker.pose.position.y = center.x + scale_x/2.0f;
+  marker.pose.position.z = center.y;
+  marker.scale.x = back_points.at(0).z - front_points.at(0).z;
+  marker.scale.y = front_points.at(1).x - front_points.at(0).x;
+  marker.scale.z = front_points.at(2).y - front_points.at(0).y;
+
+  markers_publisher_.publish(marker);
 }
 
 void Projection::run() {
@@ -195,7 +308,8 @@ void Projection::run() {
   params_.debug_path = "/home/alessandro/Debug";
   Tracker3D tracker;
 
-  auto &profiler = Profiler::getInstance();
+  auto& profiler = Profiler::getInstance();
+  Point3f mean_pt, min_pt, max_pt;
 
   ros::Rate r(100);
   while (ros::ok()) {
@@ -215,12 +329,10 @@ void Projection::run() {
       imshow("Tracker_d", depth_mapped);
 
       if (init_requested_ && !tracker_initialized_) {
-        ROS_INFO("before disparity to cloud depth");
         Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
-        ROS_INFO("before disparity to cloud depth");
-        disparityToDepth(depth_image_, params_.camera_model.cx(),
-                         params_.camera_model.cy(), params_.camera_model.fx(),
-                         params_.camera_model.fy(), points);
+        depthTo3d(depth_image_, params_.camera_model.cx(),
+                  params_.camera_model.cy(), params_.camera_model.fx(),
+                  params_.camera_model.fy(), points);
 
         Mat1b mask(depth_image_.rows, depth_image_.cols, uchar(0));
         rectangle(mask, mouse_start_, mouse_end_, uchar(255), -1);
@@ -252,11 +364,10 @@ void Projection::run() {
           ROS_WARN("Error initializing the tracker!");
           return;
         } else {
-          ROS_WARN("Tracker correctly intialized!");
+          ROS_INFO("Tracker correctly intialized!");
         }
         init_requested_ = false;
         tracker_initialized_ = true;
-        ROS_INFO("Tracker initialized!");
         Mat out;
         // tracker.computeNext(rgb_image_, depth_image_, out);
         rgb_image_.copyTo(out);
@@ -268,35 +379,41 @@ void Projection::run() {
         circle(out, center, 5, Scalar(255, 0, 0), -1);
         imshow("Tracker", out);
 
-//        ofstream file("/home/alessandro/Debug/disparity.txt");
-//        for (auto i = 0; i < points.rows; ++i) {
-//          for (auto j = 0; j < points.cols; ++j) {
-//            file << points.at<Vec3f>(i, j) << " "
-//                 << cloud_image_.at<Vec3f>(i, j) << "\n";
-//          }
-//        }
-//        file.close();
+        analyzeCube(points, mouse_start_, mouse_end_, mean_pt, min_pt, max_pt);
 
-//        ROS_INFO("before getting mean depth");
-//        // analyzeCube(points, mouse_start_, mouse_end_);
-//        analyzeCube(cloud_image_, mouse_start_, mouse_end_);
-//        ROS_INFO("after getting mean depth");
+        cout << "cube centroid " << tracker.getCurrentCentroid() << endl;
 
         waitKey(30);
       }
 
       else if (tracker_initialized_) {
-
-
         Point3f pt = tracker.getCurrentCentroid();
-        tf::Vector3 centroid(pt.z, -pt.x, pt.y);
+        auto front_points = tracker.getFrontBB();
+        auto back_points = tracker.getBackBB();
 
-        tf::Transform transform;
-        transform.setOrigin(centroid);
-        transform.setRotation(tf::createIdentityQuaternion());
+        Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
+        depthTo3d(depth_image_, params_.camera_model.cx(),
+                  params_.camera_model.cy(), params_.camera_model.fx(),
+                  params_.camera_model.fy(), points);
 
-        transform_broadcaster_.sendTransform(tf::StampedTransform(
-            transform, ros::Time::now(), "camera_rgb_frame", "object_centroid"));
+        // analyzeCube(points, mouse_start_, mouse_end_, mean_pt, min_pt,
+        // max_pt);
+        Mat out;
+        publishPose(pt, back_points, front_points);
+        //publishPose(mean_pt, min_pt, max_pt);
+        profiler->start("frame_time");
+        tracker.computeNext(rgb_image_, points, out);
+        profiler->stop("frame_time");
+
+        rgb_image_.copyTo(out);
+        tracker.drawObjectLocation(out);
+        Point2f center;
+        projectPoint(
+            params_.camera_model.fx(),
+            Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
+            tracker.getCurrentCentroid(), center);
+        circle(out, center, 5, Scalar(255, 0, 0), -1);
+        imshow("Tracker", out);
 
         waitKey(30);
       }
@@ -314,11 +431,11 @@ void Projection::run() {
       //        tracker.computeNext(rgb_image_, points, out);
       //        rgb_image_.copyTo(out);
       //        Point2f center;
-      //        //        projectPoint(
-      //        //            params_.camera_model.fx(),
-      //        //            Point2f(params_.camera_model.cx(),
-      //        //            params_.camera_model.cy()),
-      //        //            tracker.getCurrentCentroid(), center);
+      //        projectPoint(
+      //            params_.camera_model.fx(),
+      //            Point2f(params_.camera_model.cx(),
+      //            params_.camera_model.cy()),
+      //            tracker.getCurrentCentroid(), center);
       //        tracker.drawObjectLocation(out);
       //        circle(out, center, 5, Scalar(255, 0, 0), -1);
       //        imshow("Tracker", out);
@@ -332,21 +449,6 @@ void Projection::run() {
       }
       if (c == 's') cout << "save" << endl;
 
-      //      stringstream ss;
-      //      cout << "cloud " << cloud.rows << " " << cloud.cols << endl;
-
-      //      for(auto i = 0; i < cloud.rows; ++i)
-      //      {
-      //          for(auto j = 0; j < cloud.cols; ++j)
-      //          {
-      //              ss << cloud.at<Vec3f>(i,j) << " ";
-      //          }
-      //          ss << "\n";
-      //      }
-
-      //      ofstream file("/home/alessandro/Downloads/debug.txt");
-      //      file << ss.str();
-      //      file.close();
       img_updated_ = false;
     }
   }

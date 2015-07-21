@@ -47,10 +47,17 @@ class Projection {
 
   void getTrackerParameters();
 
-  void analyzeCube(cv::Mat& disparity, cv::Point2d& top_left,
-                   cv::Point2d& bottom_right);
+  void analyzeCube(const cv::Mat& disparity, const cv::Point2d& top_left,
+                   const cv::Point2d& bottom_right, cv::Point3f& median_p,
+                   cv::Point3f& min_p, cv::Point3f& max_p);
 
-        ros::NodeHandle nh_;
+  void publishPose(cv::Point3f& centroid, std::vector<cv::Point3f>& back_points,
+                   std::vector<cv::Point3f>& front_points);
+
+  void publishPose(cv::Point3f& mean_point, cv::Point3f& min_point,
+                   cv::Point3f& max_point);
+
+  ros::NodeHandle nh_;
   // message filter
   boost::shared_ptr<image_transport::ImageTransport> rgb_it_, depth_it_;
   image_transport::SubscriberFilter sub_depth_, sub_rgb_;
@@ -72,7 +79,6 @@ class Projection {
   const std::string camera_info_topic_;
 
   cv::Mat rgb_image_, depth_image_;
-  cv::Mat3f cloud_image_;
   cv::Mat camera_matrix_;
   bool img_updated_;
   bool camera_matrix_initialized_;
@@ -83,7 +89,7 @@ class Projection {
   TrackerParams params_;
 
   ros::AsyncSpinner spinner_;
-  ros::Publisher publisher_;
+  ros::Publisher publisher_, markers_publisher_;
 };
 
 }  // end namespace

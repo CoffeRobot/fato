@@ -65,16 +65,7 @@ bool projectPoint(const float focal, const cv::Point2f& center,
   return true;
 }
 
-//template <typename T>
-//void disparityToDepth(const sensor_msgs::ImageConstPtr &depth_msg,
-//                      const image_geometry::PinholeCameraModel& model,
-//                      cv::Mat& cloud)
-//{
-
-
-//}
-
-void disparityToDepth(const cv::Mat& disparity, float cx, float cy,
+void depthTo3d(const cv::Mat& disparity, float cx, float cy,
                       float fx, float fy, cv::Mat3f& depth) {
   int cols = disparity.cols;
   int rows = disparity.rows;
@@ -86,7 +77,7 @@ void disparityToDepth(const cv::Mat& disparity, float cx, float cy,
     for (size_t x = 0; x < cols; x++) {
 
 
-      unsigned short val = disparity.at<unsigned short>(y, x);
+      uint16_t val = disparity.at<uint16_t>(y, x);
       float d = static_cast<float>(val);
 
       if(!is_valid(val))
@@ -100,7 +91,7 @@ void disparityToDepth(const cv::Mat& disparity, float cx, float cy,
       float xp = x - cx;
       float yp = -(y - cy);
 
-      float Z = fx / d;
+      float Z = DepthTraits<uint16_t>::toMeters(d);;
       float X = xp * Z / fx;
       float Y = yp * Z / fy;
 
@@ -109,26 +100,6 @@ void disparityToDepth(const cv::Mat& disparity, float cx, float cy,
   }
 }
 
-template<typename T>
-bool is_infinite( const T &value )
-{
-    T max_value = std::numeric_limits<T>::max();
-    T min_value = - max_value;
 
-    return ! ( min_value <= value && value <= max_value );
-}
-
-template<typename T>
-bool is_nan( const T &value )
-{
-    // True if NAN
-    return value != value;
-}
-
-template<typename T>
-bool is_valid( const T &value )
-{
-    return ! is_infinite(value) && ! is_nan(value);
-}
 
 }  // end namespace

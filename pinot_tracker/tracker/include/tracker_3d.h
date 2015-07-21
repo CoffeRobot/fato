@@ -53,123 +53,130 @@ class Tracker3D {
   ~Tracker3D();
 
   int init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
-            cv::Point2d& top_left, cv::Point2d& bottom_right);
+           cv::Point2d& top_left, cv::Point2d& bottom_right);
 
   int init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask);
 
   void clear();
 
-  void computeNext(const Mat& rgb, const Mat& points, Mat& out);
+  void computeNext(const cv::Mat& rgb, const cv::Mat& points, cv::Mat& out);
 
   void drawResult(cv::Mat& out);
 
   void close();
 
-  Point3f getCurrentCentroid() { return m_updatedCentroid; }
+  cv::Point3f getCurrentCentroid() { return m_updatedCentroid; }
 
-  std::vector<Point3f> getCurrentBB() { return m_updatedCube.m_pointsFront; }
+  std::vector<cv::Point3f> getFrontBB() { return m_updatedCube.m_pointsFront; }
+  std::vector<cv::Point3f> getBackBB() { return m_updatedCube.m_pointsBack; }
 
-  void drawObjectLocation(Mat& out);
+  void drawObjectLocation(cv::Mat& out);
 
  private:
-  void getCurrentPoints(const vector<int>& currentFaces,
-                        vector<Status*>& pointsStatus,
-                        vector<Point3f*>& fstPoints,
-                        vector<Point3f*>& updPoints,
-                        vector<KeyPoint*>& fstKeypoints,
-                        vector<KeyPoint*>& updKeypoints,
-                        vector<Point3f*>& relPointPos, Mat& fstDescriptors,
-                        vector<Scalar*>& colors, vector<bool*>& isClustered);
+  void getCurrentPoints(const std::vector<int>& currentFaces,
+                        std::vector<Status*>& pointsStatus,
+                        std::vector<cv::Point3f*>& fstPoints,
+                        std::vector<cv::Point3f*>& updPoints,
+                        std::vector<cv::KeyPoint*>& fstKeypoints,
+                        std::vector<cv::KeyPoint*>& updKeypoints,
+                        std::vector<cv::Point3f*>& relPointPos,
+                        cv::Mat& fstDescriptors,
+                        std::vector<cv::Scalar*>& colors,
+                        std::vector<bool*>& isClustered);
 
   // find matches using custom match class
-  int matchFeaturesCustom(const Mat& fstDescriptors,
-                          const vector<KeyPoint*>& fstKeypoints,
-                          const Mat& nextDescriptors,
-                          const vector<KeyPoint>& extractedKeypoints,
-                          vector<KeyPoint*>& updKeypoints,
-                          vector<Status*>& pointsStatus);
+  int matchFeaturesCustom(const cv::Mat& fstDescriptors,
+                          const std::vector<cv::KeyPoint*>& fstKeypoints,
+                          const cv::Mat& nextDescriptors,
+                          const std::vector<cv::KeyPoint>& extractedKeypoints,
+                          std::vector<cv::KeyPoint*>& updKeypoints,
+                          std::vector<Status*>& pointsStatus);
   // uses lucas kanade to track keypoints, faster implemetation
-  int trackFeatures(const Mat& grayImg, const Mat& cloud,
-                    vector<Status*>& keypointStatus,
-                    vector<Point3f*>& updPoints,
-                    vector<KeyPoint*>& updKeypoints, int& trackedCount,
+  int trackFeatures(const cv::Mat& grayImg, const cv::Mat& cloud,
+                    std::vector<Status*>& keypointStatus,
+                    std::vector<cv::Point3f*>& updPoints,
+                    std::vector<cv::KeyPoint*>& updKeypoints, int& trackedCount,
                     int& bothCount);
   // check if image is grayscale
   void checkImage(const cv::Mat& src, cv::Mat& gray);
   // get rotation matrix using mean of points
-  cv::Mat getRotationMatrix(const vector<Point3f*>& fstPoints,
-                            const vector<Point3f*>& updPoints,
-                            const vector<Status*>& pointsStatus);
+  cv::Mat getRotationMatrix(const std::vector<cv::Point3f*>& fstPoints,
+                            const std::vector<cv::Point3f*>& updPoints,
+                            const std::vector<Status*>& pointsStatus);
 
-  cv::Mat getRotationMatrixDebug(const Mat& rgbImg,
-                                 const vector<Point3f*>& fstPoints,
-                                 const vector<Point3f*>& updPoints,
-                                 const vector<Status*>& pointsStatus);
+  cv::Mat getRotationMatrixDebug(const cv::Mat& rgbImg,
+                                 const std::vector<cv::Point3f*>& fstPoints,
+                                 const std::vector<cv::Point3f*>& updPoints,
+                                 const std::vector<Status*>& pointsStatus);
   // given rotation and scale cast votes for the new centroid
-  void getVotes(const cv::Mat& cloud, vector<Status*> pointsStatus,
-                vector<KeyPoint*>& fstKeypoints,
-                vector<KeyPoint*>& updKeypoints, vector<Point3f*>& relPointPos,
-                const Mat& rotation);
+  void getVotes(const cv::Mat& cloud, std::vector<Status*> pointsStatus,
+                std::vector<cv::KeyPoint*>& fstKeypoints,
+                std::vector<cv::KeyPoint*>& updKeypoints,
+                std::vector<cv::Point3f*>& relPointPos,
+                const cv::Mat& rotation);
   // cluster the votes
-  void clusterVotes(vector<Status>& keypointStatus);
+  void clusterVotes(std::vector<Status>& keypointStatus);
 
-  void clusterVotesBorder(vector<Status*>& keypointStatus,
-                          vector<Point3f>& centroidVotes, vector<int>& indices,
-                          vector<vector<int>>& clusters);
+  void clusterVotesBorder(std::vector<Status*>& keypointStatus,
+                          std::vector<cv::Point3f>& centroidVotes,
+                          std::vector<int>& indices,
+                          std::vector<std::vector<int>>& clusters);
 
   // calcualte the centroid from the initial keypoints
   bool initCentroid(const std::vector<cv::Point3f>& points, BoundingCube& cube);
   // calculate the relative position of the initial keypoints
   void initRelativePosition(BoundingCube& cube);
 
-  void updateCentroid(const vector<Status*>& keypointStatus,
-                      const Mat& rotation);
+  void updateCentroid(const std::vector<Status*>& keypointStatus,
+                      const cv::Mat& rotation);
 
-  void updatePointsStatus(vector<Status*>& pointsStatus,
-                          vector<bool>& isClustered);
+  void updatePointsStatus(std::vector<Status*>& pointsStatus,
+                          std::vector<bool>& isClustered);
 
-  void initBBox(const Mat& cloud);
+  void initBBox(const cv::Mat& cloud);
 
-  bool isAppearanceNew(const Mat& rotation);
+  bool isAppearanceNew(const cv::Mat& rotation);
 
-  bool isCurrentApperanceToLearn(const vector<float>& visibilityRatio,
+  bool isCurrentApperanceToLearn(const std::vector<float>& visibilityRatio,
                                  const double& medianAngle, int& faceToLearn);
 
-  bool learnFrame(const Mat& rgb, const Mat& cloud,
-                  const vector<bool>& isFaceVisible,
-                  const vector<float>& visibilityRatio, const Mat& rotation);
+  bool learnFrame(const cv::Mat& rgb, const cv::Mat& cloud,
+                  const std::vector<bool>& isFaceVisible,
+                  const std::vector<float>& visibilityRatio,
+                  const cv::Mat& rotation);
 
-  void learnFrame(const Mat& rgb, const Mat& cloud, const int& faceToLearn,
-                  const Mat& rotation);
+  void learnFrame(const cv::Mat& rgb, const cv::Mat& cloud,
+                  const int& faceToLearn, const cv::Mat& rotation);
 
-  void learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
-                 const Mat& rotation, const int& face, BoundingCube& fstCube,
-                 BoundingCube& updatedCube);
+  void learnFace(const cv::Mat1b& mask, const cv::Mat& rgb,
+                 const cv::Mat& cloud, const cv::Mat& rotation, const int& face,
+                 BoundingCube& fstCube, BoundingCube& updatedCube);
 
-  int learnFaceDebug(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
-                     const Mat& rotation, const int& face,
-                     BoundingCube& fstCube, BoundingCube& updatedCube,
-                     Mat& out);
+  int learnFaceDebug(const cv::Mat1b& mask, const cv::Mat& rgb,
+                     const cv::Mat& cloud, const cv::Mat& rotation,
+                     const int& face, BoundingCube& fstCube,
+                     BoundingCube& updatedCube, cv::Mat& out);
 
-  void debugTrackingStep(
-      const cv::Mat& fstFrame, const cv::Mat& scdFrame,
-      const std::vector<int>& indices, std::vector<vector<int>>& clusters,
-      const bool isLost, const bool isLearning,
-      const vector<Status*>& pointsStatus, vector<KeyPoint*>& fstKeypoints,
-      const vector<Point3f*>& fstPoints, const vector<Point3f*>& updPoints,
-      const vector<KeyPoint*>& updKeypoints, const vector<Scalar*>& colors,
-      std::vector<bool> visibleFaces, std::vector<float>& visibilityRatio,
-      double angularDistance, Mat& out);
+  //  void debugTrackingStep(
+  //      const cv::Mat& fstFrame, const cv::Mat& scdFrame,
+  //      const std::vector<int>& indices, std::vector<std::vector<int>>&
+  //      clusters,
+  //      const bool isLost, const bool isLearning,
+  //      const vector<Status*>& pointsStatus, vector<KeyPoint*>& fstKeypoints,
+  //      const vector<Point3f*>& fstPoints, const vector<Point3f*>& updPoints,
+  //      const vector<KeyPoint*>& updKeypoints, const vector<Scalar*>& colors,
+  //      std::vector<bool> visibleFaces, std::vector<float>& visibilityRatio,
+  //      double angularDistance, Mat& out);
 
-  void debugTrackingStepICRA(
-      const cv::Mat& fstFrame, const cv::Mat& scdFrame,
-      const std::vector<int>& indices, std::vector<vector<int>>& clusters,
-      const bool isLost, const bool isLearning,
-      const vector<Status*>& pointsStatus, vector<KeyPoint*>& fstKeypoints,
-      const vector<Point3f*>& fstPoints, const vector<Point3f*>& updPoints,
-      const vector<KeyPoint*>& updKeypoints, const vector<Scalar*>& colors,
-      std::vector<bool> visibleFaces, std::vector<float>& visibilityRatio,
-      double angularDistance, Mat& out);
+  //  void debugTrackingStepICRA(
+  //      const cv::Mat& fstFrame, const cv::Mat& scdFrame,
+  //      const std::vector<int>& indices, std::vector<vector<int>>& clusters,
+  //      const bool isLost, const bool isLearning,
+  //      const vector<Status*>& pointsStatus, vector<KeyPoint*>& fstKeypoints,
+  //      const vector<Point3f*>& fstPoints, const vector<Point3f*>& updPoints,
+  //      const vector<KeyPoint*>& updKeypoints, const vector<Scalar*>& colors,
+  //      std::vector<bool> visibleFaces, std::vector<float>& visibilityRatio,
+  //      double angularDistance, Mat& out);
 
   void debugTrackingStepPar(cv::Mat fstFrame, cv::Mat scdFrame);
 
@@ -199,8 +206,8 @@ class Tracker3D {
                        rot.at<float>(0, 1) * p.x + rot.at<float>(1, 1) * p.y);
   }
 
-  inline Point3f getMean(const vector<Point3f>& points) {
-    Point3f m(0, 0, 0);
+  inline cv::Point3f getMean(const std::vector<cv::Point3f>& points) {
+    cv::Point3f m(0, 0, 0);
     const int size = points.size();
     const float sizeF = static_cast<float>(size);
 
@@ -217,34 +224,34 @@ class Tracker3D {
     return m;
   }
 
-  void calculateVisibility(const Mat& rotation, const BoundingCube& fstCube,
-                           vector<bool>& isFaceVisible,
-                           vector<float>& visibilityRatio);
+  void calculateVisibility(const cv::Mat& rotation, const BoundingCube& fstCube,
+                           std::vector<bool>& isFaceVisible,
+                           std::vector<float>& visibilityRatio);
 
-  void calculateVisibilityEigen(const Mat& rotation,
+  void calculateVisibilityEigen(const cv::Mat& rotation,
                                 const BoundingCube& fstCube,
-                                vector<bool>& isFaceVisible,
-                                vector<float>& visibilityRatio);
+                                std::vector<bool>& isFaceVisible,
+                                std::vector<float>& visibilityRatio);
 
-  std::string getResultName(string path);
+  std::string getResultName(std::string path);
 
-  int getFilesCount(string path, string substring);
+  int getFilesCount(std::string path, std::string substring);
 
-  void debugLearnedModel(const Mat& rgb, int face, const Mat& rotation);
+  void debugLearnedModel(const cv::Mat& rgb, int face, const cv::Mat& rotation);
 
-  void drawLearnedFace(const Mat& rgb, int face, Mat& out);
+  void drawLearnedFace(const cv::Mat& rgb, int face, cv::Mat& out);
 
   /*void updateClusteredParams(float scale, float angle);*/
 
   void debugCalculations();
 
-  double getQuaternionMedianDist(const vector<Eigen::Quaterniond>& history,
+  double getQuaternionMedianDist(const std::vector<Eigen::Quaterniond>& history,
                                  int window, const Eigen::Quaterniond& q);
 
   bool findObject(BoundingCube& fst, BoundingCube& upd,
-                  const Mat& extractedDescriptors,
-                  const vector<KeyPoint>& extractedKeypoints, int& faceFound,
-                  int& matchesNum);
+                  const cv::Mat& extractedDescriptors,
+                  const std::vector<cv::KeyPoint>& extractedKeypoints,
+                  int& faceFound, int& matchesNum);
 
   // object to extract and compare features
   cv::BRISK m_featuresDetector;
@@ -262,7 +269,7 @@ class Tracker3D {
   /*********************************************************************************************/
   cv::Mat m_fstFrame;
   BoundingCube m_fstCube;
-  vector<vector<bool>> m_isPointClustered;
+  std::vector<std::vector<bool>> m_isPointClustered;
   cv::Mat3f m_firstCloud;
   /*********************************************************************************************/
   /*                          UPDATED MODEL */
@@ -271,8 +278,8 @@ class Tracker3D {
   // std::vector<cv::Point2f> m_trackedPoints;
   cv::Mat m_currFrame;
   BoundingCube m_updatedCube;
-  vector<int> m_currentFaces;
-  cv::Mat3f  m_currCloud;
+  std::vector<int> m_currentFaces;
+  cv::Mat3f m_currCloud;
   /*********************************************************************************************/
   /*                          VOTING VARIABLES */
   /*********************************************************************************************/
@@ -301,7 +308,7 @@ class Tracker3D {
   cv::Mat m_prevFrame;
 
   // variables used to find new learning frames
-  std::set<pair<int, int>> m_learnedFrames;
+  std::set<std::pair<int, int>> m_learnedFrames;
 
   int m_validKeypoints;
   int m_clusterVoteSize;
@@ -309,14 +316,14 @@ class Tracker3D {
   /*                        REPROJECTION */
   /*********************************************************************************************/
   float m_focal;
-  Point2f m_imageCenter;
+  cv::Point2f m_imageCenter;
 
   /*********************************************************************************************/
   /*                        TIMING */
   /*********************************************************************************************/
   int m_numFrames;
 
-  vector<float> m_partialTimes;
+  std::vector<float> m_partialTimes;
   float m_frameTime;
 
   /*********************************************************************************************/
@@ -329,16 +336,16 @@ class Tracker3D {
   std::vector<cv::Scalar> m_faceColors;
   cv::Mat m_prevRotation;
   cv::Mat m_initRotation;
-  stringstream m_quaterionStream;
+  std::stringstream m_quaterionStream;
 
   /*********************************************************************************************/
   /*                        LEARNING */
   /*********************************************************************************************/
   std::vector<cv::Mat> m_pointsOfView;
   std::vector<cv::Mat> m_learnedFaces;
-  vector<Eigen::Quaterniond> m_quaternionHistory;
-  vector<float> m_learnedFaceVisibility;
-  vector<double> m_learnedFaceMedianAngle;
+  std::vector<Eigen::Quaterniond> m_quaternionHistory;
+  std::vector<float> m_learnedFaceVisibility;
+  std::vector<double> m_learnedFaceMedianAngle;
   /*********************************************************************************************/
   /*                        LEARNING */
   /*********************************************************************************************/
@@ -346,11 +353,11 @@ class Tracker3D {
 
   bool hasAppearanceToChange;
 
-  std::string toPythonString2(const vector<Point3f>& firstFrameCloud,
-                              const vector<Point3f>& updatedFrameCloud,
-                              const vector<Status>& keypointStatus);
+  std::string toPythonString2(const std::vector<cv::Point3f>& firstFrameCloud,
+                              const std::vector<cv::Point3f>& updatedFrameCloud,
+                              const std::vector<Status>& keypointStatus);
 
-  string log_header;
+  std::string log_header;
 };
 
 }  // end namespace
