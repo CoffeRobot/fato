@@ -59,7 +59,7 @@ class Tracker3D {
 
   void clear();
 
-  void computeNext(const cv::Mat& rgb, const cv::Mat& points, cv::Mat& out);
+  void next(const cv::Mat& rgb, const cv::Mat& points);
 
   void drawResult(cv::Mat& out);
 
@@ -320,6 +320,8 @@ class Tracker3D {
 
   std::vector<cv::Point3f> m_votingPoints;
   std::vector<cv::Point3f> m_votedPoints;
+
+  std::ofstream debug_file_;
 
   /*********************************************************************************************/
   /*                        LEARNING */

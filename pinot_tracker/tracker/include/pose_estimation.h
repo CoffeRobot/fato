@@ -4,6 +4,8 @@
 #include <opencv2/core/core.hpp>
 #include <vector>
 
+#include "../../utilities/include/constants.h"
+
 namespace pinot_tracker {
 
 void getPose2D(const std::vector<cv::Point3f>& model_points,
@@ -15,6 +17,10 @@ void getPose2D(const std::vector<cv::Point3f>& model_points,
 void getPose2D(const std::vector<cv::Point2f*>& model_points,
                const std::vector<cv::Point2f*>& tracked_points, float& scale,
                float& angle);
+
+//cv::Mat getPose3D(const std::vector<cv::Point3f*>& model_points,
+//                  const std::vector<cv::Point3f*>& tracked_points,
+//                  const std::vector<Status*>& points_status);
 
 cv::Mat getRigidTransform(cv::Mat& a, cv::Mat& b);
 

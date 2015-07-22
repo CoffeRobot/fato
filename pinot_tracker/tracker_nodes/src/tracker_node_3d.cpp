@@ -138,6 +138,10 @@ void TrackerNode3D::run() {
 
   auto &profiler = Profiler::getInstance();
 
+  std::chrono::time_point<std::chrono::system_clock> start, end;
+  start = chrono::system_clock::now();
+
+
   ros::Rate r(100);
   while (ros::ok()) {
     // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
@@ -176,13 +180,25 @@ void TrackerNode3D::run() {
              << depth_image_.type();
 
         Mat out;
-        tracker.computeNext(rgb_image_, depth_image_, out);
+        tracker.next(rgb_image_, depth_image_);
         profiler->stop("total");
 
+        end = chrono::system_clock::now();
+        float elapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
+
         stringstream ss;
-        ss << "Tracker run in ms: " << profiler->getTime("total") << "\n";
-        ss << "Centroid " << tracker.getCurrentCentroid() << "\n";
+        ss << "Tracker run in ms: ";
+        if(elapsed > 3.0)
+        {
+            start = end;
+            ss << profiler->getProfile() << "\n";
+        }
+        else
+            ss << profiler->getTime("total") << "\n";
+
         ROS_INFO(ss.str().c_str());
+
+
 
         cv_bridge::CvImage cv_img;
         cv_img.image = out;

@@ -306,10 +306,16 @@ void Projection::run() {
   ROS_INFO("INPUT: init tracker");
 
   params_.debug_path = "/home/alessandro/Debug";
+  params_.readRosConfigFile();
+
   Tracker3D tracker;
 
   auto &profiler = Profiler::getInstance();
   Point3f mean_pt, min_pt, max_pt;
+
+  std::chrono::time_point<std::chrono::system_clock> start, end;
+  start = chrono::system_clock::now();
+
 
   ros::Rate r(100);
   while (ros::ok()) {
@@ -402,10 +408,24 @@ void Projection::run() {
         publishPose(pt, back_points, front_points);
         // publishPose(mean_pt, min_pt, max_pt);
         profiler->start("frame_time");
-        tracker.computeNext(rgb_image_, points, out);
+        tracker.next(rgb_image_, points);
         profiler->stop("frame_time");
-        float elapsed = profiler->getTime("frame_time");
-        cout << "Average time: " << elapsed << " ms \n";
+
+        end = chrono::system_clock::now();
+        float elapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
+
+        stringstream ss;
+        ss << "Tracker run in ms: ";
+        if(elapsed > 3.0)
+        {
+            start = end;
+            ss << profiler->getProfile() << "\n";
+        }
+        else
+            ss << profiler->getTime("frame_time") << "\n";
+
+        ROS_INFO(ss.str().c_str());
+
 
         rgb_image_.copyTo(out);
         tracker.drawObjectLocation(out);

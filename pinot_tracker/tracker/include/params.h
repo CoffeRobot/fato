@@ -1,9 +1,10 @@
 #ifndef PARAMS_H
 #define PARAMS_H
 
-#include <opencv2/core/core.hpp>
 #include <image_geometry/pinhole_camera_model.h>
 #include <string>
+#include <sstream>
+#include <ros/ros.h>
 
 namespace pinot_tracker
 {
@@ -43,6 +44,72 @@ struct TrackerParams {
       ransac_iterations(other.ransac_iterations),
       camera_model(other.camera_model)
   {}
+
+
+  void readRosConfigFile()
+  {
+    std::stringstream ss;
+
+    ss << "Reading config parameters... \n";
+
+    ss << "filter_border: ";
+    if (!ros::param::get("pinot/tracker_2d/filter_border", filter_border))
+    {
+        filter_border = false;
+        ss << "failed \n";
+    }
+    else
+      ss << filter_border << "\n";
+
+    ss << "update_votes: ";
+    if (!ros::param::get("pinot/tracker_2d/update_votes", update_votes))
+    {
+        ss << "failed \n";
+        update_votes = false;
+    }
+    else
+      ss << update_votes << "\n";
+
+    ss << "eps: ";
+    if (!ros::param::get("pinot/clustering/eps", eps))
+    {
+      ss << "failed \n";
+      eps = 5;
+    }
+    else
+      ss << eps << "\n";
+
+    ss << "min_points: ";
+    if (!ros::param::get("pinot/clustering/min_points", min_points))
+    {
+      ss << "failed \n";
+      min_points = 5;
+    }
+    else
+      ss << min_points << "\n";
+
+    ss << "ransac_iterations: ";
+    if (!ros::param::get("pinot/pose_estimation/ransac_iterations",
+                         ransac_iterations))
+    {
+      ss << "failed \n";
+      ransac_iterations = 100;
+    }
+    else
+      ss << ransac_iterations << "\n";
+
+    ss << "ransac_distance: ";
+    if (!ros::param::get("pinot/pose_estimation/ransac_distance",
+                         ransac_distance))
+    {
+      ss << "failed \n";
+      ransac_distance = 8.0f;
+    }
+    else
+      ss << ransac_distance << "\n";
+
+    ROS_INFO(ss.str().c_str());
+  }
 };
 
 }
