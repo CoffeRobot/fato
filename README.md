@@ -106,9 +106,13 @@ Once the video is shown on the screen please draw a bounding box aruond the obje
 
 ### Tracking 3D
 
+Run the following nodes in two different terminals:
+
 ```
-WORK IN PROGRESS...
+roslaunch tracker_cameras kinect_v1.launch
+rosrun pinot_tracker_tests test_projection
 ```
+The first one launches the kinect v1 with the proper configuration parameters, the second launches the tracker. Before launching the second node please check that the first is correctly running. It may happend that the node does not publish the expected topics due to unknown driver problems. 
 
 ### Offline Mode
 
@@ -117,7 +121,10 @@ To run the tracker in this modality please write the following command in the te
 
 ```
 roslaunch pinot_tracker_nodes tracker_offline.launch
+
 ```
+
+
 
 
 
