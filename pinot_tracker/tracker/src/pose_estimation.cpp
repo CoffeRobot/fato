@@ -8,7 +8,7 @@ using namespace cv;
 
 namespace pinot_tracker {
 
-void getPose2D(const std::vector<cv::Point3f>& model_points,
+void getPoseRansac(const std::vector<cv::Point3f>& model_points,
                const std::vector<cv::Point2f>& tracked_points,
                const cv::Mat& camera_model, int iterations, float distance,
                vector<int>& inliers, Mat& rotation, Mat& translation) {

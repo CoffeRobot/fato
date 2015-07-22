@@ -88,13 +88,27 @@ void Projection::rgbdCallback(
     const sensor_msgs::CameraInfoConstPtr &camera_info_msg) {
   if (!camera_matrix_initialized_) {
     ROS_INFO("Init camera parameters");
+
+
+    Mat camera_matrix_full =
+        cv::Mat(3, 4, CV_64F, (void *)camera_info_msg->P.data()).clone();
+
+    Mat camera_matrix(3,3, CV_64F);
+
+    for(int i = 0; i < 3; ++i)
+    {
+        for(int j = 0; j < 3; ++j)
+            camera_matrix.at<double>(i,j) = camera_matrix_full.at<double>(i,j);
+    }
+
     //    getCameraMatrix(camera_info_msg, params_.camera_matrix);
     params_.camera_model.fromCameraInfo(camera_info_msg);
+    params_.camera_matrix = camera_matrix.clone();
 
     cout << "camera model: " << params_.camera_model.fx() << "\n";
 
-    //    cout << params_.camera_matrix << endl;
-    //    cout << params_.camera_model.projectionMatrix() << endl;
+    cout << camera_matrix << endl;
+    cout << params_.camera_model.projectionMatrix() << endl;
 
     //    waitKey(0);
     camera_matrix_initialized_ = true;
@@ -426,7 +440,6 @@ void Projection::run() {
 
         ROS_INFO(ss.str().c_str());
 
-
         rgb_image_.copyTo(out);
         tracker.drawObjectLocation(out);
         Point2f center;
@@ -438,8 +451,6 @@ void Projection::run() {
 
         vector<Point3f *> pts, votes;
         tracker.getActivePoints(pts, votes);
-
-        cout << "Pts size " << pts.size() << " votes " << votes.size() << endl;
 
         drawCentroidVotes(
             pts, votes,

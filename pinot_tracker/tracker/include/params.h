@@ -5,6 +5,8 @@
 #include <string>
 #include <sstream>
 #include <ros/ros.h>
+#include <opencv2/core/core.hpp>
+
 
 namespace pinot_tracker
 {
@@ -20,6 +22,7 @@ struct TrackerParams {
   int ransac_iterations;
   float ransac_distance;
   image_geometry::PinholeCameraModel camera_model;
+  cv::Mat camera_matrix;
   std::string debug_path;
 
 
@@ -43,7 +46,9 @@ struct TrackerParams {
       ransac_distance(other.ransac_distance),
       ransac_iterations(other.ransac_iterations),
       camera_model(other.camera_model)
-  {}
+  {
+      camera_matrix = other.camera_matrix.clone();
+  }
 
 
   void readRosConfigFile()

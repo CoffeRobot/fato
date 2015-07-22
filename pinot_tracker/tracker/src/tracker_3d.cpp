@@ -172,7 +172,6 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
 
 void Tracker3D::getActivePoints(std::vector<Point3f*>& points,
                                 std::vector<Point3f*>& votes) {
-  cout << "Requested Point size " << m_votingPoints.size() << endl;
   for (auto i = 0; i < m_votingPoints.size(); ++i) {
     votes.push_back(&m_votedPoints.at(i));
     points.push_back(&m_votingPoints.at(i));
@@ -230,11 +229,11 @@ void Tracker3D::clear() {
 
 void Tracker3D::next(const Mat& rgb, const Mat& points) {
 
-  debug_file_ << "FRAME " << m_numFrames << "\n";
+  // debug_file_ << "FRAME " << m_numFrames << "\n";
 
-  vector<Status> initial, optical, clustering;
+  // vector<Status> initial, optical, clustering;
 
-  initial = m_fstCube.m_pointStatus.at(FACE::FRONT);
+  // initial = m_fstCube.m_pointStatus.at(FACE::FRONT);
 
   Mat grayImg;
   checkImage(rgb, grayImg);
@@ -276,13 +275,36 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
                                updKeypoint, numTracked, numBoth);
   profiler->stop("optical_flow");
   cout << "1 ";
-  optical = m_fstCube.m_pointStatus.at(FACE::FRONT);
+  // optical = m_fstCube.m_pointStatus.at(FACE::FRONT);
   /****************************************************************************/
   /*                             ROTATION MATRIX */
   /****************************************************************************/
   profiler->start("rotation");
   Mat rotation = getRotationMatrix(fstPoints, updPoints, pointsStatus);
   profiler->stop("rotation");
+
+  Mat rotation_ransac, translation_ransac;
+
+  vector<Point2f> tracked_points;
+  vector<Point3f> model_points;
+
+  for (size_t i = 0; i < pointsStatus.size(); i++) {
+    if (*pointsStatus.at(i) == Status::TRACK) {
+      tracked_points.push_back(updKeypoint.at(i)->pt);
+      model_points.push_back(*fstPoints.at(i));
+    }
+  }
+
+  //cout << params_.camera_matrix << endl;
+
+  profiler->start("ransac");
+  vector<int> inliers;
+  getPoseRansac(model_points, tracked_points,
+                params_.camera_matrix,
+                params_.ransac_iterations, params_.ransac_distance, inliers,
+                rotation_ransac, translation_ransac);
+  profiler->stop("ransac");
+
   if (rotation.empty()) {
     isLost = true;
   }
@@ -329,7 +351,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     clusterVotesBorder(pointsStatus, m_centroidVotes, indices, clusters);
     profiler->stop("clustering");
   }
-  clustering = m_fstCube.m_pointStatus.at(FACE::FRONT);
+  // clustering = m_fstCube.m_pointStatus.at(FACE::FRONT);
   //  end = chrono::system_clock::now();
   //  m_partialTimes[5] +=
   //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
@@ -379,24 +401,26 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
       m_votingPoints.push_back(*updPoints.at(i));
       m_votedPoints.push_back(m_centroidVotes.at(i));
       counter++;
-      debug_file_ << *updPoints.at(i) << " vote " << m_centroidVotes.at(i)
-                  << "\n";
+      // debug_file_ << *updPoints.at(i) << " vote " << m_centroidVotes.at(i)
+      //            << "\n";
     }
   }
 
-  debug_file_ << "STATUS GENERAL " << m_numFrames << "\n";
-  for (auto i = 0; i < initial.size(); ++i) {
-    if (initial.at(i) == optical.at(i) && optical.at(i) == clustering.at(i)) {
-      debug_file_ << "correct ";
-    } else {
-      debug_file_ << "wrong ";
-    }
-    debug_file_ << toString(initial.at(i)) << " " << toString(optical.at(i))
-                << " " << toString(clustering.at(i)) << "\n";
-  }
+  //  debug_file_ << "STATUS GENERAL " << m_numFrames << "\n";
+  //  for (auto i = 0; i < initial.size(); ++i) {
+  //    if (initial.at(i) == optical.at(i) && optical.at(i) == clustering.at(i))
+  // {
+  //      debug_file_ << "correct ";
+  //    } else {
+  //      debug_file_ << "wrong ";
+  //    }
+  //    debug_file_ << toString(initial.at(i)) << " " << toString(optical.at(i))
+  //                << " " << toString(clustering.at(i)) << "\n";
+  //  }
 
-  cout << "Point status size " << m_centroidVotes.size() << " valid " << counter
-       << endl;
+  //  cout << "Point status size " << m_centroidVotes.size() << " valid " <<
+  // counter
+  //       << endl;
 
   /****************************************************************************/
   /*                            COMPUTING VISIBILITY                          */
@@ -479,11 +503,11 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     }
 
     if (!statusChanged) {
-      //numMatches =
+      // numMatches =
       //    matchFeaturesCustom(fstDescriptors, fstKeypoint, nextDescriptors,
       //                        nextKeypoints, updKeypoint, pointsStatus);
-    //TOFIX:check here, seems wrong
-    profiler->start("matching");
+      // TOFIX:check here, seems wrong
+      profiler->start("matching");
       if (m_currentFaces.size() > 0) {
         for (size_t i = 0; i < m_currentFaces.size(); i++) {
           int face = m_currentFaces[i];
@@ -504,7 +528,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
                                   nextKeypoints, updKeypoint, pointsStatus);
         }
       }
-    profiler->stop("matching");
+      profiler->stop("matching");
     } else {
       /*m_debugFile << "Appearance has changed!\n";
 
@@ -963,8 +987,6 @@ void Tracker3D::clusterVotesBorder(vector<Status*>& keypointStatus,
       indices.push_back(i);
     }
   }
-
-  cout << "CLUSTERING " << params_.eps << " " << params_.min_points << endl;
 
   clusterer.clusterPoints(&votes, params_.eps, params_.min_points,
                           [](Point3f* a, Point3f* b) {
