@@ -272,17 +272,17 @@ void Projection::publishPose(cv::Point3f &mean_point, cv::Point3f &min_point,
 
 void Projection::publishPose(Point3f &center, std::vector<Point3f> &back_points,
                              std::vector<Point3f> &front_points) {
-  tf::Vector3 centroid(center.z, -center.x, center.y);
+  tf::Vector3 centroid(center.x, center.y, center.z);
 
   tf::Transform transform;
   transform.setOrigin(centroid);
   transform.setRotation(tf::createIdentityQuaternion());
 
   transform_broadcaster_.sendTransform(tf::StampedTransform(
-      transform, ros::Time::now(), "camera_rgb_frame", "object_centroid"));
+      transform, ros::Time::now(), "camera_rgb_optical_frame", "object_centroid"));
 
   visualization_msgs::Marker marker;
-  marker.header.frame_id = "camera_rgb_frame";
+  marker.header.frame_id = "camera_rgb_optical_frame";
 
   marker.header.stamp = ros::Time::now();
   marker.type = visualization_msgs::Marker::CUBE;

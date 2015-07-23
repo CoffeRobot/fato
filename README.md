@@ -106,14 +106,24 @@ Once the video is shown on the screen please draw a bounding box aruond the obje
 
 ### Tracking 3D
 
-Run the following nodes in two different terminals:
+First run the following nodes in a terminal:
 
 ```
 roslaunch tracker_cameras kinect_v1.launch
-rosrun pinot_tracker_tests test_projection
 ```
-The first one launches the kinect v1 with the proper configuration parameters, the second launches the tracker. Before launching the second node please check that the first is correctly running. It may happend that the node does not publish the expected topics due to unknown driver problems. 
+It launches the kinect v1 with the proper configuration parameters. Before launching the tracker please check that the this node is correctly running. It may happend that the node does not publish the expected topics due to unknown driver problems. 
 
+Now you have to options, you can run the tracker that publishes the results as rostopics using the following comand:
+
+```
+roslaunch pinot_tracker_nodes tracker_kinect_v1.launch
+```
+
+Or you can run the opencv gui version used for debugging and testing new features:
+
+```
+roslaunch pinot_tracker_tests tracker_test_projection.launch
+```
 ### Offline Mode
 
 It is possible to run the tracker offline using a video as input. The parameters needed for the offline mode are included in the configuration file parameters.yaml.

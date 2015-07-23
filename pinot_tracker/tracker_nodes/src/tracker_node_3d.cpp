@@ -1,8 +1,9 @@
 #include "../include/tracker_node_3d.h"
 #include "../../utilities/include/draw_functions.h"
 #include "../../utilities/include/profiler.h"
+#include "../../utilities/include/utilities.h"
 #include <iostream>
-
+#include <visualization_msgs/Marker.h>
 
 using namespace cv;
 using namespace std;
@@ -79,14 +80,20 @@ void TrackerNode3D::rgbdCallback(
   if (!camera_matrix_initialized_) {
     ROS_INFO("Init camera parameters");
     //    getCameraMatrix(camera_info_msg, params_.camera_matrix);
+    Mat camera_matrix_full =
+        cv::Mat(3, 4, CV_64F, (void *)camera_info_msg->P.data()).clone();
+
+    Mat camera_matrix(3, 3, CV_64F);
+
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j)
+        camera_matrix.at<double>(i, j) = camera_matrix_full.at<double>(i, j);
+    }
+
+    //    getCameraMatrix(camera_info_msg, params_.camera_matrix);
     params_.camera_model.fromCameraInfo(camera_info_msg);
+    params_.camera_matrix = camera_matrix.clone();
 
-    cout << "camera model: " << params_.camera_model.fx() << "\n";
-
-    //    cout << params_.camera_matrix << endl;
-    //    cout << params_.camera_model.projectionMatrix() << endl;
-
-    //    waitKey(0);
     camera_matrix_initialized_ = true;
   }
 
@@ -97,8 +104,13 @@ void TrackerNode3D::rgbdCallback(
   readImage(rgb_msg, rgb);
   readImage(depth_msg, depth);
 
-  rgb_image_ = rgb;
-  depth_image_ = depth;
+  Mat3f points(depth.rows, depth.cols, cv::Vec3f(0, 0, 0));
+  depthTo3d(depth, params_.camera_model.cx(), params_.camera_model.cy(),
+            params_.camera_model.fx(), params_.camera_model.fy(), points);
+
+  rgb_image_ = rgb.clone();
+  depth_image_ = depth.clone();
+  image_points_ = points.clone();
   img_updated_ = true;
 }
 
@@ -141,7 +153,6 @@ void TrackerNode3D::run() {
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = chrono::system_clock::now();
 
-
   ros::Rate r(100);
   while (ros::ok()) {
     // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
@@ -163,7 +174,7 @@ void TrackerNode3D::run() {
 
       if (init_requested_) {
         ROS_INFO("INPUT: tracker intialization requested");
-        tracker.init(params_, rgb_image_, depth_image_, mouse_start_,
+        tracker.init(params_, rgb_image_, image_points_, mouse_start_,
                      mouse_end_);
         init_requested_ = false;
         tracker_initialized_ = true;
@@ -175,30 +186,34 @@ void TrackerNode3D::run() {
 
       if (tracker_initialized_) {
         profiler->start("total");
-
-        cout << "Depth image type " << depth_image_.channels() << " "
-             << depth_image_.type();
-
         Mat out;
-        tracker.next(rgb_image_, depth_image_);
+        tracker.next(rgb_image_, image_points_);
         profiler->stop("total");
 
+        rgb_image_.copyTo(out);
+        tracker.drawObjectLocation(out);
+        vector<Point3f *> pts, votes;
+        tracker.getActivePoints(pts, votes);
+
+        drawCentroidVotes(pts, votes, Point2f(params_.camera_model.cx(),
+                                              params_.camera_model.cy()),
+                          true, params_.camera_model.fx(), out);
+
+        publishPose(tracker.getCurrentCentroid(), tracker.getRotation());
+
         end = chrono::system_clock::now();
-        float elapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
+        float elapsed =
+            chrono::duration_cast<chrono::seconds>(end - start).count();
 
         stringstream ss;
         ss << "Tracker run in ms: ";
-        if(elapsed > 3.0)
-        {
-            start = end;
-            ss << profiler->getProfile() << "\n";
-        }
-        else
-            ss << profiler->getTime("total") << "\n";
+        if (elapsed > 3.0) {
+          start = end;
+          ss << profiler->getProfile() << "\n";
+        } else
+          ss << profiler->getTime("total") << "\n";
 
         ROS_INFO(ss.str().c_str());
-
-
 
         cv_bridge::CvImage cv_img;
         cv_img.image = out;
@@ -211,6 +226,21 @@ void TrackerNode3D::run() {
 
     // r.sleep();
   }
+}
+
+void TrackerNode3D::publishPose(Point3f mean_point,
+                                Eigen::Quaterniond rotation) {
+  tf::Vector3 centroid(mean_point.x, -mean_point.y, mean_point.z);
+
+  tf::Transform transform;
+  transform.setOrigin(centroid);
+  tf::Quaternion q(rotation.x(), rotation.y(), rotation.z(),rotation.w());
+
+  transform.setRotation(q);
+
+  transform_broadcaster_.sendTransform(tf::StampedTransform(
+      transform, ros::Time::now(), "camera_rgb_optical_frame", "object_centroid"));
+
 }
 
 }  // end namespace

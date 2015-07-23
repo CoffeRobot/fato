@@ -283,6 +283,8 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   Mat rotation = getRotationMatrix(fstPoints, updPoints, pointsStatus);
   profiler->stop("rotation");
 
+
+
   Mat rotation_ransac, translation_ransac;
 
   vector<Point2f> tracked_points;
@@ -324,19 +326,16 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   /*                             CALCULATING QUATERNION */
   /*********************************************************************************************/
   double angularDist = 0;
-  //  start = chrono::system_clock::now();
   if (!isLost) {
     profiler->start("quaternion");
     Matrix3d eigRot;
     opencvToEigen(rotation, eigRot);
     Quaterniond q(eigRot);
+    updated_rotation_ = q;
     angularDist = getQuaternionMedianDist(m_quaternionHistory, 10, q);
     m_quaternionHistory.push_back(q);
     profiler->stop("quaternion");
   }
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[3] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
   cout << "3 ";
   /*********************************************************************************************/
   /*                             VOTING */
@@ -362,10 +361,6 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     clusterVotesBorder(pointsStatus, m_centroidVotes, indices, clusters);
     profiler->stop("clustering");
   }
-  // clustering = m_fstCube.m_pointStatus.at(FACE::FRONT);
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[5] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
   cout << "5 ";
   /*********************************************************************************************/
   /*                             UPDATE VOTES */
@@ -416,23 +411,6 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
       //            << "\n";
     }
   }
-
-  //  debug_file_ << "STATUS GENERAL " << m_numFrames << "\n";
-  //  for (auto i = 0; i < initial.size(); ++i) {
-  //    if (initial.at(i) == optical.at(i) && optical.at(i) == clustering.at(i))
-  // {
-  //      debug_file_ << "correct ";
-  //    } else {
-  //      debug_file_ << "wrong ";
-  //    }
-  //    debug_file_ << toString(initial.at(i)) << " " << toString(optical.at(i))
-  //                << " " << toString(clustering.at(i)) << "\n";
-  //  }
-
-  //  cout << "Point status size " << m_centroidVotes.size() << " valid " <<
-  // counter
-  //       << endl;
-
   /****************************************************************************/
   /*                            COMPUTING VISIBILITY                          */
   /****************************************************************************/

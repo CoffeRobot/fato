@@ -73,6 +73,8 @@ class Tracker3D {
   void getActivePoints(std::vector<cv::Point3f *> &points,
                         std::vector<cv::Point3f *> &votes);
 
+  Eigen::Quaterniond getRotation(){return updated_rotation_;}
+
   void drawObjectLocation(cv::Mat& out);
 
   void drawRansacEstimation(cv::Mat& out);
@@ -266,6 +268,7 @@ class Tracker3D {
   cv::Mat3f m_currCloud;
   cv::Mat ransac_rotation_;
   cv::Mat ransac_translation_;
+  Eigen::Quaterniond updated_rotation_;
 
   /*********************************************************************************************/
   /*                          VOTING VARIABLES */

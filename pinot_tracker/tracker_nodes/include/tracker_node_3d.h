@@ -10,6 +10,8 @@
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <sensor_msgs/image_encodings.h>
+#include <tf/transform_broadcaster.h>
+#include <tf_conversions/tf_eigen.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/core/core.hpp>
 #include <string>
@@ -44,6 +46,8 @@ class TrackerNode3D : public TrackerNode{
 
   void getTrackerParameters();
 
+  void publishPose(cv::Point3f mean_point, Eigen::Quaterniond rotation);
+
   ros::NodeHandle nh_;
   // message filter
   boost::shared_ptr<image_transport::ImageTransport> rgb_it_, depth_it_;
@@ -63,7 +67,7 @@ class TrackerNode3D : public TrackerNode{
   const std::string depth_topic_;
   const std::string camera_info_topic_;
 
-  cv::Mat rgb_image_, depth_image_;
+  cv::Mat rgb_image_, depth_image_, image_points_;
   cv::Mat camera_matrix_;
   bool img_updated_;
   bool camera_matrix_initialized_;
@@ -75,6 +79,8 @@ class TrackerNode3D : public TrackerNode{
 
   ros::AsyncSpinner spinner_;
   ros::Publisher publisher_;
+
+  tf::TransformBroadcaster transform_broadcaster_;
 };
 
 } // end namespace

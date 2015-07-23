@@ -17,7 +17,7 @@ void getPoseRansac(const std::vector<cv::Point3f>& model_points,
   if (model_points.size() > 4) {
     solvePnPRansac(model_points, tracked_points, camera_model,
                    Mat::zeros(1, 8, CV_32F), rotation, translation, false,
-                   iterations, distance, model_points.size(), inliers, CV_P3P);
+                   iterations, distance, model_points.size(), inliers, CV_ITERATIVE);
   }
 }
 

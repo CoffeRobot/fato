@@ -18,7 +18,7 @@ set(CUSTON_OPENCV_PATH ON CACHE STRING "path to gpu compiled opencv" FORCE )
 
 #link_directories()
 
-find_package(CUDA 6.5 REQUIRED)
+find_package(CUDA REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
   clustering
