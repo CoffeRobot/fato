@@ -32,7 +32,7 @@ struct TrackerParams {
         threshold(30),
         octaves(3),
         pattern_scale(1.0f),
-        ransac_iterations(100),
+        ransac_iterations(1000),
         ransac_distance(8.0f),
         camera_model()
   {}

@@ -229,7 +229,7 @@ void Tracker3D::clear() {
 
 void Tracker3D::next(const Mat& rgb, const Mat& points) {
 
-  // debug_file_ << "FRAME " << m_numFrames << "\n";
+  debug_file_ << "FRAME " << m_numFrames << "\n";
 
   // vector<Status> initial, optical, clustering;
 
@@ -295,15 +295,26 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     }
   }
 
-  //cout << params_.camera_matrix << endl;
+  // cout << params_.camera_matrix << endl;
 
   profiler->start("ransac");
   vector<int> inliers;
-  getPoseRansac(model_points, tracked_points,
-                params_.camera_matrix,
+  getPoseRansac(model_points, tracked_points, params_.camera_matrix,
                 params_.ransac_iterations, params_.ransac_distance, inliers,
                 rotation_ransac, translation_ransac);
   profiler->stop("ransac");
+
+  ransac_translation_ = translation_ransac.clone();
+
+  Rodrigues(rotation_ransac, ransac_rotation_);
+  ransac_rotation_.convertTo(ransac_rotation_, CV_32FC1);
+
+  debug_file_ << "ROTATION \n";
+  debug_file_ << rotation << "\n";
+  debug_file_ << "RANSAC\n";
+  debug_file_ << ransac_rotation_ << "\n";
+
+  //cout << "Rotation type: " << rotation.type() << " " << ransac_rotation_.type() << endl;
 
   if (rotation.empty()) {
     isLost = true;
@@ -723,7 +734,7 @@ int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
 
   // m_debugFile << "Updating cloud:\n";
 
-  debug_file_ << "OPTICAL FLOW: \n";
+  // debug_file_ << "OPTICAL FLOW: \n";
 
   for (int i = 0; i < nextPoints.size(); ++i) {
     float error = getDistance(currPoints[i], prevPoints[i]);
@@ -733,7 +744,7 @@ int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
     if (m_status[i] == 1 && error < 20) {
       int& id = ids[i];
 
-      debug_file_ << toString(*keypointStatus.at(id)) << " ";
+      // debug_file_ << toString(*keypointStatus.at(id)) << " ";
 
       // FIXME: potential value of 0 in the cloud due to errors in the kinect
       // is this the case?
@@ -766,14 +777,15 @@ int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
       // m_trackedPoints[id] = nextPoints[i];
       updKeypoints[id]->pt = nextPoints[i];
       *updPoints[id] = tmp;
-      debug_file_ << toString(*keypointStatus.at(id)) << " " << *updPoints[id]
-                  << "\n";
+      // debug_file_ << toString(*keypointStatus.at(id)) << " " <<
+      // *updPoints[id]
+      //            << "\n";
     } else {
       *keypointStatus[ids[i]] = Status::LOST;
     }
   }
 
-  debug_file_ << "\n";
+  // debug_file_ << "\n";
 
   return activeKeypoints;
 }
@@ -2058,6 +2070,30 @@ bool Tracker3D::findObject(BoundingCube& fst, BoundingCube& upd,
 void Tracker3D::drawObjectLocation(Mat& out) {
   drawBoundingCube(m_updatedCube.m_center, m_updatedCube.m_pointsBack,
                    m_updatedCube.m_pointsFront, m_focal, m_imageCenter, out);
+}
+
+void Tracker3D::drawRansacEstimation(Mat& out) {
+  Point3f obj_centroid = m_updatedCentroid;
+
+  auto type = ransac_rotation_.type();
+
+  vector<Point3f> rel_updates, front_points, back_points;
+
+  rotateBBox(m_fstCube.m_relativeDistFront, ransac_rotation_, rel_updates);
+
+  for (int i = 0; i < m_fstCube.m_pointsFront.size(); ++i) {
+    front_points.push_back(obj_centroid + rel_updates[i]);
+  }
+
+  rel_updates.clear();
+  rotateBBox(m_fstCube.m_relativeDistBack, ransac_rotation_, rel_updates);
+
+  for (int i = 0; i < m_fstCube.m_pointsBack.size(); ++i) {
+    back_points.push_back(obj_centroid + rel_updates[i]);
+  }
+
+  drawBoundingCube(m_updatedCube.m_center, back_points, front_points, m_focal,
+                   m_imageCenter, out);
 }
 
 }  // end namespace

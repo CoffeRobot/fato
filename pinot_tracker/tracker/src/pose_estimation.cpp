@@ -2,24 +2,22 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <boost/math/constants/constants.hpp>
 #include "../../utilities/include/utilities.h"
+#include <eigen3/Eigen/Geometry>
 
 using namespace std;
 using namespace cv;
+using namespace Eigen;
 
 namespace pinot_tracker {
 
 void getPoseRansac(const std::vector<cv::Point3f>& model_points,
-               const std::vector<cv::Point2f>& tracked_points,
-               const cv::Mat& camera_model, int iterations, float distance,
-               vector<int>& inliers, Mat& rotation, Mat& translation) {
+                   const std::vector<cv::Point2f>& tracked_points,
+                   const cv::Mat& camera_model, int iterations, float distance,
+                   vector<int>& inliers, Mat& rotation, Mat& translation) {
   if (model_points.size() > 4) {
     solvePnPRansac(model_points, tracked_points, camera_model,
                    Mat::zeros(1, 8, CV_32F), rotation, translation, false,
                    iterations, distance, model_points.size(), inliers, CV_P3P);
-    //    double T[] = {tvec.at<double>(0, 0), tvec.at<double>(0, 1),
-    //                  tvec.at<double>(0, 2)};
-    //    double R[] = {rvec.at<double>(0, 0), rvec.at<double>(0, 1),
-    //                  rvec.at<double>(0, 2)};
   }
 }
 
@@ -279,7 +277,7 @@ Mat getRigidTransform(Mat& a, Mat& b, vector<float>& cA, vector<float>& cB) {
 //}
 
 void rotateBBox(const vector<Point3f>& bBox, const Mat& rotation,
-                       vector<Point3f>& updatedBBox) {
+                vector<Point3f>& updatedBBox) {
   Mat a(4, 3, CV_32FC1);
   Mat b, b_T, a_T;
 
@@ -301,7 +299,7 @@ void rotateBBox(const vector<Point3f>& bBox, const Mat& rotation,
 }
 
 void rotatePoint(const Point3f& point, const Mat& rotation,
-                        Point3f& updatedPoint) {
+                 Point3f& updatedPoint) {
   Mat a(1, 3, CV_32FC1);
   a.at<float>(0) = point.x;
   a.at<float>(1) = point.y;
@@ -317,8 +315,7 @@ void rotatePoint(const Point3f& point, const Mat& rotation,
   updatedPoint.z = b.at<float>(2);
 }
 
-void rotatePoint(const Vec3f& point, const Mat& rotation,
-                        Vec3f& updatedPoint) {
+void rotatePoint(const Vec3f& point, const Mat& rotation, Vec3f& updatedPoint) {
   Mat a(1, 3, CV_32FC1);
   a.at<float>(0) = point[0];
   a.at<float>(1) = point[1];
@@ -335,7 +332,7 @@ void rotatePoint(const Vec3f& point, const Mat& rotation,
 }
 
 void rotatePoint(const Vec3f& point, const Mat& rotation,
-                        Point3f& updatedPoint) {
+                 Point3f& updatedPoint) {
   Mat a(1, 3, CV_32FC1);
   a.at<float>(0) = point[0];
   a.at<float>(1) = point[1];
@@ -351,5 +348,11 @@ void rotatePoint(const Vec3f& point, const Mat& rotation,
   updatedPoint.z = b.at<float>(2);
 }
 
+void rotationVecToMat(const Mat& vec, Mat& mat) {
+
+
+
+
+}
 
 }  // end namespace

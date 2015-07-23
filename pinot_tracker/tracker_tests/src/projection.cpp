@@ -89,16 +89,14 @@ void Projection::rgbdCallback(
   if (!camera_matrix_initialized_) {
     ROS_INFO("Init camera parameters");
 
-
     Mat camera_matrix_full =
         cv::Mat(3, 4, CV_64F, (void *)camera_info_msg->P.data()).clone();
 
-    Mat camera_matrix(3,3, CV_64F);
+    Mat camera_matrix(3, 3, CV_64F);
 
-    for(int i = 0; i < 3; ++i)
-    {
-        for(int j = 0; j < 3; ++j)
-            camera_matrix.at<double>(i,j) = camera_matrix_full.at<double>(i,j);
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j)
+        camera_matrix.at<double>(i, j) = camera_matrix_full.at<double>(i, j);
     }
 
     //    getCameraMatrix(camera_info_msg, params_.camera_matrix);
@@ -330,7 +328,6 @@ void Projection::run() {
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = chrono::system_clock::now();
 
-
   ros::Rate r(100);
   while (ros::ok()) {
     // ROS_INFO_STREAM("Main thread [" << boost::this_thread::get_id() << "].");
@@ -345,8 +342,10 @@ void Projection::run() {
 
       Mat depth_mapped;
       applyColorMap(depth_image_, depth_mapped);
-      if (!tracker_initialized_) imshow("Tracker", tmp);
-      imshow("Tracker_d", depth_mapped);
+      if (!tracker_initialized_) {
+        imshow("Tracker", tmp);
+        imshow("Tracker_d", depth_mapped);
+      }
 
       if (init_requested_ && !tracker_initialized_) {
         Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
@@ -404,9 +403,7 @@ void Projection::run() {
         cout << "cube centroid " << tracker.getCurrentCentroid() << endl;
 
         waitKey(30);
-      }
-
-      else if (tracker_initialized_) {
+      } else if (tracker_initialized_) {
         Point3f pt = tracker.getCurrentCentroid();
         auto front_points = tracker.getFrontBB();
         auto back_points = tracker.getBackBB();
@@ -426,17 +423,16 @@ void Projection::run() {
         profiler->stop("frame_time");
 
         end = chrono::system_clock::now();
-        float elapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
+        float elapsed =
+            chrono::duration_cast<chrono::seconds>(end - start).count();
 
         stringstream ss;
         ss << "Tracker run in ms: ";
-        if(elapsed > 3.0)
-        {
-            start = end;
-            ss << profiler->getProfile() << "\n";
-        }
-        else
-            ss << profiler->getTime("frame_time") << "\n";
+        if (elapsed > 3.0) {
+          start = end;
+          ss << profiler->getProfile() << "\n";
+        } else
+          ss << profiler->getTime("frame_time") << "\n";
 
         ROS_INFO(ss.str().c_str());
 
@@ -452,38 +448,21 @@ void Projection::run() {
         vector<Point3f *> pts, votes;
         tracker.getActivePoints(pts, votes);
 
-        drawCentroidVotes(
-            pts, votes,
-            Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
-            true, params_.camera_model.fx(), out);
+        drawCentroidVotes(pts, votes, Point2f(params_.camera_model.cx(),
+                                              params_.camera_model.cy()),
+                          true, params_.camera_model.fx(), out);
 
         imshow("Tracker", out);
 
+        Mat ransac;
+        rgb_image_.copyTo(ransac);
+
+        tracker.drawRansacEstimation(ransac);
+
+        imshow("Tracker_d", ransac);
+
         waitKey(30);
       }
-
-      //      else if (tracker_initialized_) {
-      //        //        cout << "Next Frame " << endl;
-      //        Mat out;
-      //        points =
-      //            cv::Mat3f(depth_image_.rows, depth_image_.cols, cv::Vec3f(0,
-      //            0, 0));
-      //        disparityToDepth(depth_image_, params_.camera_model.cx(),
-      //                         params_.camera_model.cy(),
-      //                         params_.camera_model.fx(),
-      //                         params_.camera_model.fy(), points);
-      //        tracker.computeNext(rgb_image_, points, out);
-      //        rgb_image_.copyTo(out);
-      //        Point2f center;
-      //        projectPoint(
-      //            params_.camera_model.fx(),
-      //            Point2f(params_.camera_model.cx(),
-      //            params_.camera_model.cy()),
-      //            tracker.getCurrentCentroid(), center);
-      //        tracker.drawObjectLocation(out);
-      //        circle(out, center, 5, Scalar(255, 0, 0), -1);
-      //        imshow("Tracker", out);
-      //      }
 
       char c = waitKey(30);
 

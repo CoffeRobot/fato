@@ -75,6 +75,8 @@ class Tracker3D {
 
   void drawObjectLocation(cv::Mat& out);
 
+  void drawRansacEstimation(cv::Mat& out);
+
  private:
   void getCurrentPoints(const std::vector<int>& currentFaces,
                         std::vector<Status*>& pointsStatus,
@@ -262,6 +264,9 @@ class Tracker3D {
   BoundingCube m_updatedCube;
   std::vector<int> m_currentFaces;
   cv::Mat3f m_currCloud;
+  cv::Mat ransac_rotation_;
+  cv::Mat ransac_translation_;
+
   /*********************************************************************************************/
   /*                          VOTING VARIABLES */
   /*********************************************************************************************/
@@ -304,10 +309,6 @@ class Tracker3D {
   /*                        TIMING */
   /*********************************************************************************************/
   int m_numFrames;
-
-  std::vector<float> m_partialTimes;
-  float m_frameTime;
-
   /****************************************************************************/
   /*                   RESULTS AND DEBUG */
   /****************************************************************************/

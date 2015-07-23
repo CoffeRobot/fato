@@ -39,6 +39,8 @@ void rotatePoint(const cv::Vec3f& point, const cv::Mat& rotation,
 void rotatePoint(const cv::Vec3f& point, const cv::Mat& rotation,
                  cv::Point3f& updatedPoint);
 
+void rotationVecToMat(const cv::Mat& vec, cv::Mat& mat);
+
 }  // end namespace
 
 #endif  // POSE_ESTIMATION_H
