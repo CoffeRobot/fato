@@ -17,11 +17,23 @@ void drawBoundingBox(const vector<Point2f>& box, Scalar color, int line_width,
   line(out, box[3], box[0], color, line_width, 1);
 }
 
+
 void drawBoundingCube(const Point3f& center, const vector<Point3f>& front_box,
+                      const vector<Point3f>& back_box, const float focal,
+                      const Point2f& imgCenter, Mat& out)
+{
+    Point2f tmp;
+    tmp = projectPoint(focal, imgCenter, center);
+    circle(out, tmp, 7, Scalar(255, 0, 0), -1);
+
+    drawBoundingCube(front_box, back_box, focal, imgCenter, out);
+}
+
+void drawBoundingCube(const vector<Point3f>& front_box,
                       const vector<Point3f>& back_box, const float focal,
                       const Point2f& imgCenter, Mat& out) {
   int cols = out.cols;
-  Point2f tmp;
+
 
   if (back_box.size() < 4) {
     cout << "DRAW_FUNCTIONS: error back_box size is " << back_box.size();
@@ -35,41 +47,40 @@ void drawBoundingCube(const Point3f& center, const vector<Point3f>& front_box,
   /*********************************************************************************************/
   /*                  Draw back face */
   /*********************************************************************************************/
-  line(out, projectPoint(focal, imgCenter, back_box[0]),
-       projectPoint(focal, imgCenter, back_box[1]), Scalar(0, 0, 255), 3);
-  line(out, projectPoint(focal, imgCenter, back_box[1]),
-       projectPoint(focal, imgCenter, back_box[2]), Scalar(0, 0, 255), 3);
-  line(out, projectPoint(focal, imgCenter, back_box[2]),
-       projectPoint(focal, imgCenter, back_box[3]), Scalar(0, 0, 255), 3);
-  line(out, projectPoint(focal, imgCenter, back_box[3]),
-       projectPoint(focal, imgCenter, back_box[0]), Scalar(0, 0, 255), 3);
+  line(out, projectPoint(focal, imgCenter, back_box.at(0)),
+       projectPoint(focal, imgCenter, back_box.at(1)), Scalar(0, 0, 255), 3);
+  line(out, projectPoint(focal, imgCenter, back_box.at(1)),
+       projectPoint(focal, imgCenter, back_box.at(2)), Scalar(0, 0, 255), 3);
+  line(out, projectPoint(focal, imgCenter, back_box.at(2)),
+       projectPoint(focal, imgCenter, back_box.at(3)), Scalar(0, 0, 255), 3);
+  line(out, projectPoint(focal, imgCenter, back_box.at(3)),
+       projectPoint(focal, imgCenter, back_box.at(0)), Scalar(0, 0, 255), 3);
 
   /*********************************************************************************************/
   /*                  Draw connecting lines */
   /*********************************************************************************************/
-  line(out, projectPoint(focal, imgCenter, front_box[0]),
-       projectPoint(focal, imgCenter, back_box[0]), Scalar(0, 255, 0), 3);
-  line(out, projectPoint(focal, imgCenter, front_box[1]),
-       projectPoint(focal, imgCenter, back_box[1]), Scalar(0, 255, 255), 3);
-  line(out, projectPoint(focal, imgCenter, front_box[2]),
-       projectPoint(focal, imgCenter, back_box[2]), Scalar(255, 255, 0), 3);
-  line(out, projectPoint(focal, imgCenter, front_box[3]),
-       projectPoint(focal, imgCenter, back_box[3]), Scalar(255, 0, 255), 3);
+  line(out, projectPoint(focal, imgCenter, front_box.at(0)),
+       projectPoint(focal, imgCenter, back_box.at(0)), Scalar(0, 255, 0), 3);
+  line(out, projectPoint(focal, imgCenter, front_box.at(1)),
+       projectPoint(focal, imgCenter, back_box.at(1)), Scalar(0, 255, 255), 3);
+  line(out, projectPoint(focal, imgCenter, front_box.at(2)),
+       projectPoint(focal, imgCenter, back_box.at(2)), Scalar(255, 255, 0), 3);
+  line(out, projectPoint(focal, imgCenter, front_box.at(3)),
+       projectPoint(focal, imgCenter, back_box.at(3)), Scalar(255, 0, 255), 3);
 
   /*********************************************************************************************/
   /*                  Draw front face */
   /*********************************************************************************************/
 
-  tmp = projectPoint(focal, imgCenter, center);
-  circle(out, tmp, 7, Scalar(255, 0, 0), -1);
-  line(out, projectPoint(focal, imgCenter, front_box[0]),
-       projectPoint(focal, imgCenter, front_box[1]), Scalar(255, 0, 0), 3);
-  line(out, projectPoint(focal, imgCenter, front_box[1]),
-       projectPoint(focal, imgCenter, front_box[2]), Scalar(255, 0, 0), 3);
-  line(out, projectPoint(focal, imgCenter, front_box[2]),
-       projectPoint(focal, imgCenter, front_box[3]), Scalar(255, 0, 0), 3);
-  line(out, projectPoint(focal, imgCenter, front_box[3]),
-       projectPoint(focal, imgCenter, front_box[0]), Scalar(255, 0, 0), 3);
+
+  line(out, projectPoint(focal, imgCenter, front_box.at(0)),
+       projectPoint(focal, imgCenter, front_box.at(1)), Scalar(255, 0, 0), 3);
+  line(out, projectPoint(focal, imgCenter, front_box.at(1)),
+       projectPoint(focal, imgCenter, front_box.at(2)), Scalar(255, 0, 0), 3);
+  line(out, projectPoint(focal, imgCenter, front_box.at(2)),
+       projectPoint(focal, imgCenter, front_box.at(3)), Scalar(255, 0, 0), 3);
+  line(out, projectPoint(focal, imgCenter, front_box.at(3)),
+       projectPoint(focal, imgCenter, front_box.at(0)), Scalar(255, 0, 0), 3);
 }
 
 void applyColorMap(const Mat& src, Mat& dst) {
