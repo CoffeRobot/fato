@@ -1,3 +1,35 @@
+/*****************************************************************************/
+/*  Copyright (c) 2015, Alessandro Pieropan                                  */
+/*  All rights reserved.                                                     */
+/*                                                                           */
+/*  Redistribution and use in source and binary forms, with or without       */
+/*  modification, are permitted provided that the following conditions       */
+/*  are met:                                                                 */
+/*                                                                           */
+/*  1. Redistributions of source code must retain the above copyright        */
+/*  notice, this list of conditions and the following disclaimer.            */
+/*                                                                           */
+/*  2. Redistributions in binary form must reproduce the above copyright     */
+/*  notice, this list of conditions and the following disclaimer in the      */
+/*  documentation and/or other materials provided with the distribution.     */
+/*                                                                           */
+/*  3. Neither the name of the copyright holder nor the names of its         */
+/*  contributors may be used to endorse or promote products derived from     */
+/*  this software without specific prior written permission.                 */
+/*                                                                           */
+/*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS      */
+/*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT        */
+/*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR    */
+/*  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT     */
+/*  HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,   */
+/*  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT         */
+/*  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,    */
+/*  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY    */
+/*  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT      */
+/*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
+/*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
+/*****************************************************************************/
+
 #ifndef PINOT_TRACKER3D_H
 #define PINOT_TRACKER3D_H
 
@@ -23,13 +55,15 @@
 #include <eigen3/Eigen/Geometry>
 #endif
 
-#include "../include/matcher.h"
-#include "../include/params.h"
 #include "../../clustering/include/DBScanClustering.h"
-#include "../include/borg_cube.h"
 #include "../../utilities/include/constants.h"
 #include "../../utilities/include/DebugFunctions.h"
-#include "../include/params.h"
+#include "bounding_cube.h"
+#include "params.h"
+#include "matcher.h"
+#include "params.h"
+#include "model.h"
+
 
 namespace pinot_tracker {
 
@@ -45,7 +79,7 @@ class Tracker3D {
         m_prevFrame(),
         m_dbClusterer(),
         m_fstCube(),
-        m_updatedCube(),
+        m_updatedModel(),
         log_header("TRACKER: ") {
     m_featuresDetector.create("Feature2D.BRISK");
   };
@@ -67,19 +101,21 @@ class Tracker3D {
 
   cv::Point3f getCurrentCentroid() { return m_updatedCentroid; }
 
-  std::vector<cv::Point3f> getFrontBB() { return m_updatedCube.m_pointsFront; }
-  std::vector<cv::Point3f> getBackBB() { return m_updatedCube.m_pointsBack; }
+  std::vector<cv::Point3f> getFrontBB() { return m_updatedModel.m_pointsFront; }
+  std::vector<cv::Point3f> getBackBB() { return m_updatedModel.m_pointsBack; }
 
   void getActivePoints(std::vector<cv::Point3f *> &points,
                         std::vector<cv::Point3f *> &votes);
 
-  Eigen::Quaterniond getRotation(){return updated_rotation_;}
+  Eigen::Quaterniond getPoseQuaternion(){return updated_quaternion_;}
+  cv::Mat getPoseMatrix(){return updated_rotation_;}
 
   void drawObjectLocation(cv::Mat& out);
 
   void drawRansacEstimation(cv::Mat& out);
 
  private:
+
   void getCurrentPoints(const std::vector<int>& currentFaces,
                         std::vector<Status*>& pointsStatus,
                         std::vector<cv::Point3f*>& fstPoints,
@@ -130,9 +166,9 @@ class Tracker3D {
                           std::vector<std::vector<int>>& clusters);
 
   // calcualte the centroid from the initial keypoints
-  bool initCentroid(const std::vector<cv::Point3f>& points, BoundingCube& cube);
+  bool initCentroid(const std::vector<cv::Point3f>& points, ObjectModel& cube);
   // calculate the relative position of the initial keypoints
-  void initRelativePosition(BoundingCube& cube);
+  void initRelativePosition(ObjectModel& cube);
 
   void updateCentroid(const std::vector<Status*>& keypointStatus,
                       const cv::Mat& rotation);
@@ -157,12 +193,12 @@ class Tracker3D {
 
   void learnFace(const cv::Mat1b& mask, const cv::Mat& rgb,
                  const cv::Mat& cloud, const cv::Mat& rotation, const int& face,
-                 BoundingCube& fstCube, BoundingCube& updatedCube);
+                 ObjectModel& fstCube, ObjectModel& updatedCube);
 
   int learnFaceDebug(const cv::Mat1b& mask, const cv::Mat& rgb,
                      const cv::Mat& cloud, const cv::Mat& rotation,
-                     const int& face, BoundingCube& fstCube,
-                     BoundingCube& updatedCube, cv::Mat& out);
+                     const int& face, ObjectModel& fstCube,
+                     ObjectModel& updatedCube, cv::Mat& out);
 
   void debugTrackingStepPar(cv::Mat fstFrame, cv::Mat scdFrame);
 
@@ -210,12 +246,12 @@ class Tracker3D {
     return m;
   }
 
-  void calculateVisibility(const cv::Mat& rotation, const BoundingCube& fstCube,
+  void calculateVisibility(const cv::Mat& rotation, const ObjectModel& fstCube,
                            std::vector<bool>& isFaceVisible,
                            std::vector<float>& visibilityRatio);
 
   void calculateVisibilityEigen(const cv::Mat& rotation,
-                                const BoundingCube& fstCube,
+                                const ObjectModel& fstCube,
                                 std::vector<bool>& isFaceVisible,
                                 std::vector<float>& visibilityRatio);
 
@@ -234,7 +270,7 @@ class Tracker3D {
   double getQuaternionMedianDist(const std::vector<Eigen::Quaterniond>& history,
                                  int window, const Eigen::Quaterniond& q);
 
-  bool findObject(BoundingCube& fst, BoundingCube& upd,
+  bool findObject(ObjectModel& fst, ObjectModel& upd,
                   const cv::Mat& extractedDescriptors,
                   const std::vector<cv::KeyPoint>& extractedKeypoints,
                   int& faceFound, int& matchesNum);
@@ -254,21 +290,24 @@ class Tracker3D {
   /*                          INITIAL MODEL */
   /*********************************************************************************************/
   cv::Mat m_fstFrame;
-  BoundingCube m_fstCube;
+  ObjectModel m_fstCube;
   std::vector<std::vector<bool>> m_isPointClustered;
   cv::Mat3f m_firstCloud;
+  BoundingCube bouding_cube_;
   /*********************************************************************************************/
   /*                          UPDATED MODEL */
   /*********************************************************************************************/
   // std::vector<cv::Point2f> m_matchedPoints;
   // std::vector<cv::Point2f> m_trackedPoints;
   cv::Mat m_currFrame;
-  BoundingCube m_updatedCube;
+  ObjectModel m_updatedModel;
   std::vector<int> m_currentFaces;
   cv::Mat3f m_currCloud;
   cv::Mat ransac_rotation_;
   cv::Mat ransac_translation_;
-  Eigen::Quaterniond updated_rotation_;
+  Eigen::Quaterniond updated_quaternion_;
+  cv::Mat updated_rotation_;
+
 
   /*********************************************************************************************/
   /*                          VOTING VARIABLES */
@@ -281,7 +320,7 @@ class Tracker3D {
   // vectors of points used to update after matching and tracking are performed
 
   std::vector<cv::KeyPoint> m_initKeypoints;
-  unsigned int m_initKPCount;
+  unsigned int init_model_point_count_;
   /*********************************************************************************************/
   /*                          CENTROID E BBOX VARIABLES */
   /*********************************************************************************************/

@@ -1,8 +1,37 @@
+/*****************************************************************************/
+/*  Copyright (c) 2015, Alessandro Pieropan                                  */
+/*  All rights reserved.                                                     */
+/*                                                                           */
+/*  Redistribution and use in source and binary forms, with or without       */
+/*  modification, are permitted provided that the following conditions       */
+/*  are met:                                                                 */
+/*                                                                           */
+/*  1. Redistributions of source code must retain the above copyright        */
+/*  notice, this list of conditions and the following disclaimer.            */
+/*                                                                           */
+/*  2. Redistributions in binary form must reproduce the above copyright     */
+/*  notice, this list of conditions and the following disclaimer in the      */
+/*  documentation and/or other materials provided with the distribution.     */
+/*                                                                           */
+/*  3. Neither the name of the copyright holder nor the names of its         */
+/*  contributors may be used to endorse or promote products derived from     */
+/*  this software without specific prior written permission.                 */
+/*                                                                           */
+/*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS      */
+/*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT        */
+/*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR    */
+/*  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT     */
+/*  HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,   */
+/*  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT         */
+/*  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,    */
+/*  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY    */
+/*  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT      */
+/*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
+/*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
+/*****************************************************************************/
+
 #ifndef PROJECTION_H
 #define PROJECTION_H
-
-#ifndef TRACKERNODE3D_H
-#define TRACKERNODE3D_H
 
 #include <sensor_msgs/CameraInfo.h>
 #include <image_transport/image_transport.h>
@@ -51,11 +80,10 @@ class Projection {
                    const cv::Point2d& bottom_right, cv::Point3f& median_p,
                    cv::Point3f& min_p, cv::Point3f& max_p);
 
-  void publishPose(cv::Point3f& centroid, std::vector<cv::Point3f>& back_points,
+  void publishPose(cv::Point3f& centroid, Eigen::Quaterniond pose,
+                   std::vector<cv::Point3f>& back_points,
                    std::vector<cv::Point3f>& front_points);
 
-  void publishPose(cv::Point3f& mean_point, cv::Point3f& min_point,
-                   cv::Point3f& max_point);
 
   ros::NodeHandle nh_;
   // message filter
@@ -93,7 +121,5 @@ class Projection {
 };
 
 }  // end namespace
-
-#endif  // TRACKERNODE3D_H
 
 #endif  // PROJECTION_H

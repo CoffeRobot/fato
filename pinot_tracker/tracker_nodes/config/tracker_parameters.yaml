@@ -7,8 +7,10 @@ pinot/clustering/min_points: 5
 
 
 # pnp ransac parameters
+pinot/pose_estimation/use_ransac: false
 pinot/pose_estimation/ransac_iterations: 100
 pinot/pose_estimation/ransac_distance: 1.0
+pinot/pose_estimation/ransac_method: 1 # 1: CV_ITERATIVE, 2: CV_P3P, 3: CV_EPNP
 
 # offline parameters
 pinot/offline/use_depth: false

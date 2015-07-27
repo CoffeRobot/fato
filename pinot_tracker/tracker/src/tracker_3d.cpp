@@ -1,3 +1,35 @@
+/*****************************************************************************/
+/*  Copyright (c) 2015, Alessandro Pieropan                                  */
+/*  All rights reserved.                                                     */
+/*                                                                           */
+/*  Redistribution and use in source and binary forms, with or without       */
+/*  modification, are permitted provided that the following conditions       */
+/*  are met:                                                                 */
+/*                                                                           */
+/*  1. Redistributions of source code must retain the above copyright        */
+/*  notice, this list of conditions and the following disclaimer.            */
+/*                                                                           */
+/*  2. Redistributions in binary form must reproduce the above copyright     */
+/*  notice, this list of conditions and the following disclaimer in the      */
+/*  documentation and/or other materials provided with the distribution.     */
+/*                                                                           */
+/*  3. Neither the name of the copyright holder nor the names of its         */
+/*  contributors may be used to endorse or promote products derived from     */
+/*  this software without specific prior written permission.                 */
+/*                                                                           */
+/*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS      */
+/*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT        */
+/*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR    */
+/*  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT     */
+/*  HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,   */
+/*  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT         */
+/*  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,    */
+/*  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY    */
+/*  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT      */
+/*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
+/*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
+/*****************************************************************************/
+
 #include "../include/tracker_3d.h"
 
 #include <random>
@@ -55,47 +87,58 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
                              m_fstCube.m_faceDescriptors[FACE::FRONT]);
 
   if (keypoints.size() == 0) {
-    cout << log_header << "not enugh features extracted.\n";
+    cout << log_header << "not enough features extracted.\n";
     clear();
     return -1;
   }
 
-  m_initKPCount = 0;
+  init_model_point_count_ = 0;
   random_device rd;
   default_random_engine engine(rd());
   uniform_int_distribution<unsigned int> uniform_dist(0, 255);
 
   m_isPointClustered.resize(6, vector<bool>());
   m_pointsColor.resize(6, vector<Scalar>());
-  cout << "4 " << endl;
+
   // count valid keypoints that belong to the object
   for (int kp = 0; kp < keypoints.size(); ++kp) {
     keypoints[kp].class_id = kp;
-    if (mask.at<uchar>(keypoints.at(kp).pt) != 0) {
+    Vec3f& tmp = points.at<Vec3f>(keypoints.at(kp).pt);
+    if (mask.at<uchar>(keypoints.at(kp).pt) != 0 && tmp[2] != 0) {
       m_fstCube.m_pointStatus.at(FACE::FRONT).push_back(Status::INIT);
       m_isPointClustered.at(FACE::FRONT).push_back(true);
-      m_initKPCount++;
+      init_model_point_count_++;
     } else {
       m_fstCube.m_pointStatus.at(FACE::FRONT).push_back(Status::BACKGROUND);
       m_isPointClustered.at(FACE::FRONT).push_back(false);
     }
-    m_pointsColor.at(FACE::FRONT).push_back(Scalar(
-        uniform_dist(engine), uniform_dist(engine), uniform_dist(engine)));
-    Vec3f& tmp = points.at<Vec3f>(keypoints.at(kp).pt);
+    m_pointsColor.at(FACE::FRONT)
+        .push_back(Scalar(uniform_dist(engine), uniform_dist(engine),
+                          uniform_dist(engine)));
+
     m_fstCube.m_cloudPoints.at(FACE::FRONT)
         .push_back(Point3f(tmp[0], tmp[1], tmp[2]));
   }
 
   keypoints.swap(m_fstCube.m_faceKeypoints.at(FACE::FRONT));
   // compute starting centroid of the object to track
-  if (!initCentroid(m_fstCube.m_cloudPoints.at(FACE::FRONT), m_fstCube)) {
-    cout
-        << log_header
-        << "not enough valid points to initialized the center of the object \n";
+//  if (!initCentroid(m_fstCube.m_cloudPoints.at(FACE::FRONT), m_fstCube)) {
+//    cout
+//        << log_header
+//        << "not enough valid points to initialized the center of the object \n";
+//    clear();
+//    return -1;
+//  }
+  if(init_model_point_count_ == 0)
+  {
+    cout << log_header << "not enough valid points to initialize the objects" << endl;
     clear();
     return -1;
   }
-  // cout << "9 " << endl;
+
+  bouding_cube_.initCube(points, mask);
+  m_fstCube.m_center = bouding_cube_.getCentroid();
+
   // initialize bounding box of the learned face
   initBBox(points);
   //
@@ -106,9 +149,9 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
   m_currFrame = grayImg;
   m_fstFrame = grayImg;
 
-  m_updatedCube.m_cloudPoints = m_fstCube.m_cloudPoints;
-  m_updatedCube.m_pointStatus = m_fstCube.m_pointStatus;
-  m_updatedCube.m_faceKeypoints = m_fstCube.m_faceKeypoints;
+  m_updatedModel.m_cloudPoints = m_fstCube.m_cloudPoints;
+  m_updatedModel.m_pointStatus = m_fstCube.m_pointStatus;
+  m_updatedModel.m_faceKeypoints = m_fstCube.m_faceKeypoints;
 
   // cout << "10 " << endl;
 
@@ -193,8 +236,8 @@ void Tracker3D::getCurrentPoints(
       pointsStatus.push_back(&m_fstCube.m_pointStatus.at(face).at(j));
       fstPoints.push_back(&m_fstCube.m_cloudPoints.at(face).at(j));
       fstKeypoints.push_back(&m_fstCube.m_faceKeypoints.at(face).at(j));
-      updPoints.push_back(&m_updatedCube.m_cloudPoints.at(face).at(j));
-      updKeypoints.push_back(&m_updatedCube.m_faceKeypoints.at(face).at(j));
+      updPoints.push_back(&m_updatedModel.m_cloudPoints.at(face).at(j));
+      updKeypoints.push_back(&m_updatedModel.m_faceKeypoints.at(face).at(j));
       relPointPos.push_back(&m_fstCube.m_relativePointsPos.at(face).at(j));
       colors.push_back(&m_pointsColor.at(face).at(j));
     }
@@ -216,7 +259,7 @@ void Tracker3D::clear() {
   m_pointsColor.clear();
 
   m_fstCube.restCube();
-  m_updatedCube.restCube();
+  m_updatedModel.restCube();
 
   m_learnedFrames.clear();
   m_pointsOfView.clear();
@@ -228,7 +271,6 @@ void Tracker3D::clear() {
 }
 
 void Tracker3D::next(const Mat& rgb, const Mat& points) {
-
   debug_file_ << "FRAME " << m_numFrames << "\n";
 
   // vector<Status> initial, optical, clustering;
@@ -283,7 +325,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   Mat rotation = getRotationMatrix(fstPoints, updPoints, pointsStatus);
   profiler->stop("rotation");
 
-
+  updated_rotation_ = rotation.clone();
 
   Mat rotation_ransac, translation_ransac;
 
@@ -301,22 +343,22 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
 
   profiler->start("ransac");
   vector<int> inliers;
-  getPoseRansac(model_points, tracked_points, params_.camera_matrix,
-                params_.ransac_iterations, params_.ransac_distance, inliers,
-                rotation_ransac, translation_ransac);
+  getPoseRansac(model_points, tracked_points, params_.ransac_method,
+                params_.camera_matrix, params_.ransac_iterations,
+                params_.ransac_distance, inliers, rotation_ransac,
+                translation_ransac);
   profiler->stop("ransac");
 
   ransac_translation_ = translation_ransac.clone();
-
-  Rodrigues(rotation_ransac, ransac_rotation_);
-  ransac_rotation_.convertTo(ransac_rotation_, CV_32FC1);
+  ransac_rotation_ = rotation_ransac.clone();
 
   debug_file_ << "ROTATION \n";
   debug_file_ << rotation << "\n";
   debug_file_ << "RANSAC\n";
   debug_file_ << ransac_rotation_ << "\n";
 
-  //cout << "Rotation type: " << rotation.type() << " " << ransac_rotation_.type() << endl;
+  // cout << "Rotation type: " << rotation.type() << " " <<
+  // ransac_rotation_.type() << endl;
 
   if (rotation.empty()) {
     isLost = true;
@@ -331,7 +373,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     Matrix3d eigRot;
     opencvToEigen(rotation, eigRot);
     Quaterniond q(eigRot);
-    updated_rotation_ = q;
+    updated_quaternion_ = q;
     angularDist = getQuaternionMedianDist(m_quaternionHistory, 10, q);
     m_quaternionHistory.push_back(q);
     profiler->stop("quaternion");
@@ -379,7 +421,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     updateCentroid(pointsStatus, rotation);
     profiler->stop("update");
   }
-  m_updatedCube.m_center = m_updatedCentroid;
+  m_updatedModel.m_center = m_updatedCentroid;
   //  end = chrono::system_clock::now();
   //  m_partialTimes[7] +=
   //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
@@ -509,7 +551,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
             fstKeypoint.push_back(&m_fstCube.m_faceKeypoints.at(face).at(j));
             pointsStatus.push_back(&m_fstCube.m_pointStatus.at(face).at(j));
             updKeypoint.push_back(
-                &m_updatedCube.m_faceKeypoints.at(face).at(j));
+                &m_updatedModel.m_faceKeypoints.at(face).at(j));
           }
 
           numMatches =
@@ -574,7 +616,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   if (isLost) {
     int faceFound, matchedNum;
 
-    bool found = findObject(m_fstCube, m_updatedCube, nextDescriptors,
+    bool found = findObject(m_fstCube, m_updatedModel, nextDescriptors,
                             nextKeypoints, faceFound, matchedNum);
 
     if (found) {
@@ -923,11 +965,11 @@ void Tracker3D::clusterVotes(vector<Status>& keypointStatus) {
     }
   }
 
-  clusterer.clusterPoints(&votes, params_.eps, params_.min_points,
-                          [](Point3f* a, Point3f* b) {
-    return sqrt(pow(a->x - b->x, 2) + pow(a->y - b->y, 2) +
-                pow(a->z - b->z, 2));
-  });
+  clusterer.clusterPoints(
+      &votes, params_.eps, params_.min_points, [](Point3f* a, Point3f* b) {
+        return sqrt(pow(a->x - b->x, 2) + pow(a->y - b->y, 2) +
+                    pow(a->z - b->z, 2));
+      });
 
   auto res = clusterer.getClusters();
   // std::cout << "Size of clusters " << res.size() << "\n" << std::endl;
@@ -978,11 +1020,11 @@ void Tracker3D::clusterVotesBorder(vector<Status*>& keypointStatus,
     }
   }
 
-  clusterer.clusterPoints(&votes, params_.eps, params_.min_points,
-                          [](Point3f* a, Point3f* b) {
-    return sqrt(pow(a->x - b->x, 2) + pow(a->y - b->y, 2) +
-                pow(a->z - b->z, 2));
-  });
+  clusterer.clusterPoints(
+      &votes, params_.eps, params_.min_points, [](Point3f* a, Point3f* b) {
+        return sqrt(pow(a->x - b->x, 2) + pow(a->y - b->y, 2) +
+                    pow(a->z - b->z, 2));
+      });
 
   vector<bool> border;
   clusterer.getBorderClusters(clusters, border);
@@ -1017,29 +1059,23 @@ void Tracker3D::clusterVotesBorder(vector<Status*>& keypointStatus,
   m_clusteredBorderVotes.swap(borderPoints);
 }
 
-bool Tracker3D::initCentroid(const vector<Point3f>& points,
-                             BoundingCube& cube) {
-  const vector<Status>& status = cube.m_pointStatus[FACE::FRONT];
+bool Tracker3D::initCentroid(const vector<Point3f>& points, ObjectModel& cube) {
+  const vector<Status>& status = cube.m_pointStatus.at(FACE::FRONT);
 
   Point3f& centroid = cube.m_center;
   centroid.x = 0;
   centroid.y = 0;
   centroid.z = 0;
   int validKp = 0;
-  // cout << "Init Keypoints: \n";
-  for (int i = 0; i < points.size(); ++i) {
-    const Point3f& tmp = points[i];
 
-    if (tmp.z != 0 && isKeypointValid(status[i])) {
+  for (int i = 0; i < points.size(); ++i) {
+    const Point3f& tmp = points.at(i);
+
+    if (tmp.z != 0 && isKeypointValid(status.at(i))) {
       centroid += tmp;
       validKp++;
-
-      // cout << "[" << tmp.x << "," << tmp.y << "," << tmp.z << "]\n";
-    } else {
-      // cout << "[" << tmp.z << "," << toString(status[i]) << "]\n";
     }
   }
-  // cout << "Init Centroid: \n";
 
   if (validKp == 0) return false;
 
@@ -1047,13 +1083,10 @@ bool Tracker3D::initCentroid(const vector<Point3f>& points,
   centroid.y = centroid.y / static_cast<float>(validKp);
   centroid.z = centroid.z / static_cast<float>(validKp);
 
-  // cout << "[" << centroid.x << "," << centroid.y << "," << centroid.z <<
-  // "]\n";
-
   return true;
 }
 
-void Tracker3D::initRelativePosition(BoundingCube& cube) {
+void Tracker3D::initRelativePosition(ObjectModel& cube) {
   const vector<Status>& status = cube.m_pointStatus[FACE::FRONT];
   const vector<Point3f>& points = cube.m_cloudPoints[FACE::FRONT];
   vector<Point3f>& relativePointsPos = cube.m_relativePointsPos[FACE::FRONT];
@@ -1093,14 +1126,14 @@ void Tracker3D::updateCentroid(const vector<Status*>& keypointStatus,
   rotateBBox(m_fstCube.m_relativeDistFront, rotation, updatedPoints);
 
   for (int i = 0; i < m_fstCube.m_pointsFront.size(); ++i) {
-    m_updatedCube.m_pointsFront[i] = m_updatedCentroid + updatedPoints[i];
+    m_updatedModel.m_pointsFront[i] = m_updatedCentroid + updatedPoints[i];
   }
 
   updatedPoints.clear();
   rotateBBox(m_fstCube.m_relativeDistBack, rotation, updatedPoints);
 
   for (int i = 0; i < m_fstCube.m_pointsBack.size(); ++i) {
-    m_updatedCube.m_pointsBack[i] = m_updatedCentroid + updatedPoints[i];
+    m_updatedModel.m_pointsBack[i] = m_updatedCentroid + updatedPoints[i];
   }
 }
 
@@ -1181,7 +1214,7 @@ void Tracker3D::initBBox(const Mat& cloud) {
   m_fstCube.m_relativeDistBack.push_back(
       Point3f(minX - cx, maxY - cy, relativeD));
 
-  m_updatedCube = m_fstCube;
+  m_updatedModel = m_fstCube;
 }
 
 bool Tracker3D::isAppearanceNew(const Mat& rotation) {
@@ -1272,10 +1305,10 @@ bool Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
     Mat1b mask(rgb.rows, rgb.cols, static_cast<uchar>(0));
     Mat3b maskResult(rgb.rows, rgb.cols, Vec3b(0, 0, 0));
     rgb.copyTo(result);
-    drawBoundingCube(m_updatedCentroid, m_updatedCube.m_pointsFront,
-                     m_updatedCube.m_pointsBack, m_focal, m_imageCenter,
+    drawBoundingCube(m_updatedCentroid, m_updatedModel.m_pointsFront,
+                     m_updatedModel.m_pointsBack, m_focal, m_imageCenter,
                      result);
-    vector<Point3f> facePoints = m_updatedCube.getFacePoints(faceToLearn);
+    vector<Point3f> facePoints = m_updatedModel.getFacePoints(faceToLearn);
 
     Point2f a, b, c, d;
     bool isValA, isValB, isValC, isValD;
@@ -1289,7 +1322,7 @@ bool Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
       drawTriangleMask(a, b, c, mask);
       drawTriangleMask(a, c, d, mask);
       learnFace(mask, rgb, cloud, rotation, faceToLearn, m_fstCube,
-                m_updatedCube);
+                m_updatedModel);
 
       drawTriangle(a, b, c, Scalar(0, 255, 0), 0.5, result);
       drawTriangle(a, c, d, Scalar(0, 255, 0), 0.5, result);
@@ -1334,9 +1367,9 @@ void Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
   Mat1b mask(rgb.rows, rgb.cols, static_cast<uchar>(0));
   Mat3b maskResult(rgb.rows, rgb.cols, Vec3b(0, 0, 0));
   rgb.copyTo(result);
-  drawBoundingCube(m_updatedCentroid, m_updatedCube.m_pointsFront,
-                   m_updatedCube.m_pointsBack, m_focal, m_imageCenter, result);
-  vector<Point3f> facePoints = m_updatedCube.getFacePoints(faceToLearn);
+  drawBoundingCube(m_updatedCentroid, m_updatedModel.m_pointsFront,
+                   m_updatedModel.m_pointsBack, m_focal, m_imageCenter, result);
+  vector<Point3f> facePoints = m_updatedModel.getFacePoints(faceToLearn);
 
   Point2f a, b, c, d;
   bool isValA, isValB, isValC, isValD;
@@ -1354,7 +1387,7 @@ void Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
     drawTriangle(a, c, d, Scalar(0, 255, 0), 0.5, result);
 
     int count = learnFaceDebug(mask, rgb, cloud, rotation, faceToLearn,
-                               m_fstCube, m_updatedCube, result);
+                               m_fstCube, m_updatedModel, result);
 
     rgb.copyTo(maskResult, mask);
 
@@ -1397,7 +1430,7 @@ void Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
 }
 
 void Tracker3D::calculateVisibility(const Mat& rotation,
-                                    const BoundingCube& fstCube,
+                                    const ObjectModel& fstCube,
                                     vector<bool>& isFaceVisible,
                                     vector<float>& visibilityRatio) {
   Mat pov(1, 3, CV_32FC1);
@@ -1420,7 +1453,7 @@ void Tracker3D::calculateVisibility(const Mat& rotation,
 }
 
 void Tracker3D::calculateVisibilityEigen(const Mat& rotation,
-                                         const BoundingCube& fstCube,
+                                         const ObjectModel& fstCube,
                                          vector<bool>& isFaceVisible,
                                          vector<float>& visibilityRatio) {
   // FIXME: calculation is non correct for perspective camera
@@ -1454,14 +1487,14 @@ void Tracker3D::calculateVisibilityEigen(const Mat& rotation,
 
 void Tracker3D::learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
                           const Mat& rotation, const int& face,
-                          BoundingCube& fstCube, BoundingCube& updatedCube) {
+                          ObjectModel& fstCube, ObjectModel& updatedCube) {
   random_device rd;
   default_random_engine engine(rd());
   uniform_int_distribution<unsigned int> uniform_dist(0, 255);
 
   // clearing face informations
   m_fstCube.resetFace(face);
-  m_updatedCube.resetFace(face);
+  m_updatedModel.resetFace(face);
 
   Mat grayImg;
   checkImage(rgb, grayImg);
@@ -1492,7 +1525,7 @@ void Tracker3D::learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
     if (mask.at<uchar>(keypoints[kp].pt) != 0 && point[2] != 0) {
       pointStatus.push_back(Status::MATCH);
 
-      m_initKPCount++;
+      init_model_point_count_++;
       updatedPoint3d[kp] = Point3f(point[0], point[1], point[2]);
       Point3f projPoint(0, 0, 0);
 
@@ -1517,15 +1550,15 @@ void Tracker3D::learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
 
 int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
                               const Mat& cloud, const Mat& rotation,
-                              const int& face, BoundingCube& fstCube,
-                              BoundingCube& updatedCube, Mat& out) {
+                              const int& face, ObjectModel& fstCube,
+                              ObjectModel& updatedCube, Mat& out) {
   random_device rd;
   default_random_engine engine(rd());
   uniform_int_distribution<unsigned int> uniform_dist(0, 255);
 
   // clearing face informations
   m_fstCube.resetFace(face);
-  m_updatedCube.resetFace(face);
+  m_updatedModel.resetFace(face);
 
   Mat grayImg;
   checkImage(rgb, grayImg);
@@ -1955,7 +1988,7 @@ int Tracker3D::getFilesCount(string path, string substring) {
 void Tracker3D::drawLearnedFace(const Mat& rgb, int face, Mat& out) {
   rgb.copyTo(out);
 
-  vector<Point3f> facePoints = m_updatedCube.getFacePoints(face);
+  vector<Point3f> facePoints = m_updatedModel.getFacePoints(face);
 
   Point2f a, b, c, d;
   bool isValA, isValB, isValC, isValD;
@@ -2002,7 +2035,7 @@ double Tracker3D::getQuaternionMedianDist(const vector<Quaterniond>& history,
   return median;
 }
 
-bool Tracker3D::findObject(BoundingCube& fst, BoundingCube& upd,
+bool Tracker3D::findObject(ObjectModel& fst, ObjectModel& upd,
                            const Mat& extractedDescriptors,
                            const vector<KeyPoint>& extractedKeypoints,
                            int& faceFound, int& matchesNum) {
@@ -2046,8 +2079,8 @@ bool Tracker3D::findObject(BoundingCube& fst, BoundingCube& upd,
 }
 
 void Tracker3D::drawObjectLocation(Mat& out) {
-  drawBoundingCube(m_updatedCube.m_center, m_updatedCube.m_pointsBack,
-                   m_updatedCube.m_pointsFront, m_focal, m_imageCenter, out);
+  drawBoundingCube(m_updatedModel.m_center, m_updatedModel.m_pointsBack,
+                   m_updatedModel.m_pointsFront, m_focal, m_imageCenter, out);
 }
 
 void Tracker3D::drawRansacEstimation(Mat& out) {
@@ -2070,7 +2103,7 @@ void Tracker3D::drawRansacEstimation(Mat& out) {
     back_points.push_back(obj_centroid + rel_updates[i]);
   }
 
-  drawBoundingCube(m_updatedCube.m_center, back_points, front_points, m_focal,
+  drawBoundingCube(m_updatedModel.m_center, back_points, front_points, m_focal,
                    m_imageCenter, out);
 }
 

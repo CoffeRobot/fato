@@ -36,7 +36,7 @@
 #include <opencv2/core/core.hpp>
 #include <vector>
 
-namespace pinot_tracker{
+namespace pinot_tracker {
 
 class BoundingCube {
  public:
@@ -45,26 +45,39 @@ class BoundingCube {
   void initCube(const cv::Mat& points, const cv::Point2f& top_left,
                 const cv::Point2f& bottom_right);
 
+  void initCube(const cv::Mat& points, const cv::Mat& mask);
+
   void setPerspective(float focal, float cx, float cy);
 
-  void rotate(cv::Point3f center, const cv::Mat& rotation, std::vector<cv::Point3f>& front_rot,
+  void rotate(cv::Point3f center, const cv::Mat& rotation,
+              std::vector<cv::Point3f>& front_rot,
               std::vector<cv::Point3f>& back_rot);
 
-  std::vector<cv::Point3f> getFrontPoints(){return front_points_;}
-  std::vector<cv::Point3f> getBackPoints(){return back_points_;}
+  void estimateDepth(const cv::Mat& points, cv::Point3f center,
+                     const cv::Mat& rotation, cv::Mat& out);
 
+  void linearCC(const cv::Point2f& begin, const cv::Point2f& end,
+                const cv::Mat& points, cv::Point3f& max_depth,
+                std::ofstream& file);
+
+
+  std::vector<cv::Point3f> getFrontPoints() { return front_points_; }
+  std::vector<cv::Point3f> getBackPoints() { return back_points_; }
+
+  cv::Point3f getCentroid() { return centroid_; }
 
  private:
-
   std::vector<cv::Point3f> front_points_;
   std::vector<cv::Point3f> back_points_;
   std::vector<cv::Point3f> front_vectors_;
   std::vector<cv::Point3f> back_vectors_;
 
+  cv::Point3f centroid_;
+
   float focal_, cx_, cy_;
   float max_depth;
 };
 
-} // end namespace
+}  // end namespace
 
 #endif  // CUBEESTIMATOR_H

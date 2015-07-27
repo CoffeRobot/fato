@@ -1,3 +1,35 @@
+/*****************************************************************************/
+/*  Copyright (c) 2015, Alessandro Pieropan                                  */
+/*  All rights reserved.                                                     */
+/*                                                                           */
+/*  Redistribution and use in source and binary forms, with or without       */
+/*  modification, are permitted provided that the following conditions       */
+/*  are met:                                                                 */
+/*                                                                           */
+/*  1. Redistributions of source code must retain the above copyright        */
+/*  notice, this list of conditions and the following disclaimer.            */
+/*                                                                           */
+/*  2. Redistributions in binary form must reproduce the above copyright     */
+/*  notice, this list of conditions and the following disclaimer in the      */
+/*  documentation and/or other materials provided with the distribution.     */
+/*                                                                           */
+/*  3. Neither the name of the copyright holder nor the names of its         */
+/*  contributors may be used to endorse or promote products derived from     */
+/*  this software without specific prior written permission.                 */
+/*                                                                           */
+/*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS      */
+/*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT        */
+/*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR    */
+/*  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT     */
+/*  HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,   */
+/*  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT         */
+/*  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,    */
+/*  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY    */
+/*  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT      */
+/*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
+/*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
+/*****************************************************************************/
+
 #include "../include/pose_estimation.h"
 #include <opencv2/calib3d/calib3d.hpp>
 #include <boost/math/constants/constants.hpp>
@@ -11,13 +43,22 @@ using namespace Eigen;
 namespace pinot_tracker {
 
 void getPoseRansac(const std::vector<cv::Point3f>& model_points,
-                   const std::vector<cv::Point2f>& tracked_points,
+                   const std::vector<cv::Point2f>& tracked_points, int method,
                    const cv::Mat& camera_model, int iterations, float distance,
                    vector<int>& inliers, Mat& rotation, Mat& translation) {
   if (model_points.size() > 4) {
+    Mat rotation_vect;
     solvePnPRansac(model_points, tracked_points, camera_model,
-                   Mat::zeros(1, 8, CV_32F), rotation, translation, false,
-                   iterations, distance, model_points.size(), inliers, CV_ITERATIVE);
+                   Mat::zeros(1, 8, CV_32F), rotation_vect, translation, false,
+                   iterations, distance, model_points.size(), inliers,
+                   CV_ITERATIVE);
+    Rodrigues(rotation_vect, rotation);
+    rotation.convertTo(rotation, CV_32FC1);
+  }
+  else
+  {
+     rotation = Mat(3,3,CV_32FC1,0.0f);
+     translation = Mat(1,3,CV_32FC1,0.0f);
   }
 }
 
@@ -282,9 +323,9 @@ void rotateBBox(const vector<Point3f>& bBox, const Mat& rotation,
   Mat b, b_T, a_T;
 
   for (size_t i = 0; i < 4; i++) {
-    a.at<float>(i, 0) = bBox[i].x;
-    a.at<float>(i, 1) = bBox[i].y;
-    a.at<float>(i, 2) = bBox[i].z;
+    a.at<float>(i, 0) = bBox.at(i).x;
+    a.at<float>(i, 1) = bBox.at(i).y;
+    a.at<float>(i, 2) = bBox.at(i).z;
   }
 
   transpose(a, a_T);
@@ -348,11 +389,6 @@ void rotatePoint(const Vec3f& point, const Mat& rotation,
   updatedPoint.z = b.at<float>(2);
 }
 
-void rotationVecToMat(const Mat& vec, Mat& mat) {
-
-
-
-
-}
+void rotationVecToMat(const Mat& vec, Mat& mat) {}
 
 }  // end namespace

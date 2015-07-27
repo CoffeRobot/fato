@@ -1,9 +1,43 @@
+/*****************************************************************************/
+/*  Copyright (c) 2015, Alessandro Pieropan                                  */
+/*  All rights reserved.                                                     */
+/*                                                                           */
+/*  Redistribution and use in source and binary forms, with or without       */
+/*  modification, are permitted provided that the following conditions       */
+/*  are met:                                                                 */
+/*                                                                           */
+/*  1. Redistributions of source code must retain the above copyright        */
+/*  notice, this list of conditions and the following disclaimer.            */
+/*                                                                           */
+/*  2. Redistributions in binary form must reproduce the above copyright     */
+/*  notice, this list of conditions and the following disclaimer in the      */
+/*  documentation and/or other materials provided with the distribution.     */
+/*                                                                           */
+/*  3. Neither the name of the copyright holder nor the names of its         */
+/*  contributors may be used to endorse or promote products derived from     */
+/*  this software without specific prior written permission.                 */
+/*                                                                           */
+/*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS      */
+/*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT        */
+/*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR    */
+/*  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT     */
+/*  HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,   */
+/*  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT         */
+/*  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,    */
+/*  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY    */
+/*  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT      */
+/*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
+/*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
+/*****************************************************************************/
+#include <iostream>
+#include <visualization_msgs/Marker.h>
+
 #include "../include/projection.h"
 #include "../../utilities/include/draw_functions.h"
 #include "../../utilities/include/profiler.h"
 #include "../../utilities/include/utilities.h"
-#include <iostream>
-#include <visualization_msgs/Marker.h>
+#include "../../tracker/include/bounding_cube.h"
+#include "../../utilities/include/visualization_ros.h"
 
 using namespace cv;
 using namespace std;
@@ -226,90 +260,30 @@ void Projection::analyzeCube(const cv::Mat &disparity, const Point2d &top_left,
        << "\n min point " << min_depth << " max point " << max_depth << endl;
 }
 
-void Projection::publishPose(cv::Point3f &mean_point, cv::Point3f &min_point,
-                             cv::Point3f &max_point) {
-  tf::Vector3 centroid(mean_point.z, -mean_point.x, mean_point.y);
-
-  tf::Transform transform;
-  transform.setOrigin(centroid);
-  transform.setRotation(tf::createIdentityQuaternion());
-
-  transform_broadcaster_.sendTransform(tf::StampedTransform(
-      transform, ros::Time::now(), "camera_rgb_frame", "mean_centroid"));
-
-  visualization_msgs::Marker marker;
-  marker.header.frame_id = "camera_rgb_frame";
-
-  marker.header.stamp = ros::Time::now();
-  marker.type = visualization_msgs::Marker::CUBE;
-  marker.ns = "mean_cuboid";
-  marker.id = 1;
-  marker.action = visualization_msgs::Marker::ADD;
-
-  marker.pose.orientation.x = 0.0;
-  marker.pose.orientation.y = 0.0;
-  marker.pose.orientation.z = 0.0;
-  marker.pose.orientation.w = 1.0;
-
-  marker.color.r = 1.0f;
-  marker.color.g = 0.0f;
-  marker.color.b = 0.0f;
-  marker.color.a = 0.3;
-
-  auto scale_x = max_point.x - min_point.x;
-  auto scale_y = max_point.y - min_point.y;
-  auto scale_z = std::min(scale_x, scale_y);
-
-  marker.pose.position.x = mean_point.z;
-  marker.pose.position.y = mean_point.x;
-  marker.pose.position.z = mean_point.y;
-  marker.scale.x = scale_z;
-  marker.scale.y = scale_x;
-  marker.scale.z = scale_y;
-
-  markers_publisher_.publish(marker);
-}
-
-void Projection::publishPose(Point3f &center, std::vector<Point3f> &back_points,
+void Projection::publishPose(Point3f &center, Eigen::Quaterniond pose,
+                             std::vector<Point3f> &back_points,
                              std::vector<Point3f> &front_points) {
   tf::Vector3 centroid(center.x, center.y, center.z);
 
   tf::Transform transform;
   transform.setOrigin(centroid);
-  transform.setRotation(tf::createIdentityQuaternion());
+  tf::Quaternion q;
+  q.setX(pose.x());
+  q.setY(pose.y());
+  q.setZ(pose.z());
+  q.setW(pose.w());
 
-  transform_broadcaster_.sendTransform(tf::StampedTransform(
-      transform, ros::Time::now(), "camera_rgb_optical_frame", "object_centroid"));
+  transform.setRotation(q);
 
-  visualization_msgs::Marker marker;
-  marker.header.frame_id = "camera_rgb_optical_frame";
+  transform_broadcaster_.sendTransform(
+      tf::StampedTransform(transform, ros::Time::now(),
+                           "camera_rgb_optical_frame", "object_centroid"));
 
-  marker.header.stamp = ros::Time::now();
-  marker.type = visualization_msgs::Marker::CUBE;
-  marker.ns = "bounding_cuboid";
-  marker.id = 1;
-  marker.action = visualization_msgs::Marker::ADD;
+  vector<visualization_msgs::Marker> faces;
 
-  marker.pose.orientation.x = 0.0;
-  marker.pose.orientation.y = 0.0;
-  marker.pose.orientation.z = 0.0;
-  marker.pose.orientation.w = 1.0;
+  getCubeMarker(front_points, back_points, faces);
 
-  marker.color.r = 0.0f;
-  marker.color.g = 1.0f;
-  marker.color.b = 0.0f;
-  marker.color.a = 0.3;
-
-  auto scale_x = front_points.at(1).x - front_points.at(0).x;
-
-  marker.pose.position.x = center.z;
-  marker.pose.position.y = center.x + scale_x / 2.0f;
-  marker.pose.position.z = center.y;
-  marker.scale.x = back_points.at(0).z - front_points.at(0).z;
-  marker.scale.y = front_points.at(1).x - front_points.at(0).x;
-  marker.scale.z = front_points.at(2).y - front_points.at(0).y;
-
-  markers_publisher_.publish(marker);
+  for (auto face : faces) markers_publisher_.publish(face);
 }
 
 void Projection::run() {
@@ -327,6 +301,8 @@ void Projection::run() {
 
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = chrono::system_clock::now();
+
+  BoundingCube cube;
 
   ros::Rate r(100);
   while (ros::ok()) {
@@ -355,26 +331,6 @@ void Projection::run() {
 
         Mat1b mask(depth_image_.rows, depth_image_.cols, uchar(0));
         rectangle(mask, mouse_start_, mouse_end_, uchar(255), -1);
-        Mat3b debug_cloud(mask.rows, mask.cols, Vec3b(0, 0, 0));
-        Mat3b debug_proj(mask.rows, mask.cols, Vec3b(0, 0, 0));
-        for (auto i = 0; i < mask.rows; ++i) {
-          for (auto j = 0; j < mask.cols; ++j) {
-            Vec3f &val = points.at<Vec3f>(i, j);
-            if (mask.at<uchar>(i, j) != 0) {
-              if (val[2] != 0)
-                debug_cloud.at<Vec3b>(i, j) = Vec3b(0, 255, 0);
-              else
-                debug_cloud.at<Vec3b>(i, j) = Vec3b(0, 0, 255);
-            }
-
-            if (val[2] != 0) debug_proj.at<Vec3b>(i, j) = Vec3b(0, 255, 0);
-          }
-        }
-
-        // points = cloud_image_.clone();
-
-        imwrite("/home/alessandro/Debug/mask_debug.png", debug_cloud);
-        imwrite("/home/alessandro/Debug/proj_debug.png", debug_proj);
 
         // cloud_image_.copyTo(points);
         ROS_INFO("INPUT: tracker intialization requested");
@@ -396,17 +352,26 @@ void Projection::run() {
             Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
             tracker.getCurrentCentroid(), center);
         circle(out, center, 5, Scalar(255, 0, 0), -1);
-        imshow("Tracker", out);
+
+        cube.initCube(points, mouse_start_, mouse_end_);
+        cube.setPerspective(params_.camera_model.fx(),
+                            params_.camera_model.cx(),
+                            params_.camera_model.cy());
 
         analyzeCube(points, mouse_start_, mouse_end_, mean_pt, min_pt, max_pt);
 
+        Point2f img_center(params_.camera_model.cx(),
+                           params_.camera_model.cy());
+
+        drawBoundingCube(cube.getFrontPoints(), cube.getBackPoints(),
+                         params_.camera_model.fx(), img_center, out);
+
         cout << "cube centroid " << tracker.getCurrentCentroid() << endl;
 
+        imshow("Tracker", out);
         waitKey(30);
+
       } else if (tracker_initialized_) {
-        Point3f pt = tracker.getCurrentCentroid();
-        auto front_points = tracker.getFrontBB();
-        auto back_points = tracker.getBackBB();
 
         Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
         depthTo3d(depth_image_, params_.camera_model.cx(),
@@ -416,11 +381,18 @@ void Projection::run() {
         // analyzeCube(points, mouse_start_, mouse_end_, mean_pt, min_pt,
         // max_pt);
         Mat out;
-        publishPose(pt, back_points, front_points);
+
         // publishPose(mean_pt, min_pt, max_pt);
         profiler->start("frame_time");
         tracker.next(rgb_image_, points);
         profiler->stop("frame_time");
+
+        Point3f pt = tracker.getCurrentCentroid();
+        auto front_points = tracker.getFrontBB();
+        auto back_points = tracker.getBackBB();
+        Eigen::Quaterniond q = tracker.getPoseQuaternion();
+
+        publishPose(pt, q, back_points, front_points);
 
         end = chrono::system_clock::now();
         float elapsed =
@@ -430,13 +402,14 @@ void Projection::run() {
         ss << "Tracker run in ms: ";
         if (elapsed > 3.0) {
           start = end;
-          ss << profiler->getProfile() << "\n";
+          ss << "\n" << profiler->getProfile() << "\n";
         } else
           ss << profiler->getTime("frame_time") << "\n";
 
         ROS_INFO(ss.str().c_str());
 
         rgb_image_.copyTo(out);
+
         tracker.drawObjectLocation(out);
         Point2f center;
         projectPoint(
@@ -455,22 +428,37 @@ void Projection::run() {
         imshow("Tracker", out);
 
         Mat ransac;
-        rgb_image_.copyTo(ransac);
+        depth_mapped.copyTo(ransac);
 
-        tracker.drawRansacEstimation(ransac);
+        // tracker.drawRansacEstimation(ransac);
+
+        vector<Point3f> front, back;
+        cube.rotate(tracker.getCurrentCentroid(), tracker.getPoseMatrix(),
+                    front, back);
+        drawBoundingCube(
+            front, back, params_.camera_model.fx(),
+            Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
+            ransac);
+
+
+        char c = waitKey(30);
+
+        if (c == 'e') {
+           cube.estimateDepth(points, tracker.getCurrentCentroid(),
+                              tracker.getPoseMatrix(), ransac);
+           cout << "Estimating depth..." << endl;
+           imshow("Tracker_d", ransac);
+           waitKey(0);
+
+        }
 
         imshow("Tracker_d", ransac);
-
-        waitKey(30);
+        if (c == 's') cout << "save" << endl;
       }
 
-      char c = waitKey(30);
 
-      if (c == 'r') {
-        // tracker.clear(), init_requested_ = false;
-        tracker_initialized_ = false;
-      }
-      if (c == 's') cout << "save" << endl;
+
+
 
       img_updated_ = false;
     }

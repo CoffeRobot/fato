@@ -44,7 +44,8 @@ add_library(${PROJECT_NAME}
   src/tracker_2d.cpp
   src/tracker_2d_v2.cpp
   src/tracker_3d.cpp
-  src/borg_cube.cpp
+  src/bounding_cube.cpp
+  src/model.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

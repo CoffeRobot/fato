@@ -40,6 +40,7 @@ add_library(${PROJECT_NAME}
   src/GpuDebugFunctions.cpp
   src/draw_functions.cpp
   src/profiler.cpp
+  src/visualization_ros.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

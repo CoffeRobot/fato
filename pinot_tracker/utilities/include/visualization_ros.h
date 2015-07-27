@@ -30,14 +30,23 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-#include <iostream>
-#include <string>
+#ifndef VISUALIZATION_ROS_H
+#define VISUALIZATION_ROS_H
 
-using namespace std;
+#include <visualization_msgs/Marker.h>
+#include <vector>
+#include <opencv2/core/core.hpp>
 
+namespace pinot_tracker {
 
+void getCubeMarker(const std::vector<cv::Point3f>& front_points,
+                   const std::vector<cv::Point3f>& back_points,
+                   std::vector<visualization_msgs::Marker>& faces);
 
-int main(int argc, char* argv[])
-{
+void getFaceMarker(cv::Point3f a, cv::Point3f b,
+                   cv::Point3f c, cv::Point3f d,
+                   visualization_msgs::Marker& face);
 
-}
+}  // end namespace
+
+#endif  // VISUALIZATION_ROS_H
