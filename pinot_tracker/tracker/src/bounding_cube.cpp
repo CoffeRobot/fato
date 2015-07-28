@@ -111,8 +111,11 @@ void BoundingCube::initCube(const cv::Mat &points, const cv::Point2f &top_left,
   float median_x = min_val.x + (max_val.x - min_val.x)/2.0f;
   float median_y = min_val.y + (max_val.y - min_val.y)/2.0f;
 
+//  centroid_ =
+//      Point3f(median_x, median_y, median_z + (std::min(width, height) / 2.0f));
+
   centroid_ =
-      Point3f(median_x, median_y, median_z + (std::min(width, height) / 2.0f));
+        Point3f(median_x, median_y, median_z);
 
   for (auto i = 0; i < 4; ++i) {
     front_vectors_.at(i) = front_points_.at(i) - centroid_;

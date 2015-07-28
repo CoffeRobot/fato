@@ -341,7 +341,7 @@ void Projection::updateTracker(Tracker3D &tracker)
             params_.camera_model.cy(), params_.camera_model.fx(),
             params_.camera_model.fy(), points);
   profiler->start("frame_time");
-  //tracker.next(rgb_image_, points);
+  tracker.next(rgb_image_, points);
   profiler->stop("frame_time");
 }
 
@@ -464,13 +464,13 @@ void Projection::run() {
 
         try
         {
-          vector<Point3f> front, back;
-          cube.rotate(tracker.getCurrentCentroid(), tracker.getPoseMatrix(),
-                      front, back);
-          drawBoundingCube(
-              front, back, params_.camera_model.fx(),
-              Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
-              ransac);
+//          vector<Point3f> front, back;
+//          cube.rotate(tracker.getCurrentCentroid(), tracker.getPoseMatrix(),
+//                      front, back);
+//          drawBoundingCube(
+//              front, back, params_.camera_model.fx(),
+//              Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
+//              ransac);
         }
         catch(cv::Exception& e)
         {
