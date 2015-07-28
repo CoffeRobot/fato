@@ -121,7 +121,7 @@ void Projection::rgbdCallback(
     const sensor_msgs::ImageConstPtr &rgb_msg,
     const sensor_msgs::CameraInfoConstPtr &camera_info_msg) {
   if (!camera_matrix_initialized_) {
-    ROS_INFO("Init camera parameters");
+    ROS_INFO("Initializing camera parameters...");
 
     Mat camera_matrix_full =
         cv::Mat(3, 4, CV_64F, (void *)camera_info_msg->P.data()).clone();
@@ -137,13 +137,9 @@ void Projection::rgbdCallback(
     params_.camera_model.fromCameraInfo(camera_info_msg);
     params_.camera_matrix = camera_matrix.clone();
 
-    cout << "camera model: " << params_.camera_model.fx() << "\n";
-
-    cout << camera_matrix << endl;
-    cout << params_.camera_model.projectionMatrix() << endl;
-
     //    waitKey(0);
     camera_matrix_initialized_ = true;
+    ROS_INFO("Initialized camera parameters...");
   }
 
   //  cout << " encoding " << depth_msg->encoding << "\n" << endl;
@@ -286,6 +282,117 @@ void Projection::publishPose(Point3f &center, Eigen::Quaterniond pose,
   for (auto face : faces) markers_publisher_.publish(face);
 }
 
+void Projection::initTracker(Tracker3D& tracker, BoundingCube& cube)
+{
+  Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
+  depthTo3d(depth_image_, params_.camera_model.cx(),
+            params_.camera_model.cy(), params_.camera_model.fx(),
+            params_.camera_model.fy(), points);
+
+  Mat1b mask(depth_image_.rows, depth_image_.cols, uchar(0));
+  rectangle(mask, mouse_start_, mouse_end_, uchar(255), -1);
+
+  // cloud_image_.copyTo(points);
+  ROS_INFO("INPUT: tracker intialization requested");
+  if (tracker.init(params_, rgb_image_, points, mouse_start_,
+                   mouse_end_) < 0) {
+    ROS_WARN("Error initializing the tracker!");
+    return;
+  } else {
+    ROS_INFO("Tracker correctly intialized!");
+  }
+
+  init_requested_ = false;
+  tracker_initialized_ = true;
+  Mat out;
+  // tracker.computeNext(rgb_image_, depth_image_, out);
+  rgb_image_.copyTo(out);
+  Point2f center;
+  projectPoint(
+      params_.camera_model.fx(),
+      Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
+      tracker.getCurrentCentroid(), center);
+  circle(out, center, 5, Scalar(255, 0, 0), -1);
+
+  cube.setPerspective(params_.camera_model.fx(),
+                      params_.camera_model.cx(),
+                      params_.camera_model.cy());
+  cube.initCube(points, mouse_start_, mouse_end_);
+
+
+  Point2f img_center(params_.camera_model.cx(),
+                     params_.camera_model.cy());
+
+  drawBoundingCube(cube.getFrontPoints(), cube.getBackPoints(),
+                   params_.camera_model.fx(), img_center, out);
+
+  cout << "cube centroid " << tracker.getCurrentCentroid() << endl;
+  cout << cube.str() << endl;
+
+  imshow("Tracker", out);
+  waitKey(0);
+}
+
+void Projection::updateTracker(Tracker3D &tracker)
+{
+  auto &profiler = Profiler::getInstance();
+  Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
+  depthTo3d(depth_image_, params_.camera_model.cx(),
+            params_.camera_model.cy(), params_.camera_model.fx(),
+            params_.camera_model.fy(), points);
+  profiler->start("frame_time");
+  //tracker.next(rgb_image_, points);
+  profiler->stop("frame_time");
+}
+
+
+void Projection::drawTrackerResults(Tracker3D &tracker)
+{
+  Point3f pt = tracker.getCurrentCentroid();
+  auto front_points = tracker.getFrontBB();
+  auto back_points = tracker.getBackBB();
+  Eigen::Quaterniond q = tracker.getPoseQuaternion();
+
+  Mat out;
+  rgb_image_.copyTo(out);
+
+  try
+  {
+    tracker.drawObjectLocation(out);
+    Point2f center;
+    projectPoint(
+        params_.camera_model.fx(),
+        Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
+        tracker.getCurrentCentroid(), center);
+    circle(out, center, 5, Scalar(255, 0, 0), -1);
+
+    vector<Point3f *> pts, votes;
+    tracker.getActivePoints(pts, votes);
+
+    drawCentroidVotes(pts, votes, Point2f(params_.camera_model.cx(),
+                                          params_.camera_model.cy()),
+                      true, params_.camera_model.fx(), out);
+  }
+  catch(cv::Exception& e)
+  {
+    cout << "error drawing results: " << e.what() << endl;
+    return;
+  }
+
+  try
+  {
+    publishPose(pt, q, back_points, front_points);
+  }
+  catch(cv::Exception& e)
+  {
+    cout << "error publishing the pose: " << e.what() << endl;
+    return;
+  }
+
+  imshow("Tracker", out);
+}
+
+
 void Projection::run() {
   spinner_.start();
 
@@ -297,7 +404,7 @@ void Projection::run() {
   Tracker3D tracker;
 
   auto &profiler = Profiler::getInstance();
-  Point3f mean_pt, min_pt, max_pt;
+
 
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = chrono::system_clock::now();
@@ -324,75 +431,15 @@ void Projection::run() {
       }
 
       if (init_requested_ && !tracker_initialized_) {
-        Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
-        depthTo3d(depth_image_, params_.camera_model.cx(),
-                  params_.camera_model.cy(), params_.camera_model.fx(),
-                  params_.camera_model.fy(), points);
-
-        Mat1b mask(depth_image_.rows, depth_image_.cols, uchar(0));
-        rectangle(mask, mouse_start_, mouse_end_, uchar(255), -1);
-
-        // cloud_image_.copyTo(points);
-        ROS_INFO("INPUT: tracker intialization requested");
-        if (tracker.init(params_, rgb_image_, points, mouse_start_,
-                         mouse_end_) < 0) {
-          ROS_WARN("Error initializing the tracker!");
-          return;
-        } else {
-          ROS_INFO("Tracker correctly intialized!");
-        }
-        init_requested_ = false;
-        tracker_initialized_ = true;
-        Mat out;
-        // tracker.computeNext(rgb_image_, depth_image_, out);
-        rgb_image_.copyTo(out);
-        Point2f center;
-        projectPoint(
-            params_.camera_model.fx(),
-            Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
-            tracker.getCurrentCentroid(), center);
-        circle(out, center, 5, Scalar(255, 0, 0), -1);
-
-        cube.initCube(points, mouse_start_, mouse_end_);
-        cube.setPerspective(params_.camera_model.fx(),
-                            params_.camera_model.cx(),
-                            params_.camera_model.cy());
-
-        analyzeCube(points, mouse_start_, mouse_end_, mean_pt, min_pt, max_pt);
-
-        Point2f img_center(params_.camera_model.cx(),
-                           params_.camera_model.cy());
-
-        drawBoundingCube(cube.getFrontPoints(), cube.getBackPoints(),
-                         params_.camera_model.fx(), img_center, out);
-
-        cout << "cube centroid " << tracker.getCurrentCentroid() << endl;
-
-        imshow("Tracker", out);
-        waitKey(30);
+        initTracker(tracker, cube);
 
       } else if (tracker_initialized_) {
 
-        Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
-        depthTo3d(depth_image_, params_.camera_model.cx(),
-                  params_.camera_model.cy(), params_.camera_model.fx(),
-                  params_.camera_model.fy(), points);
+        updateTracker(tracker);
 
-        // analyzeCube(points, mouse_start_, mouse_end_, mean_pt, min_pt,
-        // max_pt);
-        Mat out;
+        drawTrackerResults(tracker);
 
-        // publishPose(mean_pt, min_pt, max_pt);
-        profiler->start("frame_time");
-        tracker.next(rgb_image_, points);
-        profiler->stop("frame_time");
 
-        Point3f pt = tracker.getCurrentCentroid();
-        auto front_points = tracker.getFrontBB();
-        auto back_points = tracker.getBackBB();
-        Eigen::Quaterniond q = tracker.getPoseQuaternion();
-
-        publishPose(pt, q, back_points, front_points);
 
         end = chrono::system_clock::now();
         float elapsed =
@@ -408,45 +455,38 @@ void Projection::run() {
 
         ROS_INFO(ss.str().c_str());
 
-        rgb_image_.copyTo(out);
 
-        tracker.drawObjectLocation(out);
-        Point2f center;
-        projectPoint(
-            params_.camera_model.fx(),
-            Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
-            tracker.getCurrentCentroid(), center);
-        circle(out, center, 5, Scalar(255, 0, 0), -1);
-
-        vector<Point3f *> pts, votes;
-        tracker.getActivePoints(pts, votes);
-
-        drawCentroidVotes(pts, votes, Point2f(params_.camera_model.cx(),
-                                              params_.camera_model.cy()),
-                          true, params_.camera_model.fx(), out);
-
-        imshow("Tracker", out);
 
         Mat ransac;
         depth_mapped.copyTo(ransac);
 
         // tracker.drawRansacEstimation(ransac);
 
-        vector<Point3f> front, back;
-        cube.rotate(tracker.getCurrentCentroid(), tracker.getPoseMatrix(),
-                    front, back);
-        drawBoundingCube(
-            front, back, params_.camera_model.fx(),
-            Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
-            ransac);
+        try
+        {
+          vector<Point3f> front, back;
+          cube.rotate(tracker.getCurrentCentroid(), tracker.getPoseMatrix(),
+                      front, back);
+          drawBoundingCube(
+              front, back, params_.camera_model.fx(),
+              Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
+              ransac);
+        }
+        catch(cv::Exception& e)
+        {
+          cout << "error drawing the cube " << e.what() << endl;
+          continue;
+        }
+
 
 
         char c = waitKey(30);
 
         if (c == 'e') {
-           cube.estimateDepth(points, tracker.getCurrentCentroid(),
-                              tracker.getPoseMatrix(), ransac);
            cout << "Estimating depth..." << endl;
+//           cube.estimateDepth(points, tracker.getCurrentCentroid(),
+//                              tracker.getPoseMatrix(), ransac);
+//           cout << "Estimated depth..." << endl;
            imshow("Tracker_d", ransac);
            waitKey(0);
 

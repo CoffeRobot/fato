@@ -62,10 +62,7 @@ int Tracker3D::init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
   debug_file_.open("/home/alessandro/Debug/debug.txt");
   params_ = params;
   auto mask = getMask(rgb.rows, rgb.cols, top_left, bottom_right);
-  return init(rgb, points, mask);
-}
 
-int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
   m_focal = params_.camera_model.fx();
   m_imageCenter = Point2f(rgb.cols / 2, rgb.rows / 2);
 
@@ -136,7 +133,7 @@ int Tracker3D::init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask) {
     return -1;
   }
 
-  bouding_cube_.initCube(points, mask);
+  bouding_cube_.initCube(points, top_left, bottom_right);
   m_fstCube.m_center = bouding_cube_.getCentroid();
 
   // initialize bounding box of the learned face
@@ -357,9 +354,6 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   debug_file_ << "RANSAC\n";
   debug_file_ << ransac_rotation_ << "\n";
 
-  // cout << "Rotation type: " << rotation.type() << " " <<
-  // ransac_rotation_.type() << endl;
-
   if (rotation.empty()) {
     isLost = true;
   }
@@ -561,53 +555,8 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
       }
       profiler->stop("matching");
     } else {
-      /*m_debugFile << "Appearance has changed!\n";
-
-      fstDescriptors.release();
-      fstKeypoint.clear();
-      updKeypoint.clear();
-      pointsStatus.clear();
-      for (size_t i = 0; i < m_visibleFaces.size(); i++)
-      {
-              if (m_visibleFaces[i] && m_fstCube.m_isLearned[i])
-              {
-                      if (fstDescriptors.empty())
-                              vconcat(m_fstCube.m_faceDescriptors[i],
-      fstDescriptors);
-                      else
-                              vconcat(m_fstCube.m_faceDescriptors[i],
-      fstDescriptors, fstDescriptors);
-
-                      m_debugFile << "Size of features: " <<
-      m_fstCube.m_faceDescriptors[i].cols
-                              << " " << m_fstCube.m_faceDescriptors[i].rows <<
-      endl;
-
-                      for (int j = 0; j < m_fstCube.m_faceKeypoints[i].size();
-      j++)
-                      {
-                              fstKeypoint.push_back(&m_fstCube.m_faceKeypoints[i][j]);
-                              pointsStatus.push_back(&m_fstCube.m_pointStatus[i][j]);
-                              updKeypoint.push_back(&m_updatedCube.m_faceKeypoints[i][j]);
-                      }
-              }
-      }
-
-      m_debugFile << "Size of features to match: " << fstKeypoint.size() <<
-      "\n";
-      m_debugFile << "Size of feature descriptors: " << fstDescriptors.rows <<
-      "\n";
-
-      numMatches = matchFeaturesCustom(grayImg, cloud, fstDescriptors,
-      fstKeypoint,
-              nextDescriptors, nextKeypoints, updKeypoint, pointsStatus);
-
-      m_debugFile << "Matches found: " << numMatches << "\n";*/
     }
   }
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[14] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
   cout << "14 ";
   /****************************************************************************/
   /*                            RECOVERY                                      */
@@ -620,17 +569,11 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
                             nextKeypoints, faceFound, matchedNum);
 
     if (found) {
-      //      m_debugFile << m_numFrames
-      //                  << " Object found again: " << faceToString(faceFound)
-      //                  << " num matches: " << matchedNum << "\n";
       m_currentFaces.clear();
       m_currentFaces.push_back(faceFound);
       isLost = false;
     }
   }
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[15] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
   cout << "15 ";
   /*********************************************************************************************/
   /*                            SAVING */
@@ -639,11 +582,6 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   m_currFrame = grayImg;
   points.copyTo(m_currCloud);
   m_numFrames++;
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[16] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
-  //  m_frameTime +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - frameStart).count();
   cout << "16\n";
 }
 
@@ -688,6 +626,8 @@ int Tracker3D::matchFeaturesCustom(const Mat& fstDescriptors,
 
   int matchesCount = 0;
 
+
+  //TODO: if the 3d point has no valid depth should not be updated!!
   for (size_t i = 0; i < matches.size(); i++) {
     int queryId = matches[i][0].queryIdx;
     int trainId = matches[i][0].trainIdx;

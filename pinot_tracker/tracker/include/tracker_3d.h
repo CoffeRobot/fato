@@ -89,8 +89,6 @@ class Tracker3D {
   int init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
            cv::Point2d& top_left, cv::Point2d& bottom_right);
 
-  int init(cv::Mat& rgb, cv::Mat& points, cv::Mat& mask);
-
   void clear();
 
   void next(const cv::Mat& rgb, const cv::Mat& points);

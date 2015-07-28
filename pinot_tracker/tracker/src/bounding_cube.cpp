@@ -53,90 +53,63 @@ BoundingCube::BoundingCube()
       back_points_(4, Point3f(0, 0, 0)),
       front_vectors_(4, Point3f(0, 0, 0)),
       back_vectors_(4, Point3f(0, 0, 0)),
-      focal_(0),
+      fx_(0),
       cx_(0),
       cy_(0),
       max_depth(4.0f) {}
 
 void BoundingCube::initCube(const cv::Mat &points, const cv::Point2f &top_left,
                             const cv::Point2f &bottom_right) {
+  // creating bounding box mask
   Mat1b mask(points.rows, points.cols, uchar(0));
   rectangle(mask, top_left, bottom_right, uchar(255));
 
-  initCube(points, mask);
-}
+  Point3f min_val, max_val;
+  float median_z;
+  getValues(points, mask, min_val, max_val, median_z);
 
-void BoundingCube::initCube(const Mat &points, const Mat &mask) {
-  vector<float> depth_x, depth_y, depth_z;
-  Point3f min_depth(numeric_limits<float>::max(), numeric_limits<float>::max(),
-                    numeric_limits<float>::max());
-  Point3f max_depth(-numeric_limits<float>::max(),
-                    -numeric_limits<float>::max(),
-                    -numeric_limits<float>::max());
+  auto projectPoint = [&](const cv::Point2f &pt, float depth,
+                                            cv::Point3f &out)
+  {
+    float xp = pt.x - cx_;
+    float yp = -(pt.y - cy_);
 
-  float average = 0;
-  float counter = 0;
-  for (int i = 0; i < points.rows; ++i) {
-    for (int j = 0; j < points.cols; ++j) {
-      if (mask.at<uchar>(i, j) == 255 && points.at<Vec3f>(i, j)[2] != 0 &&
-          is_valid<float>(points.at<Vec3f>(i, j)[2])) {
-        float x = points.at<Vec3f>(i, j)[0];
-        float y = points.at<Vec3f>(i, j)[1];
-        float z = points.at<Vec3f>(i, j)[2];
+    out.x = xp * depth / fx_;
+    out.y = yp * depth / fx_;
+    out.z = depth;
+  };
 
-        depth_z.push_back(z);
-        depth_x.push_back(x);
-        depth_y.push_back(y);
-        average += z;
+  Point3f tl, br;
+  projectPoint(top_left, median_z, tl);
+  projectPoint(bottom_right, median_z, br);
 
-        min_depth.x = std::min(min_depth.x, x);
-        min_depth.y = std::min(min_depth.y, y);
-        min_depth.z = std::min(min_depth.z, z);
 
-        max_depth.x = std::max(max_depth.x, x);
-        max_depth.y = std::max(max_depth.y, y);
-        max_depth.z = std::max(max_depth.z, z);
+//  front_points_.at(0) = Point3f(min_val.x, min_val.y, median_z);
+//  front_points_.at(1) = Point3f(max_val.x, min_val.y, median_z);
+//  front_points_.at(2) = Point3f(max_val.x, max_val.y, median_z);
+//  front_points_.at(3) = Point3f(min_val.x, max_val.y, median_z);
 
-        counter++;
-      }
-    }
-  }
+  front_points_.at(0) = Point3f(tl.x, tl.y, median_z);
+  front_points_.at(1) = Point3f(br.x, tl.y, median_z);
+  front_points_.at(2) = Point3f(br.x, br.y, median_z);
+  front_points_.at(3) = Point3f(tl.x, br.y, median_z);
 
-  sort(depth_x.begin(), depth_x.end());
-  sort(depth_y.begin(), depth_y.end());
-  sort(depth_z.begin(), depth_z.end());
+  cout << "Computed Box..\n";
+  cout << front_points_.at(0) << " " << front_points_.at(2) << endl;
+  cout << tl << " " << br << endl;
 
-  auto size = depth_x.size();
 
-  if (size == 0) {
-    cout << "No point to calculate median \n";
-    return;
-  }
-  float median_x, median_y, median_z;
-
-  if (size % 2 == 0) {
-    median_x = (depth_x.at(size / 2) + depth_x.at(size / 2 + 1)) / 2.0f;
-    median_y = (depth_y.at(size / 2) + depth_y.at(size / 2 + 1)) / 2.0f;
-    median_z = (depth_z.at(size / 2) + depth_z.at(size / 2 + 1)) / 2.0f;
-  } else {
-    median_x = depth_x.at(size / 2);
-    median_y = depth_y.at(size / 2);
-    median_z = depth_z.at(size / 2);
-  }
-
-  front_points_.at(0) = Point3f(min_depth.x, min_depth.y, median_z);
-  front_points_.at(1) = Point3f(max_depth.x, min_depth.y, median_z);
-  front_points_.at(2) = Point3f(max_depth.x, max_depth.y, median_z);
-  front_points_.at(3) = Point3f(min_depth.x, max_depth.y, median_z);
-
-  float width = max_depth.x - min_depth.x;
-  float height = max_depth.y - min_depth.y;
+  float width = max_val.x - min_val.x;
+  float height = max_val.y - min_val.y;
   float depth = median_z + std::min(width, height);
 
-  back_points_.at(0) = Point3f(min_depth.x, min_depth.y, depth);
-  back_points_.at(1) = Point3f(max_depth.x, min_depth.y, depth);
-  back_points_.at(2) = Point3f(max_depth.x, max_depth.y, depth);
-  back_points_.at(3) = Point3f(min_depth.x, max_depth.y, depth);
+  back_points_.at(0) = Point3f(min_val.x, min_val.y, depth);
+  back_points_.at(1) = Point3f(max_val.x, min_val.y, depth);
+  back_points_.at(2) = Point3f(max_val.x, max_val.y, depth);
+  back_points_.at(3) = Point3f(min_val.x, max_val.y, depth);
+
+  float median_x = min_val.x + (max_val.x - min_val.x)/2.0f;
+  float median_y = min_val.y + (max_val.y - min_val.y)/2.0f;
 
   centroid_ =
       Point3f(median_x, median_y, median_z + (std::min(width, height) / 2.0f));
@@ -148,7 +121,7 @@ void BoundingCube::initCube(const Mat &points, const Mat &mask) {
 }
 
 void BoundingCube::setPerspective(float focal, float cx, float cy) {
-  focal_ = focal;
+  fx_ = focal;
   cx_ = cx;
   cy_ = cy;
 }
@@ -169,13 +142,9 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
                                  const Mat &rotation, Mat &out) {
   vector<Point3f> front, back;
 
-
-
   vector<Point3f> back_vect = back_vectors_;
 
-  for(auto& pt : back_vect)
-      pt.z += 1.5f;
-
+  for (auto &pt : back_vect) pt.z += 1.5f;
 
   rotateBBox(front_vectors_, rotation, front);
   rotateBBox(back_vect, rotation, back);
@@ -188,10 +157,10 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   Point2f center_image(cx_, cy_);
 
   // project to image the points of the cube
-  Point2f top_front = projectPoint(focal_, center_image, front.at(1));
-  Point2f down_front = projectPoint(focal_, center_image, front.at(2));
-  Point2f top_back = projectPoint(focal_, center_image, back.at(1));
-  Point2f down_back = projectPoint(focal_, center_image, back.at(2));
+  Point2f top_front = projectPoint(fx_, center_image, front.at(1));
+  Point2f down_front = projectPoint(fx_, center_image, front.at(2));
+  Point2f top_back = projectPoint(fx_, center_image, back.at(1));
+  Point2f down_back = projectPoint(fx_, center_image, back.at(2));
 
   float step = 3.0f;
   int istep = static_cast<int>(step);
@@ -220,59 +189,71 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   line(out, top_front, top_back, Scalar(0, 255, 0), 1);
   line(out, down_back, top_back, Scalar(0, 255, 0), 1);
 
-//  float alpha_top = (top_back.y - top_front.y) / (top_back.x - top_front.x);
-//  float alpha_down = (down_back.y - down_front.y) / (down_back.x - down_front.x);
+  Mat1b mask(points.rows, points.cols, uchar(0));
+  drawTriangleMask(down_front, down_back, top_front, mask);
+  drawTriangleMask(top_front, down_back, top_back, mask);
 
-//  float y_top = alpha_top * (points.cols - top_front.x) + top_front.y;
-//  float y_down = alpha_down * (points.cols - down_front.x) + down_front.y;
+  imwrite("/home/alessandro/Debug/depth_mask.png", mask);
 
-//  if(alpha_top != alpha_down)
-//  {
-//    float x = alpha_top * top_front.x - alpha_down * down_front.x - top_front.y +
-//             down_front.y;
-//    x = x / (alpha_top - alpha_down);
-//    float y = alpha_top * (x - top_front.x) + top_front.y ;
+  columnwiseStats(points, top_front, top_back, down_front, down_back, file);
 
-//    Mat1b mask(points.rows+2, points.cols+2, uchar(0));
-//    drawTriangleMask(top_front, down_front, Point2f(x,y), mask);
+  //  float alpha_top = (top_back.y - top_front.y) / (top_back.x - top_front.x);
+  //  float alpha_down = (down_back.y - down_front.y) / (down_back.x -
+  // down_front.x);
 
-//    Mat planes[3];
-//    split(points,planes);
+  //  float y_top = alpha_top * (points.cols - top_front.x) + top_front.y;
+  //  float y_down = alpha_down * (points.cols - down_front.x) + down_front.y;
 
-//    floodFill(planes[2], mask, top_front, Scalar(125), NULL, Scalar(0.02f), Scalar(0.02f),
-//            cv::FLOODFILL_MASK_ONLY);
+  //  if(alpha_top != alpha_down)
+  //  {
+  //    float x = alpha_top * top_front.x - alpha_down * down_front.x -
+  // top_front.y +
+  //             down_front.y;
+  //    x = x / (alpha_top - alpha_down);
+  //    float y = alpha_top * (x - top_front.x) + top_front.y ;
 
-//    imwrite("/home/alessandro/Debug/triangle_mask.png", mask);
+  //    Mat1b mask(points.rows+2, points.cols+2, uchar(0));
+  //    drawTriangleMask(top_front, down_front, Point2f(x,y), mask);
 
-//    circle(out, Point2f(x,y), 3, Scalar(255,255,255), -1);
-//  }
+  //    Mat planes[3];
+  //    split(points,planes);
 
+  //    floodFill(planes[2], mask, top_front, Scalar(125), NULL, Scalar(0.02f),
+  // Scalar(0.02f),
+  //            cv::FLOODFILL_MASK_ONLY);
 
-//  line(out, top_front, Point2f(points.cols-1, y_top), Scalar(0, 255, 0), 1);
-//  line(out, down_front, Point2f(points.cols-1, y_down), Scalar(0, 255, 0), 1);
+  //    imwrite("/home/alessandro/Debug/triangle_mask.png", mask);
 
-//  for (auto i = 0; i < istep; ++i) {
-//    front_pts.at(i).x = down_front.x + i * step_front_x;
-//    front_pts.at(i).y = down_front.y + i * step_front_y;
-//    back_pts.at(i).x = down_back.x + i * step_back_x;
-//    back_pts.at(i).y = down_back.y + i * step_back_y;
+  //    circle(out, Point2f(x,y), 3, Scalar(255,255,255), -1);
+  //  }
 
-//    Point3f max_depth;
-//    linearCC(front_pts.at(i), back_pts.at(i), points, max_depth, file);
+  //  line(out, top_front, Point2f(points.cols-1, y_top), Scalar(0, 255, 0), 1);
+  //  line(out, down_front, Point2f(points.cols-1, y_down), Scalar(0, 255, 0),
+  // 1);
 
-//    file << front_pts.at(i) << " " << back_pts.at(i) << " max depth "
-//         << max_depth << "\n";
+  //  for (auto i = 0; i < istep; ++i) {
+  //    front_pts.at(i).x = down_front.x + i * step_front_x;
+  //    front_pts.at(i).y = down_front.y + i * step_front_y;
+  //    back_pts.at(i).x = down_back.x + i * step_back_x;
+  //    back_pts.at(i).y = down_back.y + i * step_back_y;
 
-//    line(out, front_pts.at(i), Point2f(max_depth.x, max_depth.y),
-//         Scalar(0, 0, 255), 1);
-//    line(out, front_pts.at(i), back_pts.at(i), Scalar(0, 255, 0), 1);
-//  }
+  //    Point3f max_depth;
+  //    linearCC(front_pts.at(i), back_pts.at(i), points, max_depth, file);
+
+  //    file << front_pts.at(i) << " " << back_pts.at(i) << " max depth "
+  //         << max_depth << "\n";
+
+  //    line(out, front_pts.at(i), Point2f(max_depth.x, max_depth.y),
+  //         Scalar(0, 0, 255), 1);
+  //    line(out, front_pts.at(i), back_pts.at(i), Scalar(0, 255, 0), 1);
+  //  }
 
   file.close();
 }
 
 void BoundingCube::linearCC(const Point2f &begin, const Point2f &end,
-                            const Mat &points, Point3f &max_depth, ofstream& file) {
+                            const Mat &points, Point3f &max_depth,
+                            ofstream &file) {
   float alpha = (end.y - begin.y) / (end.x - begin.x);
 
   int curr_y = begin.y;
@@ -301,7 +282,7 @@ void BoundingCube::linearCC(const Point2f &begin, const Point2f &end,
 
     if (abs(curr_d - last_d) > 0.02f) break;
 
-    file << curr_x << " " << curr_y << " " << last_d << " "  << curr_d << endl;
+    file << curr_x << " " << curr_y << " " << last_d << " " << curr_d << endl;
 
     last_d = curr_d;
 
@@ -312,6 +293,149 @@ void BoundingCube::linearCC(const Point2f &begin, const Point2f &end,
   max_depth.x = curr_x;
   max_depth.y = curr_y;
   max_depth.z = last_d;
+}
+
+void BoundingCube::columnwiseStats(const Mat &points, const Point2f &top_front,
+                                   const Point2f &top_back,
+                                   const Point2f &down_front,
+                                   const Point2f &down_back, ofstream &file) {
+
+  auto interpolate = [](const cv::Point2f &fst, const cv::Point2f &scd,
+                        std::vector<float> &ys) {
+    auto size = static_cast<int>(scd.x - fst.x);
+    auto step = (fst.y - scd.y) / static_cast<float>(size);
+    ys.resize(size, 0);
+    ys.at(0) = fst.y;
+    for (auto i = 1; i < size; ++i) ys.at(i) = ys.at(i - 1) + step;
+  };
+
+  auto minmax = [](const cv::Point2f &pt, cv::Point2f &min_pt,
+                   cv::Point2f &max_pt) {
+    if (pt.x > max_pt.x) max_pt.x = pt.x;
+    if (pt.y > max_pt.y) max_pt.y = pt.y;
+    if (pt.x < min_pt.x) min_pt.x = pt.x;
+    if (pt.y < min_pt.y) min_pt.y = pt.y;
+  };
+
+  vector<float> top_ys, down_ys;
+
+  interpolate(top_front, top_back, top_ys);
+  interpolate(down_front, down_back, down_ys);
+
+  Point2f min_pt, max_pt;
+
+  min_pt.x = std::numeric_limits<int>::max();
+  min_pt.y = std::numeric_limits<int>::max();
+  max_pt.x = 0;
+  max_pt.y = 0;
+
+  minmax(top_front, min_pt, max_pt);
+  minmax(top_back, min_pt, max_pt);
+  minmax(down_front, min_pt, max_pt);
+  minmax(down_back, min_pt, max_pt);
+
+  file << "INTERPOLATION: \n";
+  file << "minpt " << min_pt << " maxpt " << max_pt << "\n";
+
+  vector<float> avg_depths;
+
+  for (auto j = min_pt.x; j < max_pt.x; ++j) {
+    int counter = 0;
+    float average_depth = 0;
+    for (auto i = min_pt.y; i < max_pt.y; ++i) {
+      if (points.at<Vec3f>(j, i)[2] != 0) {
+        counter++;
+        average_depth += points.at<Vec3f>(j, i)[2];
+      }
+    }
+    if (counter > 0)
+      avg_depths.push_back(average_depth / static_cast<float>(counter));
+    else
+      avg_depths.push_back(0);
+  }
+
+  for (auto i = 0; i < top_ys.size(); ++i) {
+    file << top_ys.at(i) << " " << down_ys.at(i) << "\n";
+  }
+
+  file << "AVERAGES \n";
+  for (auto d : avg_depths) file << d << " ";
+
+  file << "\n";
+}
+
+std::string BoundingCube::str() {
+  stringstream ss;
+  ss << "CUBE VALUES:\n";
+  ss << "center: " << centroid_;
+  ss << "top_left: " << front_points_.at(0);
+  ss << "bottom_left: " << front_points_.at(2) << "\n";
+
+  return ss.str();
+}
+
+void BoundingCube::getValues(const Mat &points, const Mat1b &mask,
+                             Point3f &min_val, Point3f &max_val,
+                             float &median_depth) {
+  vector<float> depth_x, depth_y, depth_z;
+  min_val = Point3f(numeric_limits<float>::max(), numeric_limits<float>::max(),
+                    numeric_limits<float>::max());
+  max_val =
+      Point3f(-numeric_limits<float>::max(), -numeric_limits<float>::max(),
+              -numeric_limits<float>::max());
+
+  float average = 0;
+  float counter = 0;
+  for (int i = 0; i < points.rows; ++i) {
+    for (int j = 0; j < points.cols; ++j) {
+      if (mask.at<uchar>(i, j) == 255 && points.at<Vec3f>(i, j)[2] != 0 &&
+          is_valid<float>(points.at<Vec3f>(i, j)[2])) {
+        float x = points.at<Vec3f>(i, j)[0];
+        float y = points.at<Vec3f>(i, j)[1];
+        float z = points.at<Vec3f>(i, j)[2];
+
+        depth_z.push_back(z);
+        depth_x.push_back(x);
+        depth_y.push_back(y);
+        average += z;
+
+        min_val.x = std::min(min_val.x, x);
+        min_val.y = std::min(min_val.y, y);
+        min_val.z = std::min(min_val.z, z);
+
+        max_val.x = std::max(max_val.x, x);
+        max_val.y = std::max(max_val.y, y);
+        max_val.z = std::max(max_val.z, z);
+
+        counter++;
+      }
+    }
+  }
+
+  sort(depth_x.begin(), depth_x.end());
+  sort(depth_y.begin(), depth_y.end());
+  sort(depth_z.begin(), depth_z.end());
+
+  auto size = depth_x.size();
+
+  if (size == 0) {
+    cout << "No point to calculate median \n";
+    return;
+  }
+  float median_x, median_y, median_z;
+
+  auto half = size / 2;
+  if (size % 2 == 0) {
+    median_x = (depth_x.at(half) + depth_x.at(half + 1)) / 2.0f;
+    median_y = (depth_y.at(half) + depth_y.at(half + 1)) / 2.0f;
+    median_z = (depth_z.at(half) + depth_z.at(half + 1)) / 2.0f;
+  } else {
+    median_x = depth_x.at(half);
+    median_y = depth_y.at(half);
+    median_z = depth_z.at(half);
+  }
+
+  median_depth = median_z;
 }
 
 }  // end namespace

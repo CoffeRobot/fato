@@ -14,6 +14,7 @@
 
 
 #include "constants.h"
+#include "../../tracker/include/bounding_cube.h"
 
 namespace pinot_tracker{
 

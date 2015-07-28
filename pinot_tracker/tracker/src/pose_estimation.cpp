@@ -52,8 +52,17 @@ void getPoseRansac(const std::vector<cv::Point3f>& model_points,
                    Mat::zeros(1, 8, CV_32F), rotation_vect, translation, false,
                    iterations, distance, model_points.size(), inliers,
                    CV_ITERATIVE);
-    Rodrigues(rotation_vect, rotation);
-    rotation.convertTo(rotation, CV_32FC1);
+
+    try
+    {
+      Rodrigues(rotation_vect, rotation);
+      rotation.convertTo(rotation, CV_32FC1);
+    }
+    catch(cv::Exception& e)
+    {
+      cout << "Error estimating ransac rotation: " << e.what() << endl;
+    }
+
   }
   else
   {
@@ -118,6 +127,8 @@ void getPose2D(const std::vector<cv::Point2f*>& model_points,
     scale = scales[scale_size / 2];
 }
 
+
+//TODO: implement ransac approach for better SVD estimation
 Mat getRigidTransform(Mat& a, Mat& b) {
   int numRows = a.rows;
 

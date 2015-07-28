@@ -35,6 +35,7 @@
 
 #include <opencv2/core/core.hpp>
 #include <vector>
+#include <iostream>
 
 namespace pinot_tracker {
 
@@ -44,8 +45,6 @@ class BoundingCube {
 
   void initCube(const cv::Mat& points, const cv::Point2f& top_left,
                 const cv::Point2f& bottom_right);
-
-  void initCube(const cv::Mat& points, const cv::Mat& mask);
 
   void setPerspective(float focal, float cx, float cy);
 
@@ -60,13 +59,23 @@ class BoundingCube {
                 const cv::Mat& points, cv::Point3f& max_depth,
                 std::ofstream& file);
 
+  void columnwiseStats(const cv::Mat& points, const cv::Point2f& top_front,
+                       const cv::Point2f& top_back,
+                       const cv::Point2f& down_front,
+                       const cv::Point2f& down_back, std::ofstream& file);
 
   std::vector<cv::Point3f> getFrontPoints() { return front_points_; }
   std::vector<cv::Point3f> getBackPoints() { return back_points_; }
 
   cv::Point3f getCentroid() { return centroid_; }
 
+  std::string str();
+
  private:
+  void getValues(const cv::Mat& points, const cv::Mat1b& mask,
+                 cv::Point3f& min_val, cv::Point3f& max_val,
+                 float& median_depth);
+
   std::vector<cv::Point3f> front_points_;
   std::vector<cv::Point3f> back_points_;
   std::vector<cv::Point3f> front_vectors_;
@@ -74,7 +83,7 @@ class BoundingCube {
 
   cv::Point3f centroid_;
 
-  float focal_, cx_, cy_;
+  float fx_, cx_, cy_;
   float max_depth;
 };
 
