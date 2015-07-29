@@ -86,10 +86,10 @@ class Projection {
 
   void initTracker(Tracker3D& tracker, BoundingCube& cube);
 
-  void updateTracker(Tracker3D& tracker);
+  void updateTracker(Tracker3D& tracker, const cv::Mat3f& points);
 
   void estimateCube(Tracker3D& tracker, BoundingCube& cube,
-                    const cv::Mat& points, cv::Mat& out);
+                    const cv::Mat3f& points, cv::Mat& out);
 
   void drawTrackerResults(Tracker3D& tracker, cv::Mat& out);
 

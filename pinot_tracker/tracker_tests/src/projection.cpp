@@ -326,14 +326,15 @@ void Projection::initTracker(Tracker3D &tracker, BoundingCube &cube) {
   waitKey(0);
 }
 
-void Projection::updateTracker(Tracker3D &tracker) {
+void Projection::updateTracker(Tracker3D &tracker, const Mat3f & points) {
+  auto &profiler = Profiler::getInstance();
   profiler->start("frame_time");
   tracker.next(rgb_image_, points);
   profiler->stop("frame_time");
 }
 
 void Projection::estimateCube(Tracker3D &tracker, BoundingCube &cube,
-                              const Mat &points, Mat &out) {
+                              const Mat3f &points, Mat &out) {
   cube.estimateDepth(points, tracker.getCurrentCentroid(),
                      tracker.getPoseMatrix(), out);
 }
@@ -429,11 +430,11 @@ void Projection::run() {
         rgb_image_.copyTo(tmp);
         experiments_out = depth_mapped.clone();
         cout << "updating tracker " << endl;
-        updateTracker(tracker);
+        updateTracker(tracker, points);
         cout << "drawing tracker " << endl;
         drawTrackerResults(tracker, tmp);
         cout << "estimating cube depth " << endl;
-        estimateCube(tracker, cube, experiments_out);
+        estimateCube(tracker, cube, points, experiments_out);
 
         rgb_out = tmp.clone();
 
