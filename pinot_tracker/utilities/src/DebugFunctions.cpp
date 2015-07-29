@@ -568,6 +568,11 @@ void drawInformationHeaderICRA(Point2f& top, const string frame,
 
 void scanLine(const Point2f& a, const Point2f& b, const int minY,
               vector<int>& mins, vector<int>& maxs) {
+
+
+  if(mins.size() == 0 || maxs.size() == 0)
+      return;
+
   int deltaY = abs(a.y - b.y);
 
   int offset = min(a.y, b.y) - minY;
@@ -580,8 +585,8 @@ void scanLine(const Point2f& a, const Point2f& b, const int minY,
 
   for (size_t i = 0; i < deltaY; i++) {
     int xVal = static_cast<int>(minX + i * step);
-    mins[i + offset] = min(mins[i + offset], xVal);
-    maxs[i + offset] = max(maxs[i + offset], xVal);
+    mins.at(i + offset) = min(mins.at(i + offset), xVal);
+    maxs.at(i + offset) = max(maxs.at(i + offset), xVal);
   }
 }
 
@@ -595,6 +600,9 @@ void drawTriangle(const Point2f& a, const Point2f& b, const Point2f& c,
 
   int deltaY = maxY - minY;
 
+  if(deltaY <= 0)
+      return;
+
   vector<int> minXs(deltaY, numeric_limits<int>::max());
   vector<int> maxXs(deltaY, 0);
 
@@ -605,7 +613,7 @@ void drawTriangle(const Point2f& a, const Point2f& b, const Point2f& c,
   for (size_t i = 0; i < minXs.size(); i++) {
     int y = i + minY;
 
-    for (size_t j = minXs[i]; j <= maxXs[i]; j++) {
+    for (size_t j = minXs.at(i); j <= maxXs.at(i); j++) {
       out.at<Vec3b>(y, j) = (1 - alpha) * out.at<Vec3b>(y, j) +
                             alpha * Vec3b(color[0], color[1], color[2]);
     }

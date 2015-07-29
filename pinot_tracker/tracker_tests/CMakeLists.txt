@@ -62,16 +62,5 @@ add_executable(test_projection
 target_link_libraries(test_projection
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
+  ${PCL_LIBRARIES}
 )
-
-
-#add_executable(cloud_publisher
-#    src/cloud_publisher.cpp)
-
-#target_link_libraries(cloud_publisher
-#  ${catkin_LIBRARIES}
-#  ${OpenCV_LIBS}
-#  ${PCL_LIBRARIES}
-#)
-
-#MESSAGE( STATUS "PCL INCLUDES:         " ${PCL_INCLUDE_DIRS} )

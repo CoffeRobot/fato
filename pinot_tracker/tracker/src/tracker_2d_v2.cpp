@@ -52,29 +52,30 @@ using namespace cv;
 namespace pinot_tracker {
 
 TrackerV2::TrackerV2()
-    : matcher_confidence_(0.8), matcher_ratio_(0.8), m_featuresDetector() {
+    : matcher_confidence_(0.75),
+      matcher_ratio_(0.75),
+      m_featuresDetector(30, 3, 1.0f) {
   m_featuresDetector.create("Feature2D.BRISK");
 }
 
 TrackerV2::TrackerV2(const TrackerParams& params)
-    : matcher_confidence_(0.8), matcher_ratio_(0.8), m_featuresDetector() {
+    : matcher_confidence_(0.75),
+      matcher_ratio_(0.75),
+      m_featuresDetector(30, 3, 1.0f) {
   m_featuresDetector.create("Feature2D.BRISK");
 }
 
 TrackerV2::TrackerV2(const TrackerParams& params, const cv::Mat& camera_matrix)
-    : matcher_confidence_(0.8),
-      matcher_ratio_(0.8),
-      m_featuresDetector(),
+    : matcher_confidence_(0.75),
+      matcher_ratio_(0.75),
+      m_featuresDetector(30, 3, 1.0f),
       camera_matrix_(camera_matrix) {
   m_featuresDetector.create("Feature2D.BRISK");
   ransac_iterations_ = params.ransac_iterations;
   ransac_distance_ = params.ransac_distance;
 }
 
-TrackerV2::~TrackerV2()
-{
-    taskFinished();
-}
+TrackerV2::~TrackerV2() { taskFinished(); }
 
 bool TrackerV2::isPointValid(const int& id) {
   return m_pointsStatus[id] == Status::TRACK;
@@ -681,12 +682,14 @@ void TrackerV2::trackNext(Mat next) {
   /*                             POSE ESTIMATION /
   /*************************************************************************************/
   auto& profiler = Profiler::getInstance();
-//  profiler->start("pose");
-//  float angle = getMedianRotation(m_points, m_updatedPoints, m_upd_to_init_ids);
-//  float scale = getMedianScale(m_points, m_updatedPoints, m_upd_to_init_ids);
-//  m_angle = angle;
-//  m_scale = scale;
-//  profiler->stop("pose");
+  //  profiler->start("pose");
+  //  float angle = getMedianRotation(m_points, m_updatedPoints,
+  //  m_upd_to_init_ids);
+  //  float scale = getMedianScale(m_points, m_updatedPoints,
+  //  m_upd_to_init_ids);
+  //  m_angle = angle;
+  //  m_scale = scale;
+  //  profiler->stop("pose");
 
   vector<Point2f*> model_pts;
   vector<Point2f*> tracked_pts;
@@ -696,20 +699,22 @@ void TrackerV2::trackNext(Mat next) {
   float scale, angle;
   getPose2D(model_pts, tracked_pts, scale, angle);
   profiler->stop("pose_n");
-//  cout << "angle: " << angle << " - " << angle_n << " scale " << scale << " - "
-//       << scale_n << "\n";
+  //  cout << "angle: " << angle << " - " << angle_n << " scale " << scale << "
+  //  - "
+  //       << scale_n << "\n";
 
-
-//  vector<Point3f> model_pts_alt;
-//  vector<Point2f> tracked_pts_alt;
-//  getTrackedPoints(m_points, m_updatedPoints, m_upd_to_init_ids, model_pts_alt,
-//                   tracked_pts_alt);
-//  vector<int> inliers;
-//  Mat rotation, translation;
-//  profiler->start("ransac");
-//  getPose2D(model_pts_alt, tracked_pts_alt, camera_matrix_, ransac_iterations_,
-//            ransac_distance_, inliers, rotation, translation);
-//  profiler->stop("ransac");
+  //  vector<Point3f> model_pts_alt;
+  //  vector<Point2f> tracked_pts_alt;
+  //  getTrackedPoints(m_points, m_updatedPoints, m_upd_to_init_ids,
+  //  model_pts_alt,
+  //                   tracked_pts_alt);
+  //  vector<int> inliers;
+  //  Mat rotation, translation;
+  //  profiler->start("ransac");
+  //  getPose2D(model_pts_alt, tracked_pts_alt, camera_matrix_,
+  //  ransac_iterations_,
+  //            ransac_distance_, inliers, rotation, translation);
+  //  profiler->stop("ransac");
 
   // angle = 0;
   // m_angle = 0.0f;
@@ -947,7 +952,7 @@ void TrackerV2::getTrackedPoints(std::vector<cv::Point2f>& model_pts,
                                  std::vector<cv::Point2f>& current_valid_pts) {
   for (auto i = 0; i < model_pts.size(); ++i) {
     if (isPointValid(ids[i])) {
-      model_valid_pts.push_back(Point3f(model_pts[i].x, model_pts[i].y,0));
+      model_valid_pts.push_back(Point3f(model_pts[i].x, model_pts[i].y, 0));
       current_valid_pts.push_back(current_pts[i]);
     }
   }

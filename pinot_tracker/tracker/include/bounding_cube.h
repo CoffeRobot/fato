@@ -48,6 +48,12 @@ class BoundingCube {
 
   void setPerspective(float fx, float fy, float cx, float cy);
 
+  void setVects(std::vector<cv::Point3f> front,
+                std::vector<cv::Point3f> back) {
+    front_vectors_ = front;
+    back_vectors_ = back;
+  }
+
   void rotate(cv::Point3f center, const cv::Mat& rotation,
               std::vector<cv::Point3f>& front_rot,
               std::vector<cv::Point3f>& back_rot);
@@ -56,8 +62,7 @@ class BoundingCube {
                      const cv::Mat& rotation, cv::Mat& out);
 
   void linearCC(const cv::Point2f& begin, const cv::Point2f& end,
-                const cv::Mat& points, cv::Point3f& max_depth,
-                std::ofstream& file);
+                const cv::Mat &points, cv::Point3f& max_depth);
 
   void columnwiseStats(const cv::Mat& points, const cv::Point2f& top_front,
                        const cv::Point2f& top_back,

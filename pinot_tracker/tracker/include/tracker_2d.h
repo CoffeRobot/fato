@@ -61,7 +61,7 @@ class Tracker2D {
  public:
   Tracker2D(const TrackerParams& params)
       : params_(params),
-        m_featuresDetector(),
+        m_featuresDetector(30, 3, 1.0f),
         m_featureMatcher(new cv::BFMatcher(cv::NORM_HAMMING, true)),
         m_prevFrame(),
         m_dbClusterer() {

@@ -76,23 +76,22 @@ bool projectPoint(const float focal, const cv::Point2f& center,
 }
 
 bool projectPoint(const float focal, const cv::Point2f& center,
-                  const cv::Point3f* src, cv::Point2f& dst)
-{
-    if (src->z == 0) return false;
+                  const cv::Point3f* src, cv::Point2f& dst) {
+  if (src->z == 0) return false;
 
-    dst.x = (focal * src->x / src->z) + center.x;
-    dst.y = (center.y - (focal * src->y / src->z));
+  dst.x = (focal * src->x / src->z) + center.x;
+  dst.y = (center.y - (focal * src->y / src->z));
 
-    if (dst.x < 0 || dst.x > center.x * 2) return false;
-    if (dst.y < 0 || dst.y > center.y * 2) return false;
+  if (dst.x < 0 || dst.x > center.x * 2) return false;
+  if (dst.y < 0 || dst.y > center.y * 2) return false;
 
-    if (isnan(dst.x) || isnan(dst.y)) return false;
+  if (isnan(dst.x) || isnan(dst.y)) return false;
 
-    return true;
+  return true;
 }
 
-void depthTo3d(const cv::Mat& disparity, float cx, float cy,
-                      float fx, float fy, cv::Mat3f& depth) {
+void depthTo3d(const cv::Mat& disparity, float cx, float cy, float fx, float fy,
+               cv::Mat3f& depth) {
   int cols = disparity.cols;
   int rows = disparity.rows;
 
@@ -101,23 +100,19 @@ void depthTo3d(const cv::Mat& disparity, float cx, float cy,
 
   for (size_t y = 0; y < rows; y++) {
     for (size_t x = 0; x < cols; x++) {
-
-
       uint16_t val = disparity.at<uint16_t>(y, x);
       float d = static_cast<float>(val);
 
-      if(!is_valid(val))
-          continue;
-      if(val == 0)
-          continue;
+      if (!is_valid(val)) continue;
+      if (val == 0) continue;
 
-      if(d == 0)
-          continue;
+      if (d == 0) continue;
 
       float xp = x - cx;
       float yp = -(y - cy);
 
-      float Z = DepthTraits<uint16_t>::toMeters(d);;
+      float Z = DepthTraits<uint16_t>::toMeters(d);
+      ;
       float X = xp * Z / fx;
       float Y = yp * Z / fy;
 
@@ -126,6 +121,44 @@ void depthTo3d(const cv::Mat& disparity, float cx, float cy,
   }
 }
 
+void cvToPcl(const cv::Mat3f& points, pcl::PointCloud<pcl::PointXYZ>& cloud) {
+  int width = points.cols, height = points.rows;
 
+  cloud.points.resize(width * height);
+  cloud.width = width;
+  cloud.height = height;
 
+  for (int v = 0; v < height; ++v) {
+    for (int u = 0; u < width; ++u) {
+      auto& point = points.at<cv::Vec3f>(v, u);
+      pcl::PointXYZ& p = cloud(u, v);
+      p.x = point[0];
+      p.y = point[1];
+      p.z = point[2];
+    }
+  }
+}
+
+void cvToPcl(const cv::Mat3f& points, const cv::Mat1b& mask,
+             pcl::PointCloud<pcl::PointXYZ>& cloud) {
+  int width = points.cols, height = points.rows;
+
+  cloud.points.resize(width * height);
+  cloud.width = width;
+  cloud.height = height;
+
+  for (int v = 0; v < height; ++v) {
+    for (int u = 0; u < width; ++u) {
+      auto& point = points.at<cv::Vec3f>(v, u);
+      pcl::PointXYZ& p = cloud(u, v);
+      if (mask.at<uchar>(u, v) == 255) {
+        p.x = point[0];
+        p.y = point[1];
+        p.z = point[2];
+      } else {
+        p.x = p.y = p.z = 0;
+      }
+    }
+  }
+}
 }  // end namespace

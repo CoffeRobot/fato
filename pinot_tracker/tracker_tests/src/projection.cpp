@@ -149,9 +149,11 @@ void Projection::rgbdCallback(
   readImage(rgb_msg, rgb);
   readImage(depth_msg, depth);
 
-  rgb_image_ = rgb;
-  depth_image_ = depth;
+  input_mutex.lock();
+  rgb_image_ = rgb.clone();
+  depth_image_ = depth.clone();
   img_updated_ = true;
+  input_mutex.unlock();
 }
 
 void Projection::rgbCallback(
@@ -179,81 +181,6 @@ void Projection::initRGBD() {
                                         sub_rgb_, sub_camera_info_));
   sync_rgbd_->registerCallback(
       boost::bind(&Projection::rgbdCallback, this, _1, _2, _3));
-}
-
-void Projection::analyzeCube(const cv::Mat &disparity, const Point2d &top_left,
-                             const Point2d &bottom_right, Point3f &median_p,
-                             Point3f &min_p, Point3f &max_p) {
-  Mat1b mask(disparity.rows, disparity.cols, uchar(0));
-  rectangle(mask, top_left, bottom_right, 255, -1);
-
-  vector<float> depth_x, depth_y, depth_z;
-  Point3f min_depth(numeric_limits<float>::max(), numeric_limits<float>::max(),
-                    numeric_limits<float>::max());
-  Point3f max_depth(-numeric_limits<float>::max(),
-                    -numeric_limits<float>::max(),
-                    -numeric_limits<float>::max());
-
-  float average = 0;
-  float counter = 0;
-  for (int i = 0; i < disparity.rows; ++i) {
-    for (int j = 0; j < disparity.cols; ++j) {
-      if (mask.at<uchar>(i, j) == 255 && disparity.at<Vec3f>(i, j)[2] != 0 &&
-          is_valid<float>(disparity.at<Vec3f>(i, j)[2])) {
-        float x = disparity.at<Vec3f>(i, j)[0];
-        float y = disparity.at<Vec3f>(i, j)[1];
-        float z = disparity.at<Vec3f>(i, j)[2];
-
-        depth_z.push_back(z);
-        depth_x.push_back(x);
-        depth_y.push_back(y);
-        average += z;
-
-        min_depth.x = std::min(min_depth.x, x);
-        min_depth.y = std::min(min_depth.y, y);
-        min_depth.z = std::min(min_depth.z, z);
-
-        max_depth.x = std::max(max_depth.x, x);
-        max_depth.y = std::max(max_depth.y, y);
-        max_depth.z = std::max(max_depth.z, z);
-
-        counter++;
-      }
-    }
-  }
-
-  sort(depth_x.begin(), depth_x.end());
-  sort(depth_y.begin(), depth_y.end());
-  sort(depth_z.begin(), depth_z.end());
-
-  auto size = depth_x.size();
-
-  if (size == 0) {
-    cout << "No point to calculate median \n";
-    return;
-  }
-  float median_x, median_y, median_z;
-
-  if (size % 2 == 0) {
-    median_x = (depth_x.at(size / 2) + depth_x.at(size / 2 + 1));
-    median_y = (depth_y.at(size / 2) + depth_y.at(size / 2 + 1));
-    median_z = (depth_z.at(size / 2) + depth_z.at(size / 2 + 1));
-  } else {
-    median_x = depth_x.at(size / 2);
-    median_y = depth_y.at(size / 2);
-    median_z = depth_z.at(size / 2);
-  }
-
-  median_p.x = median_x;
-  median_p.y = median_y;
-  median_p.z = median_z;
-
-  min_p = min_depth;
-  max_p = max_depth;
-
-  cout << "depth: avg " << average / counter << " median x " << median_x
-       << " median y " << median_y << " median z " << median_z
-       << "\n min point " << min_depth << " max point " << max_depth << endl;
 }
 
 void Projection::publishPose(Point3f &center, Eigen::Quaterniond pose,
@@ -313,6 +240,8 @@ void Projection::initTracker(Tracker3D &tracker, BoundingCube &cube) {
   cube.setPerspective(params_.camera_model.fx(), params_.camera_model.fy(),
                       params_.camera_model.cx(), params_.camera_model.cy());
   cube.initCube(points, mouse_start_, mouse_end_);
+  cube.setVects(tracker.getFrontVects(), tracker.getBackVects());
+
 
   Point2f img_center(params_.camera_model.cx(), params_.camera_model.cy());
 
@@ -335,8 +264,19 @@ void Projection::updateTracker(Tracker3D &tracker, const Mat3f & points) {
 
 void Projection::estimateCube(Tracker3D &tracker, BoundingCube &cube,
                               const Mat3f &points, Mat &out) {
+  auto& profiler = Profiler::getInstance();
+
+  profiler->start("cube");
+  pcl::PointCloud<pcl::PointXYZ> cloud;
+  cvToPcl(points, cloud);
+
   cube.estimateDepth(points, tracker.getCurrentCentroid(),
                      tracker.getPoseMatrix(), out);
+  profiler->stop("cube");
+
+  Point2f img_center(params_.camera_model.cx(), params_.camera_model.cy());
+//  drawBoundingCube(cube.getCentroid(), cube.getFrontPoints(), cube.getBackPoints(),
+//                   params_.camera_model.fx(), img_center, out);
 }
 
 void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
@@ -421,10 +361,13 @@ void Projection::run() {
         experiments_out = depth_mapped.clone();
       } else if (tracker_initialized_) {
         // getting 3d points from disparity
+        cout << "getting 3d points " << endl;
+        input_mutex.lock();
         Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
         depthTo3d(depth_image_, params_.camera_model.cx(),
                   params_.camera_model.cy(), params_.camera_model.fx(),
                   params_.camera_model.fy(), points);
+        input_mutex.unlock();
 
         Mat tmp;
         rgb_image_.copyTo(tmp);
@@ -435,6 +378,8 @@ void Projection::run() {
         drawTrackerResults(tracker, tmp);
         cout << "estimating cube depth " << endl;
         estimateCube(tracker, cube, points, experiments_out);
+        cout << "estimated cube depth " << endl;
+
 
         rgb_out = tmp.clone();
 

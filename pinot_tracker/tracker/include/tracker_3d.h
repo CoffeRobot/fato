@@ -101,6 +101,8 @@ class Tracker3D {
 
   std::vector<cv::Point3f> getFrontBB() { return m_updatedModel.m_pointsFront; }
   std::vector<cv::Point3f> getBackBB() { return m_updatedModel.m_pointsBack; }
+  std::vector<cv::Point3f> getFrontVects(){ return m_fstCube.m_relativeDistFront;}
+  std::vector<cv::Point3f> getBackVects(){return m_fstCube.m_relativeDistBack;}
 
   void getActivePoints(std::vector<cv::Point3f *> &points,
                         std::vector<cv::Point3f *> &votes);

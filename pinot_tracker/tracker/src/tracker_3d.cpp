@@ -416,7 +416,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   //  start = chrono::system_clock::now();
   if (!isLost) {
     profiler->start("update");
-    updateCentroid(pointsStatus, rotation);
+    updateCentroid(pointsStatus, updated_rotation_);
     profiler->stop("update");
   }
   m_updatedModel.m_center = m_updatedCentroid;
@@ -1070,14 +1070,14 @@ void Tracker3D::updateCentroid(const vector<Status*>& keypointStatus,
   rotateBBox(m_fstCube.m_relativeDistFront, rotation, updatedPoints);
 
   for (int i = 0; i < m_fstCube.m_pointsFront.size(); ++i) {
-    m_updatedModel.m_pointsFront[i] = m_updatedCentroid + updatedPoints[i];
+    m_updatedModel.m_pointsFront.at(i) = m_updatedCentroid + updatedPoints.at(i);
   }
 
   updatedPoints.clear();
   rotateBBox(m_fstCube.m_relativeDistBack, rotation, updatedPoints);
 
   for (int i = 0; i < m_fstCube.m_pointsBack.size(); ++i) {
-    m_updatedModel.m_pointsBack[i] = m_updatedCentroid + updatedPoints[i];
+    m_updatedModel.m_pointsBack.at(i) = m_updatedCentroid + updatedPoints.at(i);
   }
 }
 

@@ -46,6 +46,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/core/core.hpp>
 #include <string>
+#include <mutex>
 #include "../../tracker/include/tracker_3d.h"
 
 namespace pinot_tracker {
@@ -75,10 +76,6 @@ class Projection {
   void initRGBD();
 
   void getTrackerParameters();
-
-  void analyzeCube(const cv::Mat& disparity, const cv::Point2d& top_left,
-                   const cv::Point2d& bottom_right, cv::Point3f& median_p,
-                   cv::Point3f& min_p, cv::Point3f& max_p);
 
   void publishPose(cv::Point3f& centroid, Eigen::Quaterniond pose,
                    std::vector<cv::Point3f>& back_points,
@@ -126,6 +123,9 @@ class Projection {
 
   ros::AsyncSpinner spinner_;
   ros::Publisher publisher_, markers_publisher_;
+
+  std::mutex input_mutex;
+
 };
 
 }  // end namespace
