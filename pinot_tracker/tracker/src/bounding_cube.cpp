@@ -41,6 +41,7 @@
 #include "../include/bounding_cube.h"
 #include "../../utilities/include/utilities.h"
 #include "../../utilities/include/DebugFunctions.h"
+#include "../../utilities/include/draw_functions.h"
 #include "../include/pose_estimation.h"
 
 using namespace cv;
@@ -75,7 +76,7 @@ void BoundingCube::initCube(const cv::Mat &points, const cv::Point2f &top_left,
     float yp = -(pt.y - cy_);
 
     out.x = xp * depth / fx_;
-    out.y = yp * depth / fx_;
+    out.y = yp * depth / fy_;
     out.z = depth;
   };
 
@@ -83,21 +84,10 @@ void BoundingCube::initCube(const cv::Mat &points, const cv::Point2f &top_left,
   projectPoint(top_left, median_z, tl);
   projectPoint(bottom_right, median_z, br);
 
-
-//  front_points_.at(0) = Point3f(min_val.x, min_val.y, median_z);
-//  front_points_.at(1) = Point3f(max_val.x, min_val.y, median_z);
-//  front_points_.at(2) = Point3f(max_val.x, max_val.y, median_z);
-//  front_points_.at(3) = Point3f(min_val.x, max_val.y, median_z);
-
   front_points_.at(0) = Point3f(tl.x, tl.y, median_z);
   front_points_.at(1) = Point3f(br.x, tl.y, median_z);
   front_points_.at(2) = Point3f(br.x, br.y, median_z);
   front_points_.at(3) = Point3f(tl.x, br.y, median_z);
-
-  cout << "Computed Box..\n";
-  cout << front_points_.at(0) << " " << front_points_.at(2) << endl;
-  cout << tl << " " << br << endl;
-
 
   float width = max_val.x - min_val.x;
   float height = max_val.y - min_val.y;
@@ -111,9 +101,6 @@ void BoundingCube::initCube(const cv::Mat &points, const cv::Point2f &top_left,
   float median_x = min_val.x + (max_val.x - min_val.x)/2.0f;
   float median_y = min_val.y + (max_val.y - min_val.y)/2.0f;
 
-//  centroid_ =
-//      Point3f(median_x, median_y, median_z + (std::min(width, height) / 2.0f));
-
   centroid_ =
         Point3f(median_x, median_y, median_z);
 
@@ -123,8 +110,9 @@ void BoundingCube::initCube(const cv::Mat &points, const cv::Point2f &top_left,
   }
 }
 
-void BoundingCube::setPerspective(float focal, float cx, float cy) {
-  fx_ = focal;
+void BoundingCube::setPerspective(float fx, float fy, float cx, float cy) {
+  fx_ = fx;
+  fy_ = fy;
   cx_ = cx;
   cy_ = cy;
 }
@@ -165,40 +153,44 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   Point2f top_back = projectPoint(fx_, center_image, back.at(1));
   Point2f down_back = projectPoint(fx_, center_image, back.at(2));
 
-  float step = 3.0f;
-  int istep = static_cast<int>(step);
+  Scalar color(0,255,255);
+  drawBoundingCube(front, back, fx_, center_image, color, 2, out);
 
-  // define front and back step
-  float step_front_x = (top_front.x - down_front.x) / step;
-  float step_front_y = (top_front.y - down_front.y) / step;
 
-  float step_back_x = (top_back.x - down_back.x) / step;
-  float step_back_y = (top_back.y - down_back.y) / step;
+//  float step = 3.0f;
+//  int istep = static_cast<int>(step);
 
-  vector<Point2f> front_pts(istep, Point2f());
-  vector<Point2f> back_pts(istep, Point2f());
+//  // define front and back step
+//  float step_front_x = (top_front.x - down_front.x) / step;
+//  float step_front_y = (top_front.y - down_front.y) / step;
 
-  ofstream file("/home/alessandro/Debug/depth_estimation.txt");
+//  float step_back_x = (top_back.x - down_back.x) / step;
+//  float step_back_y = (top_back.y - down_back.y) / step;
 
-  file << "top front " << top_front << "\n";
-  file << "down front " << down_front << "\n";
-  file << "top back " << top_back << "\n";
-  file << "down back " << down_back << "\n";
+//  vector<Point2f> front_pts(istep, Point2f());
+//  vector<Point2f> back_pts(istep, Point2f());
 
-  file << "step front " << step_front_x << " " << step_front_y << "\n";
-  file << "step back " << step_back_x << " " << step_back_y << "\n";
+//  ofstream file("/home/alessandro/Debug/depth_estimation.txt");
 
-  line(out, down_front, down_back, Scalar(0, 255, 0), 1);
-  line(out, top_front, top_back, Scalar(0, 255, 0), 1);
-  line(out, down_back, top_back, Scalar(0, 255, 0), 1);
+//  file << "top front " << top_front << "\n";
+//  file << "down front " << down_front << "\n";
+//  file << "top back " << top_back << "\n";
+//  file << "down back " << down_back << "\n";
 
-  Mat1b mask(points.rows, points.cols, uchar(0));
-  drawTriangleMask(down_front, down_back, top_front, mask);
-  drawTriangleMask(top_front, down_back, top_back, mask);
+//  file << "step front " << step_front_x << " " << step_front_y << "\n";
+//  file << "step back " << step_back_x << " " << step_back_y << "\n";
 
-  imwrite("/home/alessandro/Debug/depth_mask.png", mask);
+//  line(out, down_front, down_back, Scalar(0, 255, 0), 1);
+//  line(out, top_front, top_back, Scalar(0, 255, 0), 1);
+//  line(out, down_back, top_back, Scalar(0, 255, 0), 1);
 
-  columnwiseStats(points, top_front, top_back, down_front, down_back, file);
+//  Mat1b mask(points.rows, points.cols, uchar(0));
+//  drawTriangleMask(down_front, down_back, top_front, mask);
+//  drawTriangleMask(top_front, down_back, top_back, mask);
+
+//  imwrite("/home/alessandro/Debug/depth_mask.png", mask);
+
+//  columnwiseStats(points, top_front, top_back, down_front, down_back, file);
 
   //  float alpha_top = (top_back.y - top_front.y) / (top_back.x - top_front.x);
   //  float alpha_down = (down_back.y - down_front.y) / (down_back.x -
@@ -251,7 +243,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   //    line(out, front_pts.at(i), back_pts.at(i), Scalar(0, 255, 0), 1);
   //  }
 
-  file.close();
+  //file.close();
 }
 
 void BoundingCube::linearCC(const Point2f &begin, const Point2f &end,

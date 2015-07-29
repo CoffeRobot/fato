@@ -3,7 +3,7 @@ pinot/tracker_2d/update_votes: false
 
 # clustering parameters
 pinot/tracker_2d/eps: 10
-pinot/tracker_2d/min_points: 5
+pinot/tracker_2d/min_points: 3
 
 # pnp ransac parameters
 pinot/tracker_2d/ransac_iterations: 100

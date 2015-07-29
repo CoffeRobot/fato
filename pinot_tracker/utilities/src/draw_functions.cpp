@@ -17,23 +17,20 @@ void drawBoundingBox(const vector<Point2f>& box, Scalar color, int line_width,
   line(out, box[3], box[0], color, line_width, 1);
 }
 
-
 void drawBoundingCube(const Point3f& center, const vector<Point3f>& front_box,
                       const vector<Point3f>& back_box, const float focal,
-                      const Point2f& imgCenter, Mat& out)
-{
-    Point2f tmp;
-    tmp = projectPoint(focal, imgCenter, center);
-    circle(out, tmp, 7, Scalar(255, 0, 0), -1);
+                      const Point2f& imgCenter, Mat& out) {
+  Point2f tmp;
+  tmp = projectPoint(focal, imgCenter, center);
+  circle(out, tmp, 7, Scalar(255, 0, 0), -1);
 
-    drawBoundingCube(front_box, back_box, focal, imgCenter, out);
+  drawBoundingCube(front_box, back_box, focal, imgCenter, out);
 }
 
 void drawBoundingCube(const vector<Point3f>& front_box,
                       const vector<Point3f>& back_box, const float focal,
                       const Point2f& imgCenter, Mat& out) {
   int cols = out.cols;
-
 
   if (back_box.size() < 4) {
     cout << "DRAW_FUNCTIONS: error back_box size is " << back_box.size();
@@ -72,7 +69,6 @@ void drawBoundingCube(const vector<Point3f>& front_box,
   /*                  Draw front face */
   /*********************************************************************************************/
 
-
   line(out, projectPoint(focal, imgCenter, front_box.at(0)),
        projectPoint(focal, imgCenter, front_box.at(1)), Scalar(255, 0, 0), 3);
   line(out, projectPoint(focal, imgCenter, front_box.at(1)),
@@ -81,6 +77,59 @@ void drawBoundingCube(const vector<Point3f>& front_box,
        projectPoint(focal, imgCenter, front_box.at(3)), Scalar(255, 0, 0), 3);
   line(out, projectPoint(focal, imgCenter, front_box.at(3)),
        projectPoint(focal, imgCenter, front_box.at(0)), Scalar(255, 0, 0), 3);
+}
+
+void drawBoundingCube(const std::vector<Point3f>& front_box,
+                      const std::vector<Point3f>& back_box, const float focal,
+                      const Point2f& imgCenter, const Scalar& color,
+                      int line_width, Mat& out) {
+  int cols = out.cols;
+
+  if (back_box.size() < 4) {
+    cout << "DRAW_FUNCTIONS: error back_box size is " << back_box.size();
+    return;
+  }
+  if (front_box.size() < 4) {
+    cout << "DRAW_FUNCTIONS: error front_box size is " << front_box.size();
+    return;
+  }
+
+  /****************************************************************************/
+  /*                  Draw back face                                          */
+  /****************************************************************************/
+  line(out, projectPoint(focal, imgCenter, back_box.at(0)),
+       projectPoint(focal, imgCenter, back_box.at(1)), color, line_width);
+  line(out, projectPoint(focal, imgCenter, back_box.at(1)),
+       projectPoint(focal, imgCenter, back_box.at(2)), color, line_width);
+  line(out, projectPoint(focal, imgCenter, back_box.at(2)),
+       projectPoint(focal, imgCenter, back_box.at(3)), color, line_width);
+  line(out, projectPoint(focal, imgCenter, back_box.at(3)),
+       projectPoint(focal, imgCenter, back_box.at(0)), color, line_width);
+
+  /****************************************************************************/
+  /*                  Draw connecting lines                                   */
+  /****************************************************************************/
+  line(out, projectPoint(focal, imgCenter, front_box.at(0)),
+       projectPoint(focal, imgCenter, back_box.at(0)), color, line_width);
+  line(out, projectPoint(focal, imgCenter, front_box.at(1)),
+       projectPoint(focal, imgCenter, back_box.at(1)), color, line_width);
+  line(out, projectPoint(focal, imgCenter, front_box.at(2)),
+       projectPoint(focal, imgCenter, back_box.at(2)), color, line_width);
+  line(out, projectPoint(focal, imgCenter, front_box.at(3)),
+       projectPoint(focal, imgCenter, back_box.at(3)), color, line_width);
+
+  /****************************************************************************/
+  /*                  Draw front face                                         */
+  /****************************************************************************/
+
+  line(out, projectPoint(focal, imgCenter, front_box.at(0)),
+       projectPoint(focal, imgCenter, front_box.at(1)), color, line_width);
+  line(out, projectPoint(focal, imgCenter, front_box.at(1)),
+       projectPoint(focal, imgCenter, front_box.at(2)), color, line_width);
+  line(out, projectPoint(focal, imgCenter, front_box.at(2)),
+       projectPoint(focal, imgCenter, front_box.at(3)), color, line_width);
+  line(out, projectPoint(focal, imgCenter, front_box.at(3)),
+       projectPoint(focal, imgCenter, front_box.at(0)), color, line_width);
 }
 
 void applyColorMap(const Mat& src, Mat& dst) {
@@ -243,11 +292,10 @@ void drawCentroidVotes(const vector<Point3f*>& points,
     Point2f vote_prj, point_prj;
     projectPoint(focal, center, votes.at(i), vote_prj);
     projectPoint(focal, center, points.at(i), point_prj);
-    Scalar color(0,255,0);
+    Scalar color(0, 255, 0);
     circle(out, vote_prj, 2, color, -1);
     circle(out, point_prj, 3, color, 1);
-    if (drawLines)
-         line(out, vote_prj, point_prj, color, 1);
+    if (drawLines) line(out, vote_prj, point_prj, color, 1);
   }
 }
 

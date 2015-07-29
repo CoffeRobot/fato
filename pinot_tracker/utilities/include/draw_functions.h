@@ -23,6 +23,12 @@ void drawBoundingCube(const std::vector<cv::Point3f>& front_box,
                       const float focal, const cv::Point2f& imgCenter,
                       cv::Mat& out);
 
+void drawBoundingCube(const std::vector<cv::Point3f>& front_box,
+                      const std::vector<cv::Point3f>& back_box,
+                      const float focal, const cv::Point2f& imgCenter,
+                      const cv::Scalar& color, int line_width,
+                      cv::Mat& out);
+
 void applyColorMap(const cv::Mat& in, cv::Mat& out);
 
 void drawObjectLocation(const std::vector<cv::Point3f>& back_box,

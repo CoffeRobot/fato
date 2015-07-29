@@ -46,7 +46,7 @@ class BoundingCube {
   void initCube(const cv::Mat& points, const cv::Point2f& top_left,
                 const cv::Point2f& bottom_right);
 
-  void setPerspective(float focal, float cx, float cy);
+  void setPerspective(float fx, float fy, float cx, float cy);
 
   void rotate(cv::Point3f center, const cv::Mat& rotation,
               std::vector<cv::Point3f>& front_rot,
@@ -83,7 +83,7 @@ class BoundingCube {
 
   cv::Point3f centroid_;
 
-  float fx_, cx_, cy_;
+  float fx_, fy_, cx_, cy_;
   float max_depth;
 };
 

@@ -84,12 +84,14 @@ class Projection {
                    std::vector<cv::Point3f>& back_points,
                    std::vector<cv::Point3f>& front_points);
 
-  void initTracker(Tracker3D &tracker, BoundingCube &cube);
+  void initTracker(Tracker3D& tracker, BoundingCube& cube);
 
   void updateTracker(Tracker3D& tracker);
 
-  void drawTrackerResults(Tracker3D& tracker);
+  void estimateCube(Tracker3D& tracker, BoundingCube& cube,
+                    const cv::Mat& points, cv::Mat& out);
 
+  void drawTrackerResults(Tracker3D& tracker, cv::Mat& out);
 
   ros::NodeHandle nh_;
   // message filter

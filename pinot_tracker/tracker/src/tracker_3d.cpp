@@ -133,6 +133,10 @@ int Tracker3D::init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
     return -1;
   }
 
+  bouding_cube_.setPerspective(params_.camera_model.cx(),
+                               params_.camera_model.cy(),
+                               params.camera_model.fx(),
+                               params.camera_model.fy());
   bouding_cube_.initCube(points, top_left, bottom_right);
   m_fstCube.m_center = bouding_cube_.getCentroid();
 
