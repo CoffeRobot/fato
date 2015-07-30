@@ -44,13 +44,28 @@ inline float roundDownToNearest(float src_number, float round_to)
 
 inline float getDistance(const cv::Point2f& a, const cv::Point2f& b)
 {
-  return sqrt( (a.x*a.x - b.x*b.x) + (a.y*a.y - b.y*b.y) );
+  return sqrt( (a.x - b.x) * (a.x - b.x) +
+               (a.y - b.y) * (a.y - b.y));
 //  return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
 }
 
 inline float getDistance(const cv::Point2f* a, const cv::Point2f* b)
 {
     return sqrt(pow(a->x - b->x, 2) + pow(a->y - b->y, 2));
+}
+
+inline float getDistance(const cv::Point3f& a, const cv::Point3f& b)
+{
+    return sqrt( (a.x - b.x) * (a.x- b.x) +
+                 (a.y - b.y) * (a.y- b.y) +
+                 (a.z - b.z) * (a.z- b.z));
+}
+
+inline float getDistance(const cv::Vec3f& a, const cv::Vec3f& b)
+{
+    return sqrt( (a[0] - b[0]) * (a[0] - b[0]) +
+                 (a[1] - b[1]) * (a[1] - b[1]) +
+                 (a[2] - b[2]) * (a[2] - b[2]));
 }
 
 inline cv::Point2f mult(const cv::Mat2f& rot, const cv::Point2f& p) {

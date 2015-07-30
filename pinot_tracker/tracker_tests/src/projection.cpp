@@ -270,8 +270,10 @@ void Projection::estimateCube(Tracker3D &tracker, BoundingCube &cube,
   pcl::PointCloud<pcl::PointXYZ> cloud;
   cvToPcl(points, cloud);
 
+  vector<float> visibility_ratio = tracker.getVisibilityRatio();
+
   cube.estimateDepth(points, tracker.getCurrentCentroid(),
-                     tracker.getPoseMatrix(), out);
+                     tracker.getPoseMatrix(), visibility_ratio, out);
   profiler->stop("cube");
 
   Point2f img_center(params_.camera_model.cx(), params_.camera_model.cy());

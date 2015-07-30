@@ -114,6 +114,8 @@ class Tracker3D {
 
   void drawRansacEstimation(cv::Mat& out);
 
+  std::vector<float> getVisibilityRatio(){return visibility_ratio_;}
+
  private:
 
   void getCurrentPoints(const std::vector<int>& currentFaces,
@@ -327,6 +329,7 @@ class Tracker3D {
   // cv::Point3f m_firstCentroid;
   cv::Point3f m_updatedCentroid;
   cv::Rect m_fstBBox;
+  std::vector<float> visibility_ratio_;
 
   std::vector<uchar> m_status;
   std::vector<float> m_errors;

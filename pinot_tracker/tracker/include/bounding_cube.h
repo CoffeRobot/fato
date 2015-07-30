@@ -48,8 +48,7 @@ class BoundingCube {
 
   void setPerspective(float fx, float fy, float cx, float cy);
 
-  void setVects(std::vector<cv::Point3f> front,
-                std::vector<cv::Point3f> back) {
+  void setVects(std::vector<cv::Point3f> front, std::vector<cv::Point3f> back) {
     front_vectors_ = front;
     back_vectors_ = back;
   }
@@ -59,15 +58,11 @@ class BoundingCube {
               std::vector<cv::Point3f>& back_rot);
 
   void estimateDepth(const cv::Mat& points, cv::Point3f center,
-                     const cv::Mat& rotation, cv::Mat& out);
+                     const cv::Mat& rotation,
+                     std::vector<float>& visibility_ratio, cv::Mat& out);
 
   void linearCC(const cv::Point2f& begin, const cv::Point2f& end,
-                const cv::Mat &points, cv::Point3f& max_depth);
-
-  void columnwiseStats(const cv::Mat& points, const cv::Point2f& top_front,
-                       const cv::Point2f& top_back,
-                       const cv::Point2f& down_front,
-                       const cv::Point2f& down_back, std::ofstream& file);
+                const cv::Mat& points, cv::Point3f& max_depth);
 
   std::vector<cv::Point3f> getFrontPoints() { return front_points_; }
   std::vector<cv::Point3f> getBackPoints() { return back_points_; }
@@ -80,6 +75,31 @@ class BoundingCube {
   void getValues(const cv::Mat& points, const cv::Mat1b& mask,
                  cv::Point3f& min_val, cv::Point3f& max_val,
                  float& median_depth);
+
+  void getFace(const std::vector<float>& visibility,
+               const std::vector<cv::Point3f>& front,
+               const std::vector<cv::Point3f>& back,
+               const cv::Point2f& center_image,
+               cv::Point2f &top_front,
+               cv::Point2f &down_front,
+               cv::Point2f &top_back,
+               cv::Point2f &down_back);
+
+  void createLinearTracks(int num_tracks, const cv::Point2f& top_front,
+                          const cv::Point2f& down_front,
+                          const cv::Point2d& top_back,
+                          const cv::Point2f& down_back,
+                          std::vector<cv::Point2f>& track_start,
+                          std::vector<cv::Point2f>& track_end);
+
+  void spawnLinearCC(const cv::Mat& points, float line_jump,
+                     const std::vector<cv::Point2f>& track_start,
+                     const std::vector<cv::Point2f>& track_end,
+                     std::vector<cv::Point2f>& depth_found);
+
+  void getDepth(const cv::Mat& points, const std::vector<cv::Point2f>& track_start,
+                 const std::vector<cv::Point2f>& depth_found,
+                float& average_distance, float& median_distance);
 
   std::vector<cv::Point3f> front_points_;
   std::vector<cv::Point3f> back_points_;

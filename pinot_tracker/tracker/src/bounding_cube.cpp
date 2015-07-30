@@ -131,7 +131,10 @@ void BoundingCube::rotate(cv::Point3f center, const Mat &rotation,
 }
 
 void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
-                                 const Mat &rotation, Mat &out) {
+                                 const Mat &rotation,
+                                 std::vector<float> &visibility_ratio,
+                                 Mat &out) {
+  // create virtual infinite bounding box
   vector<Point3f> front, back;
   vector<Point3f> back_vect = back_vectors_;
   for (auto &pt : back_vect) pt.z += 1.5f;
@@ -149,13 +152,14 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     back.at(i) += center;
   }
 
+  // select the side of the box that is visible
+
+  // create the estension of that face
   Point2f center_image(cx_, cy_);
 
-  // project to image the points of the cube
-  Point2f top_front = projectPoint(fx_, center_image, front.at(1));
-  Point2f down_front = projectPoint(fx_, center_image, front.at(2));
-  Point2f top_back = projectPoint(fx_, center_image, back.at(1));
-  Point2f down_back = projectPoint(fx_, center_image, back.at(2));
+  Point2f top_front(0, 0), down_front(0, 0), top_back(0, 0), down_back(0, 0);
+  getFace(visibility_ratio, front, back, center_image, top_front, down_front,
+          top_back, down_back);
 
   Scalar color(0, 255, 255);
   //  drawBoundingCube(center, front, back, fx_, center_image, color, 2, out);
@@ -168,57 +172,36 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   drawTriangle(top_front, down_front, top_back, Scalar(255, 0, 0), 0.3, out);
   drawTriangle(top_back, down_front, down_back, Scalar(255, 0, 0), 0.3, out);
 
-  //  Mat1f components(points.rows, points.cols, float(0.0f));
-  //  for (auto i = 0; i < points.rows; ++i) {
-  //    for (auto j = 0; j < points.cols; ++j) {
-  //      if (mask.at<uchar>(i, j) == 255)
-  //        components.at<float>(i, j) = points.at<Vec3f>(i, j)[2];
-  //    }
-  //  }
+  // spawn linear connected components to find the depth of the object
 
-  float step = 10.0f;
-  int istep = static_cast<int>(step);
+  int num_tracks = 10;
 
-  // define front and back step
-  float step_front_x = (top_front.x - down_front.x) / step;
-  float step_front_y = (top_front.y - down_front.y) / step;
+  vector<Point2f> track_start(num_tracks, Point2f());
+  vector<Point2f> track_end(num_tracks, Point2f());
+  vector<Point2f> depth_found(num_tracks, Point2f());
 
-  float step_back_x = (top_back.x - down_back.x) / step;
-  float step_back_y = (top_back.y - down_back.y) / step;
+  createLinearTracks(num_tracks, top_front, down_front, top_back, down_back,
+                     track_start, track_end);
 
-  vector<Point2f> front_pts(istep, Point2f());
-  vector<Point2f> back_pts(istep, Point2f());
+  spawnLinearCC(points, 3, track_start, track_end, depth_found);
 
-  for (auto i = 1; i < istep; ++i) {
-    front_pts.at(i).x = down_front.x + i * step_front_x;
-    front_pts.at(i).y = down_front.y + i * step_front_y;
-    back_pts.at(i).x = down_back.x + i * step_back_x;
-    back_pts.at(i).y = down_back.y + i * step_back_y;
-
-    int x_jumps = (back_pts.at(i).x - front_pts.at(i).x) / 3.0f;
-    float x_step =
-        (back_pts.at(i).x - front_pts.at(i).x) / static_cast<float>(x_jumps);
-    float y_step =
-        (back_pts.at(i).y - front_pts.at(i).y) / static_cast<float>(x_jumps);
-
-    if(x_jumps <= 0)
-        continue;
-
-    Point2f begin_pt = front_pts.at(i);
-    for (int j = 0; j < x_jumps; ++j) {
-      if(points.at<Vec3f>(begin_pt)[2] == 0)
-      {
-          begin_pt.x -= x_step;
-          begin_pt.y -= y_step;
-          circle(out, begin_pt, 3, Scalar(0, 0, 255), -1);
-          break;
-      }
-      begin_pt.x += x_step;
-      begin_pt.y += y_step;
+  for (auto i = 1; i < track_start.size(); ++i) {
+    if (depth_found.at(i).x != 0 && depth_found.at(i).y != 0) {
+      circle(out, depth_found.at(i), 3, Scalar(0, 0, 255), -1);
     }
-
-    line(out, front_pts.at(i), back_pts.at(i), Scalar(0, 255, 0), 1);
+    line(out, track_start.at(i), track_end.at(i), Scalar(0, 255, 0), 1);
   }
+
+  float avg_depth, median_depth;
+  getDepth(points, track_start, depth_found, avg_depth, median_depth);
+
+  std::ofstream ofs;
+  ofs.open("/home/alessandro/Debug/estimated_depth.txt",
+           std::ofstream::out | std::ofstream::app);
+
+  stringstream ss;
+  ss << "BBCUBE: AVG " << avg_depth << " MEDIAN " << median_depth << "\n";
+  ofs << ss.str();
 }
 
 void BoundingCube::linearCC(const Point2f &begin, const Point2f &end,
@@ -264,74 +247,6 @@ void BoundingCube::linearCC(const Point2f &begin, const Point2f &end,
   max_depth.x = curr_x;
   max_depth.y = curr_y;
   max_depth.z = last_d;
-}
-
-void BoundingCube::columnwiseStats(const Mat &points, const Point2f &top_front,
-                                   const Point2f &top_back,
-                                   const Point2f &down_front,
-                                   const Point2f &down_back, ofstream &file) {
-  auto interpolate = [](const cv::Point2f &fst, const cv::Point2f &scd,
-                        std::vector<float> &ys) {
-    auto size = static_cast<int>(scd.x - fst.x);
-    auto step = (fst.y - scd.y) / static_cast<float>(size);
-    ys.resize(size, 0);
-    ys.at(0) = fst.y;
-    for (auto i = 1; i < size; ++i) ys.at(i) = ys.at(i - 1) + step;
-  };
-
-  auto minmax =
-      [](const cv::Point2f &pt, cv::Point2f &min_pt, cv::Point2f &max_pt) {
-        if (pt.x > max_pt.x) max_pt.x = pt.x;
-        if (pt.y > max_pt.y) max_pt.y = pt.y;
-        if (pt.x < min_pt.x) min_pt.x = pt.x;
-        if (pt.y < min_pt.y) min_pt.y = pt.y;
-      };
-
-  vector<float> top_ys, down_ys;
-
-  interpolate(top_front, top_back, top_ys);
-  interpolate(down_front, down_back, down_ys);
-
-  Point2f min_pt, max_pt;
-
-  min_pt.x = std::numeric_limits<int>::max();
-  min_pt.y = std::numeric_limits<int>::max();
-  max_pt.x = 0;
-  max_pt.y = 0;
-
-  minmax(top_front, min_pt, max_pt);
-  minmax(top_back, min_pt, max_pt);
-  minmax(down_front, min_pt, max_pt);
-  minmax(down_back, min_pt, max_pt);
-
-  file << "INTERPOLATION: \n";
-  file << "minpt " << min_pt << " maxpt " << max_pt << "\n";
-
-  vector<float> avg_depths;
-
-  for (auto j = min_pt.x; j < max_pt.x; ++j) {
-    int counter = 0;
-    float average_depth = 0;
-    for (auto i = min_pt.y; i < max_pt.y; ++i) {
-      if (points.at<Vec3f>(j, i)[2] != 0) {
-        counter++;
-        average_depth += points.at<Vec3f>(j, i)[2];
-      }
-    }
-    if (counter > 0)
-      avg_depths.push_back(average_depth / static_cast<float>(counter));
-    else
-      avg_depths.push_back(0);
-  }
-
-  for (auto i = 0; i < top_ys.size(); ++i) {
-    file << top_ys.at(i) << " " << down_ys.at(i) << "\n";
-  }
-
-  file << "AVERAGES \n";
-  for (auto d : avg_depths) file << d << " ";
-
-  file << "\n";
 }
 
 std::string BoundingCube::str() {
@@ -406,6 +321,156 @@ void BoundingCube::getValues(const Mat &points, const Mat1b &mask,
   }
 
   median_depth = median_z;
+}
+
+void BoundingCube::getFace(const std::vector<float> &visibility,
+                           const std::vector<Point3f> &front,
+                           const std::vector<Point3f> &back,
+                           const Point2f &center_image, Point2f &top_front,
+                           Point2f &down_front, Point2f &top_back,
+                           Point2f &down_back) {
+  if (visibility.at(FACE::FRONT) > 0) {
+    int max_face = -1;
+    float max_val = 0;
+
+    for (auto i = 0; i < 6; ++i) {
+      if (i == FACE::FRONT || i == FACE::BACK) continue;
+
+      if (visibility.at(i) > max_val) {
+        max_face = i;
+        max_val = visibility.at(i);
+      }
+    }
+
+    if (max_face == -1) {
+      top_front = down_front = top_back = down_back = Point2f(0, 0);
+    } else if (max_face == FACE::RIGHT) {
+      top_front = projectPoint(fx_, center_image, front.at(0));
+      down_front = projectPoint(fx_, center_image, front.at(3));
+      top_back = projectPoint(fx_, center_image, back.at(0));
+      down_back = projectPoint(fx_, center_image, back.at(3));
+    } else if (max_face == FACE::LEFT) {
+      top_front = projectPoint(fx_, center_image, front.at(1));
+      down_front = projectPoint(fx_, center_image, front.at(2));
+      top_back = projectPoint(fx_, center_image, back.at(1));
+      down_back = projectPoint(fx_, center_image, back.at(2));
+    } else if (max_face == FACE::TOP) {
+      top_front = projectPoint(fx_, center_image, front.at(0));
+      down_front = projectPoint(fx_, center_image, front.at(1));
+      top_back = projectPoint(fx_, center_image, back.at(0));
+      down_back = projectPoint(fx_, center_image, back.at(1));
+    } else if (max_face == FACE::DOWN) {
+      top_front = projectPoint(fx_, center_image, front.at(2));
+      down_front = projectPoint(fx_, center_image, front.at(3));
+      top_back = projectPoint(fx_, center_image, back.at(2));
+      down_back = projectPoint(fx_, center_image, back.at(3));
+    }
+  } else {
+    top_front = down_front = top_back = down_back = Point2f(0, 0);
+  }
+}
+
+void BoundingCube::createLinearTracks(int num_tracks, const Point2f &top_front,
+                                      const Point2f &down_front,
+                                      const Point2d &top_back,
+                                      const Point2f &down_back,
+                                      std::vector<Point2f> &track_start,
+                                      std::vector<Point2f> &track_end) {
+  float step = static_cast<int>(num_tracks + 1);
+  track_start.resize(num_tracks, Point2f(0, 0));
+  track_end.resize(num_tracks, Point2f(0, 0));
+
+  // define front and back step
+  float step_front_x = (top_front.x - down_front.x) / step;
+  float step_front_y = (top_front.y - down_front.y) / step;
+
+  float step_back_x = (top_back.x - down_back.x) / step;
+  float step_back_y = (top_back.y - down_back.y) / step;
+
+  for (auto i = 1; i < num_tracks; ++i) {
+    auto inc = i + 1;
+    track_start.at(i).x = down_front.x + inc * step_front_x;
+    track_start.at(i).y = down_front.y + inc * step_front_y;
+    track_end.at(i).x = down_back.x + inc * step_back_x;
+    track_end.at(i).y = down_back.y + inc * step_back_y;
+  }
+}
+
+void BoundingCube::spawnLinearCC(const Mat &points, float line_jump,
+                                 const std::vector<Point2f> &track_start,
+                                 const std::vector<Point2f> &track_end,
+                                 std::vector<Point2f> &depth_found) {
+  depth_found.resize(track_start.size(), Point2f(0, 0));
+
+  for (auto i = 0; i < track_start.size(); ++i) {
+    // set to jump every line_jump pixels on the x
+    int x_jumps = abs(track_end.at(i).x - track_start.at(i).x) / line_jump;
+    float x_step =
+        (track_end.at(i).x - track_start.at(i).x) / static_cast<float>(x_jumps);
+    float y_step =
+        (track_end.at(i).y - track_start.at(i).y) / static_cast<float>(x_jumps);
+
+    if (x_jumps <= 0) continue;
+
+    Point2f begin_pt = track_start.at(i);
+    for (int j = 0; j < x_jumps; ++j) {
+      if (points.at<Vec3f>(begin_pt)[2] == 0) {
+        begin_pt.x -= x_step;
+        begin_pt.y -= y_step;
+        depth_found.at(i) = begin_pt;
+        break;
+      }
+      begin_pt.x += x_step;
+      begin_pt.y += y_step;
+    }
+  }
+}
+
+void BoundingCube::getDepth(const Mat &points,
+                            const std::vector<Point2f> &track_start,
+                            const std::vector<Point2f> &depth_found,
+                            float &average_distance, float &median_distance) {
+  std::ofstream ofs;
+  ofs.open("/home/alessandro/Debug/estimated_depth.txt",
+           std::ofstream::out | std::ofstream::app);
+
+  vector<float> distances;
+  float avg = 0;
+  int valid_distances = 0;
+  for (auto i = 0; i < track_start.size(); ++i) {
+    const auto &fst =
+        points.at<Vec3f>(track_start.at(i).y, track_start.at(i).x);
+    const auto &scd =
+        points.at<Vec3f>(depth_found.at(i).y, depth_found.at(i).x);
+    auto dis = getDistance(fst, scd);
+
+    stringstream ss;
+    ss << fst << " " << scd << " " << dis << "\n";
+    ofs << ss.str();
+
+    if (dis > 0) {
+      distances.push_back(dis);
+      avg += dis;
+      valid_distances++;
+    }
+  }
+
+  if (distances.size() == 0) {
+    average_distance = 0;
+    median_distance = 0;
+    return;
+  }
+
+  average_distance = avg / static_cast<float>(valid_distances);
+
+  sort(distances.begin(), distances.end());
+  auto median_point = distances.size() / 2;
+
+  if (distances.size() % 2 == 0)
+    median_distance =
+        (distances.at(median_point - 1) + distances.at(median_point)) / 2.0f;
+  else
+    median_distance = distances.at(median_point);
 }
 
 }  // end namespace

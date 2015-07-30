@@ -465,6 +465,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
                              visibilityRatio);
     profiler->stop("visibility");
   }
+  visibility_ratio_ = visibilityRatio;
   cout << "8 ";
   /****************************************************************************/
   /*                             LEARN NEW APPEARANCE                         */
@@ -499,12 +500,12 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
 
     m_currentFaces.clear();
     for (int i = 0; i < 6; ++i) {
-      if (visibilityRatio[i] > 0.6) {
+      if (visibilityRatio.at(i) > 0.6) {
         // m_debugFile << faceToString(i) << " ";
         m_currentFaces.push_back(i);
-        m_visibleFaces[i] = true;
+        m_visibleFaces.at(i) = true;
       } else {
-        m_visibleFaces[i] = false;
+        m_visibleFaces.at(i) = false;
       }
     }
   }
