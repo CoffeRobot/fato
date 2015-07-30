@@ -121,44 +121,44 @@ void depthTo3d(const cv::Mat& disparity, float cx, float cy, float fx, float fy,
   }
 }
 
-void cvToPcl(const cv::Mat3f& points, pcl::PointCloud<pcl::PointXYZ>& cloud) {
-  int width = points.cols, height = points.rows;
+//void cvToPcl(const cv::Mat3f& points, pcl::PointCloud<pcl::PointXYZ>& cloud) {
+//  int width = points.cols, height = points.rows;
 
-  cloud.points.resize(width * height);
-  cloud.width = width;
-  cloud.height = height;
+//  cloud.points.resize(width * height);
+//  cloud.width = width;
+//  cloud.height = height;
 
-  for (int v = 0; v < height; ++v) {
-    for (int u = 0; u < width; ++u) {
-      auto& point = points.at<cv::Vec3f>(v, u);
-      pcl::PointXYZ& p = cloud(u, v);
-      p.x = point[0];
-      p.y = point[1];
-      p.z = point[2];
-    }
-  }
-}
+//  for (int v = 0; v < height; ++v) {
+//    for (int u = 0; u < width; ++u) {
+//      auto& point = points.at<cv::Vec3f>(v, u);
+//      pcl::PointXYZ& p = cloud(u, v);
+//      p.x = point[0];
+//      p.y = point[1];
+//      p.z = point[2];
+//    }
+//  }
+//}
 
-void cvToPcl(const cv::Mat3f& points, const cv::Mat1b& mask,
-             pcl::PointCloud<pcl::PointXYZ>& cloud) {
-  int width = points.cols, height = points.rows;
+//void cvToPcl(const cv::Mat3f& points, const cv::Mat1b& mask,
+//             pcl::PointCloud<pcl::PointXYZ>& cloud) {
+//  int width = points.cols, height = points.rows;
 
-  cloud.points.resize(width * height);
-  cloud.width = width;
-  cloud.height = height;
+//  cloud.points.resize(width * height);
+//  cloud.width = width;
+//  cloud.height = height;
 
-  for (int v = 0; v < height; ++v) {
-    for (int u = 0; u < width; ++u) {
-      auto& point = points.at<cv::Vec3f>(v, u);
-      pcl::PointXYZ& p = cloud(u, v);
-      if (mask.at<uchar>(u, v) == 255) {
-        p.x = point[0];
-        p.y = point[1];
-        p.z = point[2];
-      } else {
-        p.x = p.y = p.z = 0;
-      }
-    }
-  }
-}
+//  for (int v = 0; v < height; ++v) {
+//    for (int u = 0; u < width; ++u) {
+//      auto& point = points.at<cv::Vec3f>(v, u);
+//      pcl::PointXYZ& p = cloud(u, v);
+//      if (mask.at<uchar>(u, v) == 255) {
+//        p.x = point[0];
+//        p.y = point[1];
+//        p.z = point[2];
+//      } else {
+//        p.x = p.y = p.z = 0;
+//      }
+//    }
+//  }
+//}
 }  // end namespace

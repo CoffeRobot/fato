@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 2.8.7)
 set(WITH_GPU OFF CACHE BOOL "set to true if opencv gpu is installed")
 set(CUSTON_OPENCV_PATH ON CACHE STRING "path to gpu compiled opencv" FORCE )
 
+
 #LINK_DIRECTORIES("/home/alessandro/Libs/lib")
 
 # OPENCV find package finds always the ros installation no matter what flag is
@@ -17,8 +18,9 @@ set(CUSTON_OPENCV_PATH ON CACHE STRING "path to gpu compiled opencv" FORCE )
 #endif()
 
 #link_directories()
-
-find_package(CUDA REQUIRED)
+if(WITH_GPU)
+  find_package(CUDA REQUIRED)
+endif()
 
 find_package(catkin REQUIRED COMPONENTS
   clustering
@@ -43,6 +45,10 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
   ${PROJECT_SOURCE_DIR}/../../README.md
 )
 
+
+
+if(WITH_GPU)
+
   include_directories(include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
@@ -50,12 +56,9 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
   )
 
   add_library(${PROJECT_NAME}
-  #src/matcher.cpp
+  src/matcher.cpp
   src/tracker.cpp
   )
-
-if(WITH_GPU)
-
 
   target_link_libraries(${PROJECT_NAME}
   ${CUSTON_OPENCV_PATH}/libopencv_gpu.so
@@ -68,12 +71,6 @@ if(WITH_GPU)
   ${CUSTON_OPENCV_PATH}/opencv_calib3d
   ${CUDA_LIBRARIES}
   )
-else()
-  target_link_libraries(${PROJECT_NAME}
-  ${OpenCV_LIBS}
-  ${CUDA_LIBRARIES}
-  )
-
 endif()
 
 

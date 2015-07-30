@@ -9,7 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
   cv_bridge
   image_transport
-  pcl_ros
+#  pcl_ros
   tf
   image_geometry
   utilities
@@ -19,17 +19,17 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(OpenCV 2.4.8 REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
-find_package(PCL 1.7 REQUIRED)
+#find_package(PCL 1.7 REQUIRED)
 
-include_directories(${PCL_INCLUDE_DIRS})
-link_directories(${PCL_LIBRARY_DIRS})
-add_definitions(${PCL_DEFINITIONS})
+#include_directories(${PCL_INCLUDE_DIRS})
+#link_directories(${PCL_LIBRARY_DIRS})
+#add_definitions(${PCL_DEFINITIONS})
 
 catkin_package(
   INCLUDE_DIRS include
   DEPENDS cv_bridge
           image_transport
-          pcl_ros
+#          pcl_ros
           roscpp
           tf
           image_geometry
@@ -49,7 +49,7 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
 
 include_directories(include
   ${catkin_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
+#  ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR} 
 )
@@ -62,5 +62,5 @@ add_executable(test_projection
 target_link_libraries(test_projection
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
-  ${PCL_LIBRARIES}
+#  ${PCL_LIBRARIES}
 )

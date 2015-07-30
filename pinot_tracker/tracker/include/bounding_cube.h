@@ -79,11 +79,9 @@ class BoundingCube {
   void getFace(const std::vector<float>& visibility,
                const std::vector<cv::Point3f>& front,
                const std::vector<cv::Point3f>& back,
-               const cv::Point2f& center_image,
-               cv::Point2f &top_front,
-               cv::Point2f &down_front,
-               cv::Point2f &top_back,
-               cv::Point2f &down_back);
+               const cv::Point2f& center_image, cv::Point2f& top_front,
+               cv::Point2f& down_front, cv::Point2f& top_back,
+               cv::Point2f& down_back);
 
   void createLinearTracks(int num_tracks, const cv::Point2f& top_front,
                           const cv::Point2f& down_front,
@@ -97,9 +95,14 @@ class BoundingCube {
                      const std::vector<cv::Point2f>& track_end,
                      std::vector<cv::Point2f>& depth_found);
 
-  void getDepth(const cv::Mat& points, const std::vector<cv::Point2f>& track_start,
-                 const std::vector<cv::Point2f>& depth_found,
+  void getDepth(const cv::Mat& points,
+                const std::vector<cv::Point2f>& track_start,
+                const std::vector<cv::Point2f>& depth_found,
                 float& average_distance, float& median_distance);
+
+  void drawEstimatedCube(cv::Point3f& center, const cv::Mat& rotation,
+                         float estimated_depth,
+                         cv::Mat& out);
 
   std::vector<cv::Point3f> front_points_;
   std::vector<cv::Point3f> back_points_;

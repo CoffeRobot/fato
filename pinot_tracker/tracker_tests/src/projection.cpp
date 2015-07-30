@@ -267,8 +267,6 @@ void Projection::estimateCube(Tracker3D &tracker, BoundingCube &cube,
   auto& profiler = Profiler::getInstance();
 
   profiler->start("cube");
-  pcl::PointCloud<pcl::PointXYZ> cloud;
-  cvToPcl(points, cloud);
 
   vector<float> visibility_ratio = tracker.getVisibilityRatio();
 

@@ -13,8 +13,8 @@
 #ifdef __unix__
 #include <eigen3/Eigen/Dense>
 #endif
-#include <pcl/point_types.h>
-#include <pcl/point_cloud.h>
+//#include <pcl/point_types.h>
+//#include <pcl/point_cloud.h>
 
 
 
@@ -92,10 +92,10 @@ bool projectPoint(const float focal, const cv::Point2f& center,
 void depthTo3d(const cv::Mat& disparity, float cx, float cy,
                       float fx, float fy, cv::Mat3f &depth);
 
-void cvToPcl(const cv::Mat3f& points, pcl::PointCloud<pcl::PointXYZ>& cloud);
+//void cvToPcl(const cv::Mat3f& points, pcl::PointCloud<pcl::PointXYZ>& cloud);
 
-void cvToPcl(const cv::Mat3f& points, const cv::Mat1b& mask,
-             pcl::PointCloud<pcl::PointXYZ>& cloud);
+//void cvToPcl(const cv::Mat3f& points, const cv::Mat1b& mask,
+//             pcl::PointCloud<pcl::PointXYZ>& cloud);
 
 template<typename T>
 bool is_infinite( const T &value )

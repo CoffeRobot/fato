@@ -6,7 +6,7 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
   clustering
   utilities
-  pcl_ros
+#  pcl_ros
 )
 
 find_package(OpenCV REQUIRED)
@@ -14,13 +14,13 @@ find_package(OpenCV REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 
-find_package(PCL 1.7 REQUIRED)
-link_directories(${PCL_LIBRARY_DIRS})
-add_definitions(${PCL_DEFINITIONS})
+#find_package(PCL 1.7 REQUIRED)
+#link_directories(${PCL_LIBRARY_DIRS})
+#add_definitions(${PCL_DEFINITIONS})
 
 catkin_package(
   INCLUDE_DIRS include
-  DEPENDS pcl_ros
+#  DEPENDS pcl_ros
   LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS utilities clustering
 )
@@ -41,7 +41,7 @@ include_directories(include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR}
-  ${PCL_INCLUDE_DIRS}
+#  ${PCL_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME}
@@ -56,5 +56,5 @@ add_library(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBS}
-  ${PCL_LIBRARIES}
+#  ${PCL_LIBRARIES}
 )

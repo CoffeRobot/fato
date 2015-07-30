@@ -9,22 +9,22 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
   cv_bridge
   image_transport
-  pcl_ros
+# pcl_ros
   tf
   image_geometry
   utilities
-  #tracker_gpu
+  tracker_gpu
   tracker_cpu
 )
 
 find_package(OpenCV 2.4.8 REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
-find_package(PCL 1.7 REQUIRED)
+#find_package(PCL 1.7 REQUIRED)
 
-include_directories(${PCL_INCLUDE_DIRS})
-link_directories(${PCL_LIBRARY_DIRS})
-add_definitions(${PCL_DEFINITIONS})
+#include_directories(${PCL_INCLUDE_DIRS})
+#link_directories(${PCL_LIBRARY_DIRS})
+#add_definitions(${PCL_DEFINITIONS})
 
 ## Generate actions in the 'action' folder
 #add_action_files(
@@ -45,7 +45,7 @@ catkin_package(
   INCLUDE_DIRS include
   DEPENDS cv_bridge
           image_transport
-          pcl_ros
+          #pcl_ros
           roscpp
           tf
           image_geometry
@@ -65,7 +65,7 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
 
 include_directories(include
   ${catkin_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
+ # ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR} 
 )

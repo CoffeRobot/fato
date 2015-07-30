@@ -66,6 +66,7 @@ private:
     cv::VideoCapture depth_video_;
 
     std::string rgb_video_path_;
+    std::string rgb_default_path_;
     std::string depth_video_path_;
 
     TrackerParams params_;

@@ -3,7 +3,7 @@ project(utilities)
 
 find_package(catkin REQUIRED COMPONENTS
   cmake_modules
-  pcl_ros
+#  pcl_ros
 )
 
 find_package(OpenCV REQUIRED)
@@ -11,17 +11,15 @@ find_package(OpenCV REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 
-find_package(PCL 1.7 REQUIRED)
-link_directories(${PCL_LIBRARY_DIRS})
-add_definitions(${PCL_DEFINITIONS})
+#find_package(PCL 1.7 REQUIRED)
+#link_directories(${PCL_LIBRARY_DIRS})
+#add_definitions(${PCL_DEFINITIONS})
 
 catkin_package(
   INCLUDE_DIRS include
-  DEPENDS pcl_ros
+#  DEPENDS pcl_ros
   LIBRARIES ${PROJECT_NAME}
 )
-
-message(WARNING ${PCL_INCLUDE_DIRS})
 
 #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
@@ -37,7 +35,7 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
 
 include_directories(include
   ${catkin_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
+ # ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR} 
 )
@@ -55,6 +53,6 @@ add_library(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
-  ${PCL_LIBRARIES}
+#  ${PCL_LIBRARIES}
 )
 

@@ -14,7 +14,10 @@ pinot/pose_estimation/ransac_method: 1 # 1: CV_ITERATIVE, 2: CV_P3P, 3: CV_EPNP
 
 # offline parameters
 pinot/offline/use_depth: false
-pinot/offline/rgb_input: /home/alessandro/Projects/pinot_tracker_ws/src/pinot_tracker/pinot_tracker/tracker_tests/data/juice.avi
+# uncomment "pinot/offline/data_path:" and set it to the path where the pinot/offline/rgb_input: is located.
+# otherwise the default data path is taken. Path should have the format /path_to_file/
+# pinot/offline/data_path: /path_to_file/
+pinot/offline/rgb_input: juice.avi
 pinot/offline/depth_input: test_d.avi
 pinot/offline/box_x: 131
 pinot/offline/box_y: 50

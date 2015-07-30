@@ -30,7 +30,6 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-
 #include "../include/tracker_offline.h"
 #include "../../utilities/include/profiler.h"
 #include "../../utilities/include/draw_functions.h"
@@ -63,7 +62,17 @@ void TrackerOffline::init() {
     return;
   }
 
-  rgb_video_.open(rgb_video_path_);
+  bool is_video_open = false;
+
+  if (!rgb_video_.open(rgb_video_path_)) {
+    ROS_WARN("TRACKER: invalid user defined video path, trying default...");
+    is_video_open = false;
+  }
+
+  if (!rgb_video_.open(rgb_default_path_)) {
+    ROS_WARN("TRACKER: invalid default video path. Quitting...");
+    return;
+  }
 
   if (use_depth_) {
     depth_video_.open(depth_video_path_);
@@ -140,19 +149,19 @@ void TrackerOffline::getParameters() {
     ss << params_.update_votes << "\n";
 
   ss << "eps: ";
-  if (!ros::param::get("pinot/tracker_2d/eps", params_.eps))
+  if (!ros::param::get("pinot/clustering/eps", params_.eps))
     ss << "failed \n";
   else
     ss << params_.eps << "\n";
 
   ss << "min_points: ";
-  if (!ros::param::get("pinot/tracker_2d/min_points", params_.min_points))
+  if (!ros::param::get("pinot/clustering/min_points", params_.min_points))
     ss << "failed \n";
   else
     ss << params_.min_points << "\n";
 
   ss << "ransac_iterations: ";
-  if (!ros::param::get("pinot/tracker_2d/ransac_iterations",
+  if (!ros::param::get("pinot/pose_estimation/ransac_iterations",
                        params_.ransac_iterations))
     ss << "failed \n";
   else
@@ -188,11 +197,31 @@ void TrackerOffline::getParameters() {
   top_left_pt_ = Point2f(x, y);
   bottom_righ_pt_ = Point2f(x + w, y + h);
 
-  ss << "rgb_input: ";
-  if (!ros::param::get("pinot/offline/rgb_input", rgb_video_path_))
+  string default_path, user_path, video_name;
+
+  ss << "default_path: ";
+  if (!ros::param::get("pinot/offline/default_path", default_path))
     ss << "failed \n";
   else
-    ss << rgb_video_path_ << "\n";
+    ss << default_path << "\n";
+
+  ss << "data_path: ";
+  if (!ros::param::get("pinot/offline/data_path", user_path))
+    ss << "failed \n";
+  else
+    ss << user_path << "\n";
+
+  ss << "rgb_input: ";
+  if (!ros::param::get("pinot/offline/rgb_input", video_name))
+    ss << "failed \n";
+  else
+    ss << video_name << "\n";
+
+  rgb_default_path_ = default_path + video_name;
+  rgb_video_path_ = user_path + video_name;
+
+  ss << "path_to_video \n";
+  ss << rgb_video_path_ << "\n";
 
   ss << "depth_input: ";
   if (!ros::param::get("pinot/offline/depth_input", depth_video_path_))

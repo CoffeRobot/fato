@@ -183,7 +183,8 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   createLinearTracks(num_tracks, top_front, down_front, top_back, down_back,
                      track_start, track_end);
 
-  spawnLinearCC(points, 3, track_start, track_end, depth_found);
+  int line_jump = 2;
+  spawnLinearCC(points, line_jump, track_start, track_end, depth_found);
 
   for (auto i = 1; i < track_start.size(); ++i) {
     if (depth_found.at(i).x != 0 && depth_found.at(i).y != 0) {
@@ -195,13 +196,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   float avg_depth, median_depth;
   getDepth(points, track_start, depth_found, avg_depth, median_depth);
 
-  std::ofstream ofs;
-  ofs.open("/home/alessandro/Debug/estimated_depth.txt",
-           std::ofstream::out | std::ofstream::app);
-
-  stringstream ss;
-  ss << "BBCUBE: AVG " << avg_depth << " MEDIAN " << median_depth << "\n";
-  ofs << ss.str();
+  drawEstimatedCube(center, rotation, median_depth, out);
 }
 
 void BoundingCube::linearCC(const Point2f &begin, const Point2f &end,
@@ -430,10 +425,6 @@ void BoundingCube::getDepth(const Mat &points,
                             const std::vector<Point2f> &track_start,
                             const std::vector<Point2f> &depth_found,
                             float &average_distance, float &median_distance) {
-  std::ofstream ofs;
-  ofs.open("/home/alessandro/Debug/estimated_depth.txt",
-           std::ofstream::out | std::ofstream::app);
-
   vector<float> distances;
   float avg = 0;
   int valid_distances = 0;
@@ -443,10 +434,6 @@ void BoundingCube::getDepth(const Mat &points,
     const auto &scd =
         points.at<Vec3f>(depth_found.at(i).y, depth_found.at(i).x);
     auto dis = getDistance(fst, scd);
-
-    stringstream ss;
-    ss << fst << " " << scd << " " << dis << "\n";
-    ofs << ss.str();
 
     if (dis > 0) {
       distances.push_back(dis);
@@ -471,6 +458,32 @@ void BoundingCube::getDepth(const Mat &points,
         (distances.at(median_point - 1) + distances.at(median_point)) / 2.0f;
   else
     median_distance = distances.at(median_point);
+}
+
+void BoundingCube::drawEstimatedCube(Point3f &center, const Mat &rotation,
+                                     float estimated_depth, Mat &out) {
+  if (estimated_depth <= 0) return;
+
+  // drawing estimation results
+  vector<Point3f> estimated_vect = front_vectors_;
+  for (auto &pt : estimated_vect) pt.z += estimated_depth;
+
+  vector<Point3f> front, back;
+  try {
+    rotateBBox(front_vectors_, rotation, front);
+    rotateBBox(estimated_vect, rotation, back);
+  } catch (cv::Exception &e) {
+    ROS_ERROR("BOUNDING_CUBE: error in rotation");
+    return;
+  }
+  for (auto i = 0; i < 4; ++i) {
+    front.at(i) += center;
+    back.at(i) += center;
+  }
+
+  Point2f center_image(cx_, cy_);
+  Scalar color(0, 255, 255);
+  drawBoundingCube(front, back, fx_, center_image, color, 2, out);
 }
 
 }  // end namespace
