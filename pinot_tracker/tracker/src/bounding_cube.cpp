@@ -146,12 +146,13 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     ROS_ERROR("BOUNDING_CUBE: error in rotation");
     return;
   }
-
-  for (auto i = 0; i < 4; ++i) {
+  cout << "bb 0 ";
+  for (auto i = 0; i < front.size(); ++i) {
     front.at(i) += center;
     back.at(i) += center;
   }
 
+  cout << "bb 1 ";
   // select the side of the box that is visible
 
   // create the estension of that face
@@ -160,7 +161,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   Point2f top_front(0, 0), down_front(0, 0), top_back(0, 0), down_back(0, 0);
   getFace(visibility_ratio, front, back, center_image, top_front, down_front,
           top_back, down_back);
-
+  cout << " 2 ";
   Scalar color(0, 255, 255);
   //  drawBoundingCube(center, front, back, fx_, center_image, color, 2, out);
   drawBoundingCube(center, front, back, fx_, center_image, out);
@@ -175,14 +176,14 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   // spawn linear connected components to find the depth of the object
 
   int num_tracks = 10;
-
+  cout << " 3 ";
   vector<Point2f> track_start(num_tracks, Point2f());
   vector<Point2f> track_end(num_tracks, Point2f());
   vector<Point2f> depth_found(num_tracks, Point2f());
 
   createLinearTracks(num_tracks, top_front, down_front, top_back, down_back,
                      track_start, track_end);
-
+  cout << " 4 ";
   int line_jump = 2;
   spawnLinearCC(points, line_jump, track_start, track_end, depth_found);
 
@@ -192,10 +193,10 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     }
     line(out, track_start.at(i), track_end.at(i), Scalar(0, 255, 0), 1);
   }
-
+  cout << " 5 ";
   float avg_depth, median_depth;
   getDepth(points, track_start, depth_found, avg_depth, median_depth);
-
+  cout << " 6 \n";
   drawEstimatedCube(center, rotation, median_depth, out);
 }
 
@@ -326,7 +327,7 @@ void BoundingCube::getFace(const std::vector<float> &visibility,
                            Point2f &down_back) {
   if (visibility.at(FACE::FRONT) > 0) {
     int max_face = -1;
-    float max_val = 0;
+    float max_val = 0.1;
 
     for (auto i = 0; i < 6; ++i) {
       if (i == FACE::FRONT || i == FACE::BACK) continue;

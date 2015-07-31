@@ -25,9 +25,10 @@ pinot/offline/box_w: 36
 pinot/offline/box_h: 89
 pinot/offline/video_result: out.avi
 
-
 # debug and testing
-pinot/debug/output_path: /home/alessandro/Debug/
+pinot/results/save_output: true
+pinot/results/output_path: /home/alessandro/Debug/
+
 
 
 

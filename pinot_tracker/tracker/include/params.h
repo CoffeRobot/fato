@@ -58,8 +58,10 @@ struct TrackerParams {
   int ransac_method;
   image_geometry::PinholeCameraModel camera_model;
   cv::Mat camera_matrix;
-  std::string debug_path;
-
+  bool save_output;
+  std::string output_path;
+  int image_width;
+  int image_height;
 
   TrackerParams()
       : eps(10),
@@ -71,7 +73,11 @@ struct TrackerParams {
         ransac_iterations(100),
         ransac_distance(2.0f),
         ransac_method(CV_P3P),
-        camera_model()
+        camera_model(),
+        save_output(false),
+        output_path(),
+        image_width(),
+        image_height()
   {}
 
   TrackerParams(const TrackerParams& other)
@@ -82,7 +88,11 @@ struct TrackerParams {
       pattern_scale(other.pattern_scale),
       ransac_distance(other.ransac_distance),
       ransac_iterations(other.ransac_iterations),
-      camera_model(other.camera_model)
+      camera_model(other.camera_model),
+      save_output(other.save_output),
+      output_path(other.output_path),
+      image_width(other.image_width),
+      image_height(other.image_height)
   {
       camera_matrix = other.camera_matrix.clone();
   }
@@ -175,6 +185,27 @@ struct TrackerParams {
     }
     else
       ss << ransac_distance << "\n";
+
+    ss << "save_output: ";
+    if (!ros::param::get("pinot/results/save_output",
+                         save_output))
+    {
+      ss << "failed \n";
+      save_output = false;
+    }
+    else
+      ss << save_output << "\n";
+
+    ss << "output_path: ";
+    if (!ros::param::get("pinot/results/output_path",
+                         output_path))
+    {
+      ss << "failed \n";
+      save_output = false;
+      output_path = "";
+    }
+    else
+      ss << output_path << "\n";
 
     ROS_INFO(ss.str().c_str());
   }

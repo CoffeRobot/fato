@@ -31,6 +31,8 @@
 /*****************************************************************************/
 #include <iostream>
 #include <visualization_msgs/Marker.h>
+#include <memory>
+#include <opencv2/highgui/highgui.hpp>
 
 #include "../include/projection.h"
 #include "../../utilities/include/draw_functions.h"
@@ -136,6 +138,8 @@ void Projection::rgbdCallback(
     //    getCameraMatrix(camera_info_msg, params_.camera_matrix);
     params_.camera_model.fromCameraInfo(camera_info_msg);
     params_.camera_matrix = camera_matrix.clone();
+    params_.image_width = camera_info_msg->width;
+    params_.image_height = camera_info_msg->height;
 
     //    waitKey(0);
     camera_matrix_initialized_ = true;
@@ -242,7 +246,6 @@ void Projection::initTracker(Tracker3D &tracker, BoundingCube &cube) {
   cube.initCube(points, mouse_start_, mouse_end_);
   cube.setVects(tracker.getFrontVects(), tracker.getBackVects());
 
-
   Point2f img_center(params_.camera_model.cx(), params_.camera_model.cy());
 
   drawBoundingCube(cube.getFrontPoints(), cube.getBackPoints(),
@@ -255,7 +258,7 @@ void Projection::initTracker(Tracker3D &tracker, BoundingCube &cube) {
   waitKey(0);
 }
 
-void Projection::updateTracker(Tracker3D &tracker, const Mat3f & points) {
+void Projection::updateTracker(Tracker3D &tracker, const Mat3f &points) {
   auto &profiler = Profiler::getInstance();
   profiler->start("frame_time");
   tracker.next(rgb_image_, points);
@@ -264,7 +267,7 @@ void Projection::updateTracker(Tracker3D &tracker, const Mat3f & points) {
 
 void Projection::estimateCube(Tracker3D &tracker, BoundingCube &cube,
                               const Mat3f &points, Mat &out) {
-  auto& profiler = Profiler::getInstance();
+  auto &profiler = Profiler::getInstance();
 
   profiler->start("cube");
 
@@ -275,8 +278,9 @@ void Projection::estimateCube(Tracker3D &tracker, BoundingCube &cube,
   profiler->stop("cube");
 
   Point2f img_center(params_.camera_model.cx(), params_.camera_model.cy());
-//  drawBoundingCube(cube.getCentroid(), cube.getFrontPoints(), cube.getBackPoints(),
-//                   params_.camera_model.fx(), img_center, out);
+  //  drawBoundingCube(cube.getCentroid(), cube.getFrontPoints(),
+  //  cube.getBackPoints(),
+  //                   params_.camera_model.fx(), img_center, out);
 }
 
 void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
@@ -320,8 +324,6 @@ void Projection::run() {
   spinner_.start();
 
   ROS_INFO("INPUT: init tracker");
-
-  params_.debug_path = "/home/alessandro/Debug";
   params_.readRosConfigFile();
 
   Tracker3D tracker;
@@ -330,6 +332,15 @@ void Projection::run() {
 
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = chrono::system_clock::now();
+
+  unique_ptr<VideoWriter> video_recorder;
+
+  if (params_.save_output) {
+    video_recorder = unique_ptr<VideoWriter>(new VideoWriter(
+        params_.output_path + "output.avi",
+        CV_FOURCC('X', 'V', 'I', 'D'), 30,
+        Size(params_.image_width, params_.image_height), true));
+  }
 
   BoundingCube cube;
 
@@ -380,6 +391,10 @@ void Projection::run() {
         estimateCube(tracker, cube, points, experiments_out);
         cout << "estimated cube depth " << endl;
 
+        if(params_.save_output)
+        {
+            video_recorder->write(experiments_out);
+        }
 
         rgb_out = tmp.clone();
 
