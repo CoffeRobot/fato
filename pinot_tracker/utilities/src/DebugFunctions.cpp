@@ -573,6 +573,7 @@ void scanLine(const Point2f& a, const Point2f& b, const int minY,
   if(mins.size() == 0 || maxs.size() == 0)
       return;
 
+
   int deltaY = abs(a.y - b.y);
 
   int offset = min(a.y, b.y) - minY;
@@ -585,6 +586,7 @@ void scanLine(const Point2f& a, const Point2f& b, const int minY,
 
   for (size_t i = 0; i < deltaY; i++) {
     int xVal = static_cast<int>(minX + i * step);
+
     mins.at(i + offset) = min(mins.at(i + offset), xVal);
     maxs.at(i + offset) = max(maxs.at(i + offset), xVal);
   }
@@ -592,6 +594,15 @@ void scanLine(const Point2f& a, const Point2f& b, const int minY,
 
 void drawTriangle(const Point2f& a, const Point2f& b, const Point2f& c,
                   Scalar color, float alpha, Mat& out) {
+
+  auto valid_point = [](const Point2f& pt, const Mat1b& img)
+  {
+    return pt.x > 0 && pt.x < img.cols && pt.y > 0 && pt.y < img.rows;
+  };
+
+  if(!valid_point(a, out) || !valid_point(b, out) || !valid_point(c, out))
+    return;
+
   int minX = min(a.x, min(b.x, c.x));
   int maxX = max(a.x, max(b.x, c.x));
 
@@ -622,6 +633,16 @@ void drawTriangle(const Point2f& a, const Point2f& b, const Point2f& c,
 
 void drawTriangleMask(const Point2f& a, const Point2f& b, const Point2f& c,
                       Mat1b& out) {
+
+  auto valid_point = [](const Point2f& pt, const Mat1b& img)
+  {
+    return pt.x > 0 && pt.x < img.cols && pt.y > 0 && pt.y < img.rows;
+  };
+
+  if(!valid_point(a, out) || !valid_point(b, out) || !valid_point(c, out))
+    return;
+
+
   int minX = min(a.x, min(b.x, c.x));
   int maxX = max(a.x, max(b.x, c.x));
 
@@ -629,6 +650,9 @@ void drawTriangleMask(const Point2f& a, const Point2f& b, const Point2f& c,
   int maxY = max(a.y, max(b.y, c.y));
 
   int deltaY = maxY - minY;
+
+  if(deltaY <= 0)
+      return;
 
   vector<int> minXs(deltaY, numeric_limits<int>::max());
   vector<int> maxXs(deltaY, 0);
@@ -640,7 +664,7 @@ void drawTriangleMask(const Point2f& a, const Point2f& b, const Point2f& c,
   for (size_t i = 0; i < minXs.size(); i++) {
     int y = i + minY;
 
-    for (size_t j = minXs[i]; j <= maxXs[i]; j++) {
+    for (size_t j = minXs.at(i); j <= maxXs.at(i); j++) {
       out.at<uchar>(y, j) = 255;
     }
   }

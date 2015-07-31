@@ -342,24 +342,25 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
 
   // cout << params_.camera_matrix << endl;
 
-  profiler->start("ransac");
-  vector<int> inliers;
-  getPoseRansac(model_points, tracked_points, params_.ransac_method,
-                params_.camera_matrix, params_.ransac_iterations,
-                params_.ransac_distance, inliers, rotation_ransac,
-                translation_ransac);
-  profiler->stop("ransac");
+//  profiler->start("ransac");
+//  vector<int> inliers;
+//  getPoseRansac(model_points, tracked_points, params_.ransac_method,
+//                params_.camera_matrix, params_.ransac_iterations,
+//                params_.ransac_distance, inliers, rotation_ransac,
+//                translation_ransac);
+//  profiler->stop("ransac");
 
-  ransac_translation_ = translation_ransac.clone();
-  ransac_rotation_ = rotation_ransac.clone();
+//  ransac_translation_ = translation_ransac.clone();
+//  ransac_rotation_ = rotation_ransac.clone();
 
-  debug_file_ << "ROTATION \n";
-  debug_file_ << rotation << "\n";
-  debug_file_ << "RANSAC\n";
-  debug_file_ << ransac_rotation_ << "\n";
+//  debug_file_ << "ROTATION \n";
+//  debug_file_ << rotation << "\n";
+//  debug_file_ << "RANSAC\n";
+//  debug_file_ << ransac_rotation_ << "\n";
 
   if (rotation.empty()) {
     isLost = true;
+    cout << " TRACK LOST! " << endl;
   }
   cout << "2 ";
   /*********************************************************************************************/

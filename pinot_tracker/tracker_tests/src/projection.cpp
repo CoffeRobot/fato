@@ -273,14 +273,15 @@ void Projection::estimateCube(Tracker3D &tracker, BoundingCube &cube,
 
   vector<float> visibility_ratio = tracker.getVisibilityRatio();
 
-  cube.estimateDepth(points, tracker.getCurrentCentroid(),
+  const auto& center = tracker.getCurrentCentroid();
+
+  if(!is_valid(center.x) || !is_valid(center.y) || !is_valid(center.z) )
+    return;
+
+  cube.estimateDepth(points, center,
                      tracker.getPoseMatrix(), visibility_ratio, out);
   profiler->stop("cube");
 
-  Point2f img_center(params_.camera_model.cx(), params_.camera_model.cy());
-  //  drawBoundingCube(cube.getCentroid(), cube.getFrontPoints(),
-  //  cube.getBackPoints(),
-  //                   params_.camera_model.fx(), img_center, out);
 }
 
 void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {

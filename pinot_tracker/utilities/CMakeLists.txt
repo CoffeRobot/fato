@@ -48,6 +48,7 @@ add_library(${PROJECT_NAME}
   src/draw_functions.cpp
   src/profiler.cpp
   src/visualization_ros.cpp
+  src/data_structures.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

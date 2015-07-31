@@ -36,6 +36,7 @@
 #include <opencv2/core/core.hpp>
 #include <vector>
 #include <iostream>
+#include <list>
 
 namespace pinot_tracker {
 
@@ -101,7 +102,7 @@ class BoundingCube {
                 float& average_distance, float& median_distance);
 
   void drawEstimatedCube(cv::Point3f& center, const cv::Mat& rotation,
-                         float estimated_depth,
+                         float estimated_depth, cv::Scalar color,
                          cv::Mat& out);
 
   std::vector<cv::Point3f> front_points_;
@@ -113,6 +114,11 @@ class BoundingCube {
 
   float fx_, fy_, cx_, cy_;
   float max_depth;
+  float accumulated_mean_;
+  int accumulated_counter_;
+  std::vector<float> means_;
+  std::list<float> averages_;
+
 };
 
 }  // end namespace

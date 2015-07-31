@@ -35,11 +35,9 @@
 // depth works
 #include <iostream>
 #include <fstream>
+#include <numeric>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl/segmentation/extract_clusters.h>
 
 #include "../include/bounding_cube.h"
 #include "../../utilities/include/utilities.h"
@@ -60,7 +58,11 @@ BoundingCube::BoundingCube()
       fx_(0),
       cx_(0),
       cy_(0),
-      max_depth(4.0f) {}
+      max_depth(4.0f),
+      accumulated_mean_(0.0f),
+      accumulated_counter_(0),
+      means_()
+{}
 
 void BoundingCube::initCube(const cv::Mat &points, const cv::Point2f &top_left,
                             const cv::Point2f &bottom_right) {
@@ -134,42 +136,66 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
                                  const Mat &rotation,
                                  std::vector<float> &visibility_ratio,
                                  Mat &out) {
+
+  cout << "bb -2 ";
   // create virtual infinite bounding box
-  vector<Point3f> front, back;
+  vector<Point3f> front, back, spawn_front;
   vector<Point3f> back_vect = back_vectors_;
+  vector<Point3f> front_spawn_vect = front_vectors_;
+  cout << "-1 ";
   for (auto &pt : back_vect) pt.z += 1.5f;
+  for (auto &pt : front_spawn_vect) pt.z += 0.01f;
 
   try {
     rotateBBox(front_vectors_, rotation, front);
     rotateBBox(back_vect, rotation, back);
+    rotateBBox(front_spawn_vect, rotation, spawn_front);
   } catch (cv::Exception &e) {
     ROS_ERROR("BOUNDING_CUBE: error in rotation");
     return;
   }
   cout << "bb 0 ";
+  for(const auto& pt : front)
+  {
+    if(!is_valid(pt.x) || !is_valid(pt.y))
+    {
+      return;
+    }
+  }
+
+  for(const auto& pt : back)
+  {
+    if(!is_valid(pt.x) || !is_valid(pt.y))
+    {
+      return;
+    }
+  }
+
+
   for (auto i = 0; i < front.size(); ++i) {
     front.at(i) += center;
     back.at(i) += center;
+    spawn_front.at(i) += center;
   }
 
-  cout << "bb 1 ";
+  cout << " 1 ";
   // select the side of the box that is visible
 
   // create the estension of that face
   Point2f center_image(cx_, cy_);
 
   Point2f top_front(0, 0), down_front(0, 0), top_back(0, 0), down_back(0, 0);
-  getFace(visibility_ratio, front, back, center_image, top_front, down_front,
+  getFace(visibility_ratio, spawn_front, back, center_image, top_front, down_front,
           top_back, down_back);
   cout << " 2 ";
   Scalar color(0, 255, 255);
   //  drawBoundingCube(center, front, back, fx_, center_image, color, 2, out);
   drawBoundingCube(center, front, back, fx_, center_image, out);
-
+  cout << " 2-1 ";
   Mat1b mask(out.rows + 2, out.cols + 2, uchar(0));
   drawTriangleMask(top_front, down_front, top_back, mask);
   drawTriangleMask(top_back, down_front, down_back, mask);
-
+  cout << " 2-2 ";
   drawTriangle(top_front, down_front, top_back, Scalar(255, 0, 0), 0.3, out);
   drawTriangle(top_back, down_front, down_back, Scalar(255, 0, 0), 0.3, out);
 
@@ -177,9 +203,9 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
 
   int num_tracks = 10;
   cout << " 3 ";
-  vector<Point2f> track_start(num_tracks, Point2f());
-  vector<Point2f> track_end(num_tracks, Point2f());
-  vector<Point2f> depth_found(num_tracks, Point2f());
+  vector<Point2f> track_start(num_tracks, Point2f(0,0));
+  vector<Point2f> track_end(num_tracks, Point2f(0,0));
+  vector<Point2f> depth_found(num_tracks, Point2f(0,0));
 
   createLinearTracks(num_tracks, top_front, down_front, top_back, down_back,
                      track_start, track_end);
@@ -197,7 +223,32 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   float avg_depth, median_depth;
   getDepth(points, track_start, depth_found, avg_depth, median_depth);
   cout << " 6 \n";
-  drawEstimatedCube(center, rotation, median_depth, out);
+  drawEstimatedCube(center, rotation, median_depth, Scalar(0,255,255), out);
+
+  accumulated_mean_ += median_depth;
+  accumulated_counter_++;
+  means_.push_back(median_depth);
+
+  auto average_median = accumulated_mean_ / static_cast<float>(accumulated_counter_);
+  sort(means_.begin(), means_.end());
+  auto size = means_.size();
+  auto half_size = size / 2;
+  auto median = 0.0f;
+  if(size % 2 == 0)
+    median = (means_.at(half_size-1) + means_.at(half_size)) / 2.0f;
+  else
+    median = means_.at(half_size);
+
+  averages_.push_back(median_depth);
+  if(averages_.size() > 90)
+    averages_.pop_front();
+
+  auto sliding_average = accumulate(averages_.begin(), averages_.end(), 0.0f) /
+      static_cast<float>(averages_.size());
+
+  drawEstimatedCube(center, rotation, average_median, Scalar(255,0,255), out);
+  drawEstimatedCube(center, rotation, median, Scalar(255,255,0), out);
+  drawEstimatedCube(center, rotation, sliding_average, Scalar(0,255,125), out);
 }
 
 void BoundingCube::linearCC(const Point2f &begin, const Point2f &end,
@@ -462,7 +513,8 @@ void BoundingCube::getDepth(const Mat &points,
 }
 
 void BoundingCube::drawEstimatedCube(Point3f &center, const Mat &rotation,
-                                     float estimated_depth, Mat &out) {
+                                     float estimated_depth, Scalar color,
+                                     Mat &out) {
   if (estimated_depth <= 0) return;
 
   // drawing estimation results
@@ -483,7 +535,6 @@ void BoundingCube::drawEstimatedCube(Point3f &center, const Mat &rotation,
   }
 
   Point2f center_image(cx_, cy_);
-  Scalar color(0, 255, 255);
   drawBoundingCube(front, back, fx_, center_image, color, 2, out);
 }
 
