@@ -192,7 +192,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   //  drawBoundingCube(center, front, back, fx_, center_image, color, 2, out);
   drawBoundingCube(center, front, back, fx_, center_image, out);
   cout << " 2-1 ";
-  Mat1b mask(out.rows + 2, out.cols + 2, uchar(0));
+  Mat1b mask(out.rows, out.cols, uchar(0));
   drawTriangleMask(top_front, down_front, top_back, mask);
   drawTriangleMask(top_back, down_front, down_back, mask);
   cout << " 2-2 ";
@@ -460,15 +460,20 @@ void BoundingCube::spawnLinearCC(const Mat &points, float line_jump,
     if (x_jumps <= 0) continue;
 
     Point2f begin_pt = track_start.at(i);
+    Vec3f last_pos = points.at<Vec3f>(begin_pt);
     for (int j = 0; j < x_jumps; ++j) {
-      if (points.at<Vec3f>(begin_pt)[2] == 0) {
+      auto diff = abs(points.at<Vec3f>(begin_pt)[2] - last_pos[2]);
+
+      if (diff > 0.02f || points.at<Vec3f>(begin_pt)[2] == 0) {
         begin_pt.x -= x_step;
         begin_pt.y -= y_step;
         depth_found.at(i) = begin_pt;
+//        depth_found.at(i) = last_pos;
         break;
       }
       begin_pt.x += x_step;
       begin_pt.y += y_step;
+      last_pos = points.at<Vec3f>(begin_pt);
     }
   }
 }

@@ -190,7 +190,7 @@ void Projection::initRGBD() {
 void Projection::publishPose(Point3f &center, Eigen::Quaterniond pose,
                              std::vector<Point3f> &back_points,
                              std::vector<Point3f> &front_points) {
-  tf::Vector3 centroid(center.x, center.y, center.z);
+  tf::Vector3 centroid(center.x, -center.y, center.z);
 
   tf::Transform transform;
   transform.setOrigin(centroid);

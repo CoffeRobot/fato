@@ -128,23 +128,23 @@ void getFaceMarker(cv::Point3f a, cv::Point3f b, cv::Point3f c, cv::Point3f d,
   geometry_msgs::Point p, tmp;
 
   p.x = a.x;
-  p.y = a.y;
+  p.y = -a.y;
   p.z = a.z;
   face.points.push_back(p);
   tmp = p;
 
   p.x = b.x;
-  p.y = b.y;
+  p.y = -b.y;
   p.z = b.z;
   face.points.push_back(p);
 
   p.x = c.x;
-  p.y = c.y;
+  p.y = -c.y;
   p.z = c.z;
   face.points.push_back(p);
 
   p.x = d.x;
-  p.y = d.y;
+  p.y = -d.y;
   p.z = d.z;
   face.points.push_back(p);
   face.points.push_back(tmp);
