@@ -48,9 +48,9 @@ namespace pinot_tracker {
 
 Projection::Projection()
     : nh_(),
-      rgb_topic_("/camera/rgb/image_color"),
-      depth_topic_("/camera/depth_registered/hw_registered/image_rect_raw"),
-      camera_info_topic_("/camera/rgb/camera_info"),
+      rgb_topic_("/tracker_input/rgb"),
+      depth_topic_("/tracker_input/depth"),
+      camera_info_topic_("/tracker_input/camera_info"),
       queue_size(5),
       spinner_(0),
       is_mouse_dragging_(false),
