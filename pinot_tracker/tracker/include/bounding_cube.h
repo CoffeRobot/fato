@@ -72,6 +72,8 @@ class BoundingCube {
 
   std::string str();
 
+  float getEstimatedDepth();
+
  private:
   void getValues(const cv::Mat& points, const cv::Mat1b& mask,
                  cv::Point3f& min_val, cv::Point3f& max_val,
@@ -82,7 +84,7 @@ class BoundingCube {
                const std::vector<cv::Point3f>& back,
                const cv::Point2f& center_image, cv::Point2f& top_front,
                cv::Point2f& down_front, cv::Point2f& top_back,
-               cv::Point2f& down_back);
+               cv::Point2f& down_back, int &face, float &face_vis);
 
   void createLinearTracks(int num_tracks, const cv::Point2f& top_front,
                           const cv::Point2f& down_front,
@@ -118,6 +120,8 @@ class BoundingCube {
   int accumulated_counter_;
   std::vector<float> means_;
   std::list<float> averages_;
+
+  std::vector<std::pair<float,float>> stored_estimations_;
 
 };
 

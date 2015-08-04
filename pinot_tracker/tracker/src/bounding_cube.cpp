@@ -61,8 +61,7 @@ BoundingCube::BoundingCube()
       max_depth(4.0f),
       accumulated_mean_(0.0f),
       accumulated_counter_(0),
-      means_()
-{}
+      means_() {}
 
 void BoundingCube::initCube(const cv::Mat &points, const cv::Point2f &top_left,
                             const cv::Point2f &bottom_right) {
@@ -136,7 +135,6 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
                                  const Mat &rotation,
                                  std::vector<float> &visibility_ratio,
                                  Mat &out) {
-
   cout << "bb -2 ";
   // create virtual infinite bounding box
   vector<Point3f> front, back, spawn_front;
@@ -155,22 +153,17 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     return;
   }
   cout << "bb 0 ";
-  for(const auto& pt : front)
-  {
-    if(!is_valid(pt.x) || !is_valid(pt.y))
-    {
+  for (const auto &pt : front) {
+    if (!is_valid(pt.x) || !is_valid(pt.y)) {
       return;
     }
   }
 
-  for(const auto& pt : back)
-  {
-    if(!is_valid(pt.x) || !is_valid(pt.y))
-    {
+  for (const auto &pt : back) {
+    if (!is_valid(pt.x) || !is_valid(pt.y)) {
       return;
     }
   }
-
 
   for (auto i = 0; i < front.size(); ++i) {
     front.at(i) += center;
@@ -183,10 +176,18 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
 
   // create the estension of that face
   Point2f center_image(cx_, cy_);
+  int selected_face = -1;
+  float face_visibility = 0.0f;
 
   Point2f top_front(0, 0), down_front(0, 0), top_back(0, 0), down_back(0, 0);
-  getFace(visibility_ratio, spawn_front, back, center_image, top_front, down_front,
-          top_back, down_back);
+  getFace(visibility_ratio, spawn_front, back, center_image, top_front,
+          down_front, top_back, down_back, selected_face, face_visibility);
+
+  // no face selected
+  if (selected_face == -1) return;
+  // face not visible enough
+  if (face_visibility < 0.3f) return;
+
   cout << " 2 ";
   Scalar color(0, 255, 255);
   //  drawBoundingCube(center, front, back, fx_, center_image, color, 2, out);
@@ -203,9 +204,9 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
 
   int num_tracks = 10;
   cout << " 3 ";
-  vector<Point2f> track_start(num_tracks, Point2f(0,0));
-  vector<Point2f> track_end(num_tracks, Point2f(0,0));
-  vector<Point2f> depth_found(num_tracks, Point2f(0,0));
+  vector<Point2f> track_start(num_tracks, Point2f(0, 0));
+  vector<Point2f> track_end(num_tracks, Point2f(0, 0));
+  vector<Point2f> depth_found(num_tracks, Point2f(0, 0));
 
   createLinearTracks(num_tracks, top_front, down_front, top_back, down_back,
                      track_start, track_end);
@@ -223,32 +224,42 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   float avg_depth, median_depth;
   getDepth(points, track_start, depth_found, avg_depth, median_depth);
   cout << " 6 \n";
-  drawEstimatedCube(center, rotation, median_depth, Scalar(0,255,255), out);
-
-  accumulated_mean_ += median_depth;
-  accumulated_counter_++;
-  means_.push_back(median_depth);
-
-  auto average_median = accumulated_mean_ / static_cast<float>(accumulated_counter_);
-  sort(means_.begin(), means_.end());
-  auto size = means_.size();
-  auto half_size = size / 2;
-  auto median = 0.0f;
-  if(size % 2 == 0)
-    median = (means_.at(half_size-1) + means_.at(half_size)) / 2.0f;
-  else
-    median = means_.at(half_size);
+  drawEstimatedCube(center, rotation, median_depth, Scalar(0, 255, 255), out);
 
   averages_.push_back(median_depth);
-  if(averages_.size() > 90)
-    averages_.pop_front();
+  if (averages_.size() > 90) averages_.pop_front();
 
   auto sliding_average = accumulate(averages_.begin(), averages_.end(), 0.0f) /
-      static_cast<float>(averages_.size());
+                         static_cast<float>(averages_.size());
 
-  drawEstimatedCube(center, rotation, average_median, Scalar(255,0,255), out);
-  drawEstimatedCube(center, rotation, median, Scalar(255,255,0), out);
-  drawEstimatedCube(center, rotation, sliding_average, Scalar(0,255,125), out);
+  // current visibility is inferior to the one already estimated
+  if (stored_estimations_.size() > 0) {
+    if (face_visibility > stored_estimations_.back().first)
+      stored_estimations_.push_back(
+          pair<float, float>(face_visibility, sliding_average));
+
+    cout << "Estimated depth, side view " << stored_estimations_.back().first
+         << " depth  " << stored_estimations_.back().second
+         << " estimation stored " << stored_estimations_.size() << endl;
+  }
+  else
+  {
+      stored_estimations_.push_back(
+          pair<float, float>(face_visibility, sliding_average));
+  }
+
+  //  sort(stored_estimations_.begin(), stored_estimations_.end(), []
+  //       (const pair<float,float>& a, const pair<float,float>& b)
+  //  {return a.first > b.first;});
+
+
+
+
+  // drawEstimatedCube(center, rotation, average_median, Scalar(255,0,255),
+  // out);
+  // drawEstimatedCube(center, rotation, median, Scalar(255,255,0), out);
+  drawEstimatedCube(center, rotation, sliding_average, Scalar(0, 255, 125),
+                    out);
 }
 
 void BoundingCube::linearCC(const Point2f &begin, const Point2f &end,
@@ -375,7 +386,7 @@ void BoundingCube::getFace(const std::vector<float> &visibility,
                            const std::vector<Point3f> &back,
                            const Point2f &center_image, Point2f &top_front,
                            Point2f &down_front, Point2f &top_back,
-                           Point2f &down_back) {
+                           Point2f &down_back, int &face, float &face_vis) {
   if (visibility.at(FACE::FRONT) > 0) {
     int max_face = -1;
     float max_val = 0.1;
@@ -388,6 +399,9 @@ void BoundingCube::getFace(const std::vector<float> &visibility,
         max_val = visibility.at(i);
       }
     }
+
+    face = max_face;
+    face_vis = max_val;
 
     if (max_face == -1) {
       top_front = down_front = top_back = down_back = Point2f(0, 0);
@@ -468,7 +482,7 @@ void BoundingCube::spawnLinearCC(const Mat &points, float line_jump,
         begin_pt.x -= x_step;
         begin_pt.y -= y_step;
         depth_found.at(i) = begin_pt;
-//        depth_found.at(i) = last_pos;
+        //        depth_found.at(i) = last_pos;
         break;
       }
       begin_pt.x += x_step;
@@ -541,6 +555,13 @@ void BoundingCube::drawEstimatedCube(Point3f &center, const Mat &rotation,
 
   Point2f center_image(cx_, cy_);
   drawBoundingCube(front, back, fx_, center_image, color, 2, out);
+}
+
+float BoundingCube::getEstimatedDepth() {
+  if (stored_estimations_.size() == 0)
+    return -1;
+  else
+    return stored_estimations_.back().second;
 }
 
 }  // end namespace
