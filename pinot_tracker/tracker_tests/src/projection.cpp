@@ -71,6 +71,10 @@ Projection::Projection()
   markers_publisher_ =
       nh_.advertise<visualization_msgs::Marker>("pinot_tracker/pose", 10);
 
+#ifdef VERBOSE_LOGGING
+  cout << "Tracker initialized in verbose mode!!!" << endl;
+#endif
+
   initRGBD();
 
   run();
@@ -251,11 +255,14 @@ void Projection::initTracker(Tracker3D &tracker, BoundingCube &cube) {
   drawBoundingCube(cube.getFrontPoints(), cube.getBackPoints(),
                    params_.camera_model.fx(), img_center, out);
 
+#ifdef VERBOSE_LOGGING
   cout << "cube centroid " << tracker.getCurrentCentroid() << endl;
   cout << cube.str() << endl;
+#endif
 
   imshow("Tracker", out);
   waitKey(0);
+
 }
 
 void Projection::updateTracker(Tracker3D &tracker, const Mat3f &points) {
@@ -373,7 +380,7 @@ void Projection::run() {
         experiments_out = depth_mapped.clone();
       } else if (tracker_initialized_) {
         // getting 3d points from disparity
-        cout << "getting 3d points " << endl;
+
         input_mutex.lock();
         Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
         depthTo3d(depth_image_, params_.camera_model.cx(),
@@ -384,14 +391,21 @@ void Projection::run() {
         Mat tmp;
         rgb_image_.copyTo(tmp);
         experiments_out = depth_mapped.clone();
+#ifdef TRACKER_VERBOSE_LOGGING
         cout << "updating tracker " << endl;
+#endif
         updateTracker(tracker, points);
+#ifdef TRACKER_VERBOSE_LOGGING
         cout << "drawing tracker " << endl;
+#endif
         drawTrackerResults(tracker, tmp);
+#ifdef TRACKER_VERBOSE_LOGGING
         cout << "estimating cube depth " << endl;
+#endif
         estimateCube(tracker, cube, points, experiments_out);
+#ifdef TRACKER_VERBOSE_LOGGING
         cout << "estimated cube depth " << endl;
-
+#endif
         if(params_.save_output)
         {
             video_recorder->write(experiments_out);
@@ -404,23 +418,14 @@ void Projection::run() {
             chrono::duration_cast<chrono::seconds>(end - start).count();
 
         stringstream ss;
-        ss << "Tracker run in ms: ";
+        ss << "Tracker profile in ms: \n";
         if (elapsed > 3.0) {
           start = end;
           ss << "\n" << profiler->getProfile() << "\n";
           ROS_INFO(ss.str().c_str());
-        } /*else
-          ss << profiler->getTime("frame_time") << "\n";*/
-
+        }
         char c = waitKey(30);
 
-        if (c == 'e') {
-          cout << "Estimating depth..." << endl;
-          //           cube.estimateDepth(points, tracker.getCurrentCentroid(),
-          //                              tracker.getPoseMatrix(), ransac);
-          //           cout << "Estimated depth..." << endl;
-          waitKey(0);
-        }
         if (c == 's') cout << "save" << endl;
       }
 

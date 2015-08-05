@@ -193,6 +193,10 @@ class Tracker3D {
   void learnFrame(const cv::Mat& rgb, const cv::Mat& cloud,
                   const int& faceToLearn, const cv::Mat& rotation);
 
+  void learnFrame(const cv::Mat& rgb, const cv::Mat& points,
+                  const BoundingCube& cube, int faceToLearn,
+                  const cv::Mat& rotation);
+
   void learnFace(const cv::Mat1b& mask, const cv::Mat& rgb,
                  const cv::Mat& cloud, const cv::Mat& rotation, const int& face,
                  ObjectModel& fstCube, ObjectModel& updatedCube);
@@ -295,7 +299,7 @@ class Tracker3D {
   ObjectModel m_fstCube;
   std::vector<std::vector<bool>> m_isPointClustered;
   cv::Mat3f m_firstCloud;
-  BoundingCube bouding_cube_;
+  BoundingCube bounding_cube_;
   /*********************************************************************************************/
   /*                          UPDATED MODEL */
   /*********************************************************************************************/

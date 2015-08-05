@@ -1,9 +1,8 @@
 project(tracker_gpu)
 cmake_minimum_required(VERSION 2.8.7)
 
-set(WITH_GPU OFF CACHE BOOL "set to true if opencv gpu is installed")
-set(CUSTON_OPENCV_PATH ON CACHE STRING "path to gpu compiled opencv" FORCE )
-
+set(TRACKER_WITH_GPU OFF CACHE BOOL "set to true if opencv gpu is installed")
+set(CUSTON_OPENCV_PATH CACHE STRING "path to gpu compiled opencv" FORCE )
 
 #LINK_DIRECTORIES("/home/alessandro/Libs/lib")
 
@@ -18,7 +17,7 @@ set(CUSTON_OPENCV_PATH ON CACHE STRING "path to gpu compiled opencv" FORCE )
 #endif()
 
 #link_directories()
-if(WITH_GPU)
+if(TRACKER_WITH_GPU)
   find_package(CUDA REQUIRED)
 endif()
 
@@ -47,7 +46,7 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
 
 
 
-if(WITH_GPU)
+if(TRACKER_WITH_GPU)
 
   include_directories(include
   ${catkin_INCLUDE_DIRS}

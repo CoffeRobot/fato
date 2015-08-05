@@ -3,18 +3,27 @@ project(pinot_tracker_nodes)
 cmake_minimum_required(VERSION 2.8.3)
 find_package(catkin REQUIRED)
 
+set(REQUIRED_PACKAGES
+      roscpp
+      cmake_modules
+      cv_bridge
+      image_transport
+      tf
+      image_geometry
+      utilities
+      tracker_cpu
+)
+
+if(REQUIRED_PACKAGES)
+    message("CurDir variable exists")
+endif(REQUIRED_PACKAGES)
+
+if(TRACKER_WITH_GPU)
+  set(REQUIRED_PACKAGES tracker_gpu ${REQUIRED_PACKAGES})
+endif()
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  cmake_modules
-  cv_bridge
-  image_transport
-# pcl_ros
-  tf
-  image_geometry
-  utilities
-  tracker_gpu
-  tracker_cpu
+  ${REQUIRED_PACKAGES}
 )
 
 find_package(OpenCV 2.4.8 REQUIRED)
@@ -70,7 +79,7 @@ include_directories(include
   ${EIGEN_INCLUDE_DIR} 
 )
 
-if(WITH_GPU)
+if(TRACKER_WITH_GPU)
   add_executable(tracker_2d_gpu
     src/tracker_gpu.cpp
   )

@@ -135,7 +135,9 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
                                  const Mat &rotation,
                                  std::vector<float> &visibility_ratio,
                                  Mat &out) {
-  cout << "bb -2 ";
+#ifdef TRACKER_VERBOSE_LOGGING
+  cout << "bb 0 ";
+#endif
   // create virtual infinite bounding box
   vector<Point3f> front, back, spawn_front;
   vector<Point3f> back_vect = back_vectors_;
@@ -152,7 +154,9 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     ROS_ERROR("BOUNDING_CUBE: error in rotation");
     return;
   }
-  cout << "bb 0 ";
+#ifdef TRACKER_VERBOSE_LOGGING
+  cout << "1 ";
+#endif
   for (const auto &pt : front) {
     if (!is_valid(pt.x) || !is_valid(pt.y)) {
       return;
@@ -170,8 +174,9 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     back.at(i) += center;
     spawn_front.at(i) += center;
   }
-
-  cout << " 1 ";
+#ifdef TRACKER_VERBOSE_LOGGING
+  cout << "2 ";
+#endif
   // select the side of the box that is visible
 
   // create the estension of that face
@@ -188,29 +193,39 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   // face not visible enough
   if (face_visibility < 0.3f) return;
 
-  cout << " 2 ";
+ #ifdef TRACKER_VERBOSE_LOGGING
+  cout << "3 ";
+ #endif
   Scalar color(0, 255, 255);
   //  drawBoundingCube(center, front, back, fx_, center_image, color, 2, out);
   drawBoundingCube(center, front, back, fx_, center_image, out);
-  cout << " 2-1 ";
+ #ifdef TRACKER_VERBOSE_LOGGING
+  cout << "4 ";
+#endif
   Mat1b mask(out.rows, out.cols, uchar(0));
   drawTriangleMask(top_front, down_front, top_back, mask);
   drawTriangleMask(top_back, down_front, down_back, mask);
-  cout << " 2-2 ";
+#ifdef TRACKER_VERBOSE_LOGGING
+  cout << "5 ";
+#endif
   drawTriangle(top_front, down_front, top_back, Scalar(255, 0, 0), 0.3, out);
   drawTriangle(top_back, down_front, down_back, Scalar(255, 0, 0), 0.3, out);
 
   // spawn linear connected components to find the depth of the object
 
   int num_tracks = 10;
-  cout << " 3 ";
+#ifdef TRACKER_VERBOSE_LOGGING
+  cout << "6 ";
+#endif
   vector<Point2f> track_start(num_tracks, Point2f(0, 0));
   vector<Point2f> track_end(num_tracks, Point2f(0, 0));
   vector<Point2f> depth_found(num_tracks, Point2f(0, 0));
 
   createLinearTracks(num_tracks, top_front, down_front, top_back, down_back,
                      track_start, track_end);
-  cout << " 4 ";
+#ifdef TRACKER_VERBOSE_LOGGING
+  cout << "7 ";
+#endif
   int line_jump = 2;
   spawnLinearCC(points, line_jump, track_start, track_end, depth_found);
 
@@ -220,10 +235,14 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     }
     line(out, track_start.at(i), track_end.at(i), Scalar(0, 255, 0), 1);
   }
-  cout << " 5 ";
+#ifdef TRACKER_VERBOSE_LOGGING
+  cout << "8 ";
+#endif
   float avg_depth, median_depth;
   getDepth(points, track_start, depth_found, avg_depth, median_depth);
-  cout << " 6 \n";
+#ifdef TRACKER_VERBOSE_LOGGING
+  cout << "9 \n";
+#endif
   drawEstimatedCube(center, rotation, median_depth, Scalar(0, 255, 255), out);
 
   averages_.push_back(median_depth);

@@ -3,6 +3,12 @@ project(pinot_tracker_tests)
 cmake_minimum_required(VERSION 2.8.3)
 find_package(catkin REQUIRED)
 
+set(TRACKER_VERBOSE_LOGGING ON CACHE BOOL "set to true to have verbose logs")
+
+if(TRACKER_VERBOSE_LOGGING)
+  add_definitions(-DVERBOSE_LOGGING)
+endif()
+
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp

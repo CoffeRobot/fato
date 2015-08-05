@@ -57,6 +57,13 @@ cd ~/catkin_ws
 catkin_make
 ```
 
+Cmake custom flags:
+
+The tracker defines some global variables used during compilation:
+- TRACKER_WITH_GPU: set it to true if you want to compile the tracker using GPUs. 
+- CUSTON_OPENCV_PATH: since the gpu tracker uses some function defined in opencv you need to point to you local installation of OpenCV compiled with WITH_GPU enabled. The standard opencv installation does not come with that enabled.
+- TRACKER_VERBOSE_LOGGING: flag used for debugging purposes. The tracker prints and save more information during the intermediate steps.
+
 ## Cameras
 
 The tracker support many cameras, each camera has a different launch file where the input to the tracker can be configured.
