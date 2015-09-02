@@ -390,7 +390,8 @@ void Projection::run() {
 
         Mat tmp;
         rgb_image_.copyTo(tmp);
-        experiments_out = depth_mapped.clone();
+        //experiments_out = depth_mapped.clone();
+        experiments_out = rgb_image_.clone();
 #ifdef TRACKER_VERBOSE_LOGGING
         cout << "updating tracker " << endl;
 #endif

@@ -198,18 +198,18 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
  #endif
   Scalar color(0, 255, 255);
   //  drawBoundingCube(center, front, back, fx_, center_image, color, 2, out);
-  drawBoundingCube(center, front, back, fx_, center_image, out);
+  //drawBoundingCube(center, front, back, fx_, center_image, out);
  #ifdef TRACKER_VERBOSE_LOGGING
   cout << "4 ";
 #endif
   Mat1b mask(out.rows, out.cols, uchar(0));
-  drawTriangleMask(top_front, down_front, top_back, mask);
-  drawTriangleMask(top_back, down_front, down_back, mask);
+  //drawTriangleMask(top_front, down_front, top_back, mask);
+  //drawTriangleMask(top_back, down_front, down_back, mask);
 #ifdef TRACKER_VERBOSE_LOGGING
   cout << "5 ";
 #endif
-  drawTriangle(top_front, down_front, top_back, Scalar(255, 0, 0), 0.3, out);
-  drawTriangle(top_back, down_front, down_back, Scalar(255, 0, 0), 0.3, out);
+  //drawTriangle(top_front, down_front, top_back, Scalar(255, 0, 0), 0.3, out);
+  //drawTriangle(top_back, down_front, down_back, Scalar(255, 0, 0), 0.3, out);
 
   // spawn linear connected components to find the depth of the object
 
@@ -233,7 +233,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     if (depth_found.at(i).x != 0 && depth_found.at(i).y != 0) {
       circle(out, depth_found.at(i), 3, Scalar(0, 0, 255), -1);
     }
-    line(out, track_start.at(i), track_end.at(i), Scalar(0, 255, 0), 1);
+    //line(out, track_start.at(i), track_end.at(i), Scalar(0, 255, 0), 1);
   }
 #ifdef TRACKER_VERBOSE_LOGGING
   cout << "8 ";
