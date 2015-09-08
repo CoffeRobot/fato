@@ -212,6 +212,10 @@ int Tracker3D::init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
   m_learnedFaceMedianAngle.resize(6, numeric_limits<double>::max());
   m_learnedFaceMedianAngle.at(FACE::FRONT) = 0;
 
+  //NOTE: store the old cub for experiments. Remove this once experiments
+  // are done.
+  old_cube_ = m_fstCube;
+
   return 0;
 }
 
@@ -514,6 +518,14 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     newLearning =
         isCurrentApperanceToLearn(visibilityRatio, angularDist, face_to_learn);
     if (newLearning) {
+      float estimated_depth = bounding_cube_.getEstimatedDepth();
+
+      if(params_.estimate_cuboid_depth)
+      {
+        cout << "updating cuboid with depth " << estimated_depth  << endl;
+        updateEstimatedCube(estimated_depth, rotation);
+      }
+
       learnFrame(rgb, points, face_to_learn, rotation);
     }
   }
@@ -1844,6 +1856,35 @@ void Tracker3D::drawRansacEstimation(Mat& out) {
 
   drawBoundingCube(m_updatedModel.m_center, back_points, front_points, m_focal,
                    m_imageCenter, out);
+}
+
+void Tracker3D::updateEstimatedCube(float estimated_depth,const Mat& rotation)
+{
+    float front_d = m_fstCube.m_pointsFront[0].z;
+    float back_d = front_d + estimated_depth;
+
+    for(auto& pt : m_fstCube.m_pointsBack)
+        pt.z = back_d;
+
+    float rel_distance = back_d - m_fstCube.m_center.z;
+
+    for(auto& pt : m_fstCube.m_relativeDistBack)
+        pt.z = rel_distance;
+
+    vector<Point3f> updatedPoints;
+    rotateBBox(m_fstCube.m_relativeDistFront, rotation, updatedPoints);
+
+    for (int i = 0; i < m_fstCube.m_pointsFront.size(); ++i) {
+      m_updatedModel.m_pointsFront.at(i) =
+          m_updatedCentroid + updatedPoints.at(i);
+    }
+
+    updatedPoints.clear();
+    rotateBBox(m_fstCube.m_relativeDistBack, rotation, updatedPoints);
+
+    for (int i = 0; i < m_fstCube.m_pointsBack.size(); ++i) {
+      m_updatedModel.m_pointsBack.at(i) = m_updatedCentroid + updatedPoints.at(i);
+    }
 }
 
 }  // end namespace

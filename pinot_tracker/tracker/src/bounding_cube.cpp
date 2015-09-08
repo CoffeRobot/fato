@@ -142,7 +142,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   vector<Point3f> front, back, spawn_front;
   vector<Point3f> back_vect = back_vectors_;
   vector<Point3f> front_spawn_vect = front_vectors_;
-  cout << "-1 ";
+  //cout << "-1 ";
   for (auto &pt : back_vect) pt.z += 1.5f;
   for (auto &pt : front_spawn_vect) pt.z += 0.01f;
 
