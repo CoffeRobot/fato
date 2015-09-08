@@ -34,7 +34,7 @@ void drawCentroidVotes(const vector<KeyPoint>& keypoints,
       if (border[i])
         color = Scalar(0, 255, 255);
       else
-        color = Scalar(0, 255, 0);
+        color = Scalar(255, 0, 0);
 
       circle(out, points[i], 3, color, 1);
 
@@ -81,7 +81,7 @@ void drawCentroidVotes(const vector<Point3f>& keypoints,
       if (border[i])
         color = Scalar(0, 255, 255);
       else
-        color = Scalar(0, 255, 0);
+        color = Scalar(255, 0, 0);
 
       circle(out, tmp, 3, color, 1);
 
@@ -129,7 +129,7 @@ void drawCentroidVotes(const vector<Point3f>& keypoints,
       if (border[i])
         color = Scalar(0, 255, 255);
       else
-        color = Scalar(0, 255, 0);
+        color = Scalar(255, 0, 0);
 
       circle(out, tmp, 3, color, 1);
 
@@ -173,7 +173,7 @@ void drawCentroidVotes(const vector<Point3f*>& keypoints,
       if (border[i])
         color = Scalar(0, 255, 255);
       else
-        color = Scalar(0, 255, 0);
+        color = Scalar(255, 0, 0);
 
       circle(out, tmp, 3, color, 1);
 

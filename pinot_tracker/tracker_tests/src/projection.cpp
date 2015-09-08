@@ -262,7 +262,6 @@ void Projection::initTracker(Tracker3D &tracker, BoundingCube &cube) {
 
   imshow("Tracker", out);
   waitKey(0);
-
 }
 
 void Projection::updateTracker(Tracker3D &tracker, const Mat3f &points) {
@@ -280,15 +279,13 @@ void Projection::estimateCube(Tracker3D &tracker, BoundingCube &cube,
 
   vector<float> visibility_ratio = tracker.getVisibilityRatio();
 
-  const auto& center = tracker.getCurrentCentroid();
+  const auto &center = tracker.getCurrentCentroid();
 
-  if(!is_valid(center.x) || !is_valid(center.y) || !is_valid(center.z) )
-    return;
+  if (!is_valid(center.x) || !is_valid(center.y) || !is_valid(center.z)) return;
 
-  cube.estimateDepth(points, center,
-                     tracker.getPoseMatrix(), visibility_ratio, out);
+  cube.estimateDepth(points, center, tracker.getPoseMatrix(), visibility_ratio,
+                     out);
   profiler->stop("cube");
-
 }
 
 void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
@@ -300,7 +297,13 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
   rgb_image_.copyTo(out);
 
   try {
-    tracker.drawObjectLocation(out);
+    //tracker.drawObjectLocation(out);
+
+    drawObjectPose(
+        tracker.getCurrentCentroid(), params_.camera_model.fx(),
+        Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
+        tracker.getPoseMatrix(), out);
+
     Point2f center;
     projectPoint(params_.camera_model.fx(),
                  Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
@@ -313,14 +316,18 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
     drawCentroidVotes(pts, votes, Point2f(params_.camera_model.cx(),
                                           params_.camera_model.cy()),
                       true, params_.camera_model.fx(), out);
-  } catch (cv::Exception &e) {
+
+
+  }
+  catch (cv::Exception &e) {
     cout << "error drawing results: " << e.what() << endl;
     return;
   }
 
   try {
     publishPose(pt, q, back_points, front_points);
-  } catch (cv::Exception &e) {
+  }
+  catch (cv::Exception &e) {
     cout << "error publishing the pose: " << e.what() << endl;
     return;
   }
@@ -345,8 +352,7 @@ void Projection::run() {
 
   if (params_.save_output) {
     video_recorder = unique_ptr<VideoWriter>(new VideoWriter(
-        params_.output_path + "output.avi",
-        CV_FOURCC('X', 'V', 'I', 'D'), 30,
+        params_.output_path + "output.avi", CV_FOURCC('X', 'V', 'I', 'D'), 30,
         Size(params_.image_width, params_.image_height), true));
   }
 
@@ -390,7 +396,7 @@ void Projection::run() {
 
         Mat tmp;
         rgb_image_.copyTo(tmp);
-        //experiments_out = depth_mapped.clone();
+        // experiments_out = depth_mapped.clone();
         experiments_out = rgb_image_.clone();
 #ifdef TRACKER_VERBOSE_LOGGING
         cout << "updating tracker " << endl;
@@ -407,9 +413,9 @@ void Projection::run() {
 #ifdef TRACKER_VERBOSE_LOGGING
         cout << "estimated cube depth " << endl;
 #endif
-        if(params_.save_output)
-        {
-            video_recorder->write(experiments_out);
+        if (params_.save_output) {
+          //video_recorder->write(experiments_out);
+          video_recorder->write(tmp);
         }
 
         rgb_out = tmp.clone();

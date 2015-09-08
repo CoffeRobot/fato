@@ -73,15 +73,15 @@ void BoundingCube::initCube(const cv::Mat &points, const cv::Point2f &top_left,
   float median_z;
   getValues(points, mask, min_val, max_val, median_z);
 
-  auto projectPoint =
-      [&](const cv::Point2f &pt, float depth, cv::Point3f &out) {
-        float xp = pt.x - cx_;
-        float yp = -(pt.y - cy_);
+  auto projectPoint = [&](const cv::Point2f &pt, float depth,
+                          cv::Point3f &out) {
+    float xp = pt.x - cx_;
+    float yp = -(pt.y - cy_);
 
-        out.x = xp * depth / fx_;
-        out.y = yp * depth / fy_;
-        out.z = depth;
-      };
+    out.x = xp * depth / fx_;
+    out.y = yp * depth / fy_;
+    out.z = depth;
+  };
 
   Point3f tl, br;
   projectPoint(top_left, median_z, tl);
@@ -135,6 +135,10 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
                                  const Mat &rotation,
                                  std::vector<float> &visibility_ratio,
                                  Mat &out) {
+
+  ofstream file("/home/alessandro/Debug/paper_estimation.txt",
+                std::ofstream::out | std::ofstream::app);
+
 #ifdef TRACKER_VERBOSE_LOGGING
   cout << "bb 0 ";
 #endif
@@ -142,7 +146,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   vector<Point3f> front, back, spawn_front;
   vector<Point3f> back_vect = back_vectors_;
   vector<Point3f> front_spawn_vect = front_vectors_;
-  cout << "-1 ";
+  //cout << "-1 ";
   for (auto &pt : back_vect) pt.z += 1.5f;
   for (auto &pt : front_spawn_vect) pt.z += 0.01f;
 
@@ -150,7 +154,8 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     rotateBBox(front_vectors_, rotation, front);
     rotateBBox(back_vect, rotation, back);
     rotateBBox(front_spawn_vect, rotation, spawn_front);
-  } catch (cv::Exception &e) {
+  }
+  catch (cv::Exception &e) {
     ROS_ERROR("BOUNDING_CUBE: error in rotation");
     return;
   }
@@ -193,23 +198,23 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   // face not visible enough
   if (face_visibility < 0.3f) return;
 
- #ifdef TRACKER_VERBOSE_LOGGING
+#ifdef TRACKER_VERBOSE_LOGGING
   cout << "3 ";
- #endif
+#endif
   Scalar color(0, 255, 255);
-  //  drawBoundingCube(center, front, back, fx_, center_image, color, 2, out);
-  //drawBoundingCube(center, front, back, fx_, center_image, out);
- #ifdef TRACKER_VERBOSE_LOGGING
+//  drawBoundingCube(center, front, back, fx_, center_image, color, 2, out);
+// drawBoundingCube(center, front, back, fx_, center_image, out);
+#ifdef TRACKER_VERBOSE_LOGGING
   cout << "4 ";
 #endif
   Mat1b mask(out.rows, out.cols, uchar(0));
-  //drawTriangleMask(top_front, down_front, top_back, mask);
-  //drawTriangleMask(top_back, down_front, down_back, mask);
+// drawTriangleMask(top_front, down_front, top_back, mask);
+// drawTriangleMask(top_back, down_front, down_back, mask);
 #ifdef TRACKER_VERBOSE_LOGGING
   cout << "5 ";
 #endif
-  //drawTriangle(top_front, down_front, top_back, Scalar(255, 0, 0), 0.3, out);
-  //drawTriangle(top_back, down_front, down_back, Scalar(255, 0, 0), 0.3, out);
+  // drawTriangle(top_front, down_front, top_back, Scalar(255, 0, 0), 0.3, out);
+  // drawTriangle(top_back, down_front, down_back, Scalar(255, 0, 0), 0.3, out);
 
   // spawn linear connected components to find the depth of the object
 
@@ -233,7 +238,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     if (depth_found.at(i).x != 0 && depth_found.at(i).y != 0) {
       circle(out, depth_found.at(i), 3, Scalar(0, 0, 255), -1);
     }
-    //line(out, track_start.at(i), track_end.at(i), Scalar(0, 255, 0), 1);
+    // line(out, track_start.at(i), track_end.at(i), Scalar(0, 255, 0), 1);
   }
 #ifdef TRACKER_VERBOSE_LOGGING
   cout << "8 ";
@@ -246,10 +251,15 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   drawEstimatedCube(center, rotation, median_depth, Scalar(0, 255, 255), out);
 
   averages_.push_back(median_depth);
-  if (averages_.size() > 90) averages_.pop_front();
+  if (averages_.size() > 30) averages_.pop_front();
 
   auto sliding_average = accumulate(averages_.begin(), averages_.end(), 0.0f) /
                          static_cast<float>(averages_.size());
+
+  cout << "AVG: " << sliding_average << " " << averages_.size() << " median "
+       << median_depth << "\n";
+  file << face_visibility << " " << median_depth << " "<< sliding_average
+       << "\n";
 
   // current visibility is inferior to the one already estimated
   if (stored_estimations_.size() > 0) {
@@ -260,19 +270,16 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     cout << "Estimated depth, side view " << stored_estimations_.back().first
          << " depth  " << stored_estimations_.back().second
          << " estimation stored " << stored_estimations_.size() << endl;
+  } else {
+    stored_estimations_.push_back(
+        pair<float, float>(face_visibility, sliding_average));
   }
-  else
-  {
-      stored_estimations_.push_back(
-          pair<float, float>(face_visibility, sliding_average));
-  }
+
+
 
   //  sort(stored_estimations_.begin(), stored_estimations_.end(), []
   //       (const pair<float,float>& a, const pair<float,float>& b)
   //  {return a.first > b.first;});
-
-
-
 
   // drawEstimatedCube(center, rotation, average_median, Scalar(255,0,255),
   // out);
@@ -563,7 +570,8 @@ void BoundingCube::drawEstimatedCube(Point3f &center, const Mat &rotation,
   try {
     rotateBBox(front_vectors_, rotation, front);
     rotateBBox(estimated_vect, rotation, back);
-  } catch (cv::Exception &e) {
+  }
+  catch (cv::Exception &e) {
     ROS_ERROR("BOUNDING_CUBE: error in rotation");
     return;
   }

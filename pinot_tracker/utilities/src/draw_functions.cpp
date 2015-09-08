@@ -292,11 +292,73 @@ void drawCentroidVotes(const vector<Point3f*>& points,
     Point2f vote_prj, point_prj;
     projectPoint(focal, center, votes.at(i), vote_prj);
     projectPoint(focal, center, points.at(i), point_prj);
-    Scalar color(0, 255, 0);
+    Scalar color(255, 0, 0);
+    Scalar color2(0,102,255);
     circle(out, vote_prj, 2, color, -1);
     circle(out, point_prj, 3, color, 1);
-    if (drawLines) line(out, vote_prj, point_prj, color, 1);
+    if (drawLines) line(out, vote_prj, point_prj, color2, 1);
   }
+}
+
+void drawObjectPose(const Point3f& centroid, const float focal,
+                    const Point2f& img_center, const Mat& rotation, Mat& out) {
+
+  auto rotatePoint = [](const Mat& rotation, cv::Point3f& pt) {
+    Mat a(1, 3, CV_32FC1);
+    a.at<float>(0) = pt.x;
+    a.at<float>(1) = pt.y;
+    a.at<float>(2) = pt.z;
+    Mat b, b_T, a_T;
+
+    transpose(a, a_T);
+    b_T = rotation * a_T;
+    transpose(b_T, b);
+
+    pt.x = b.at<float>(0);
+    pt.y = b.at<float>(1);
+    pt.z = b.at<float>(2);
+  };
+
+  Point3f x_axis(0.04,0,0);
+  Point3f y_axis(0,0.04,0);
+  Point3f z_axis(0,0,0.04);
+  //x_axis = y_axis = z_axis = centroid;
+
+  //x_axis.x = 0.02 - x_axis.x;
+  //y_axis.y += 0.02;
+  //z_axis.z -= 0.02;
+
+  rotatePoint(rotation, x_axis);
+  x_axis = centroid + x_axis;
+  rotatePoint(rotation, y_axis);
+  y_axis = centroid + y_axis;
+  rotatePoint(rotation, z_axis);
+  z_axis = centroid + z_axis;
+
+  Point2f center = projectPoint(focal, img_center, centroid);
+
+  Point2f xa = projectPoint(focal, img_center, x_axis);
+  Point2f ya = projectPoint(focal, img_center, y_axis);
+  Point2f za = projectPoint(focal, img_center, z_axis);
+
+  arrowedLine(out, center, xa, Scalar(0, 0, 255), 3);
+  arrowedLine(out, center, ya, Scalar(0,255,0), 3);
+  arrowedLine(out, center, za, Scalar(255,0,0), 3);
+}
+
+void arrowedLine(Mat& img, Point2f pt1, Point2f pt2, const Scalar& color,
+                 int thickness, int line_type, int shift, double tipLength) {
+  const double tipSize =
+      norm(pt1 - pt2) * tipLength;  // Factor to normalize the size of the tip
+                                    // depending on the length of the arrow
+  line(img, pt1, pt2, color, thickness, line_type, shift);
+  const double angle = atan2((double)pt1.y - pt2.y, (double)pt1.x - pt2.x);
+  Point p(cvRound(pt2.x + tipSize * cos(angle + CV_PI / 4)),
+          cvRound(pt2.y + tipSize * sin(angle + CV_PI / 4)));
+  line(img, p, pt2, color, thickness, line_type, shift);
+  p.x = cvRound(pt2.x + tipSize * cos(angle - CV_PI / 4));
+  p.y = cvRound(pt2.y + tipSize * sin(angle - CV_PI / 4));
+  line(img, p, pt2, color, thickness, line_type, shift);
 }
 
 }  // end namespace
