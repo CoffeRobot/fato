@@ -25,6 +25,9 @@ pinot/offline/box_w: 36
 pinot/offline/box_h: 89
 pinot/offline/video_result: out.avi
 
+# estimation of the size
+pinot/cuboid/estimate_size: true
+
 # debug and testing
 pinot/results/save_output: true
 pinot/results/output_path: /home/alessandro/Debug/

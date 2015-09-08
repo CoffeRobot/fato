@@ -281,6 +281,9 @@ class Tracker3D {
                   const std::vector<cv::KeyPoint>& extractedKeypoints,
                   int& faceFound, int& matchesNum);
 
+  void updateEstimatedCube(float estimated_depth, const cv::Mat& rotation);
+
+
   // object to extract and compare features
   cv::BRISK m_featuresDetector;
   std::unique_ptr<cv::DescriptorMatcher> m_featureMatcher;
@@ -385,6 +388,7 @@ class Tracker3D {
   /*                        LEARNING */
   /*********************************************************************************************/
   std::vector<bool> m_visibleFaces;
+  ObjectModel old_cube_;
 
   bool hasAppearanceToChange;
 

@@ -62,6 +62,7 @@ struct TrackerParams {
   std::string output_path;
   int image_width;
   int image_height;
+  bool estimate_cuboid_depth;
 
   TrackerParams()
       : eps(10),
@@ -77,7 +78,8 @@ struct TrackerParams {
         save_output(false),
         output_path(),
         image_width(),
-        image_height()
+        image_height(),
+        estimate_cuboid_depth(false)
   {}
 
   TrackerParams(const TrackerParams& other)
@@ -92,7 +94,8 @@ struct TrackerParams {
       save_output(other.save_output),
       output_path(other.output_path),
       image_width(other.image_width),
-      image_height(other.image_height)
+      image_height(other.image_height),
+      estimate_cuboid_depth(other.estimate_cuboid_depth)
   {
       camera_matrix = other.camera_matrix.clone();
   }
@@ -206,6 +209,17 @@ struct TrackerParams {
     }
     else
       ss << output_path << "\n";
+
+    ss << "estimate_depth: ";
+    if (!ros::param::get("pinot/cuboid/estimate_size",
+                         estimate_cuboid_depth))
+    {
+      ss << "failed \n";
+      estimate_cuboid_depth = false;
+    }
+    else
+      ss << estimate_cuboid_depth << "\n";
+
 
     ROS_INFO(ss.str().c_str());
   }
