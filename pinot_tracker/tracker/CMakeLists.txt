@@ -9,6 +9,10 @@ find_package(catkin REQUIRED COMPONENTS
 #  pcl_ros
 )
 
+if(TRACKER_VERBOSE_LOGGING)
+  add_definitions(-DVERBOSE_LOGGING)
+endif()
+
 find_package(OpenCV REQUIRED)
 
 find_package(Eigen REQUIRED)

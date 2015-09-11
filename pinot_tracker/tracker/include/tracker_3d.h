@@ -384,11 +384,15 @@ class Tracker3D {
   std::vector<Eigen::Quaterniond> m_quaternionHistory;
   std::vector<float> m_learnedFaceVisibility;
   std::vector<double> m_learnedFaceMedianAngle;
+  //TOFIX: variables used to make images for ICRA, remove afterwards
+  int learning_count = 0;
   /*********************************************************************************************/
   /*                        LEARNING */
   /*********************************************************************************************/
   std::vector<bool> m_visibleFaces;
   ObjectModel old_cube_;
+  float max_visibility_depth_estimate;
+  float max_depth_estimated;
 
   bool hasAppearanceToChange;
 

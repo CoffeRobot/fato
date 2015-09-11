@@ -145,6 +145,13 @@ void Projection::rgbdCallback(
     params_.image_width = camera_info_msg->width;
     params_.image_height = camera_info_msg->height;
 
+    if (params_.save_output) {
+      video_recorder_ = unique_ptr<VideoWriter>(new VideoWriter(
+          params_.output_path + "output.avi", CV_FOURCC('X', 'V', 'I', 'D'), 30,
+          Size(params_.image_width, params_.image_height), true));
+    }
+
+
     //    waitKey(0);
     camera_matrix_initialized_ = true;
     ROS_INFO("Initialized camera parameters...");
@@ -199,9 +206,9 @@ void Projection::publishPose(Point3f &center, Eigen::Quaterniond pose,
   tf::Transform transform;
   transform.setOrigin(centroid);
   tf::Quaternion q;
-  q.setX(pose.x());
+  q.setX(-pose.x());
   q.setY(pose.y());
-  q.setZ(pose.z());
+  q.setZ(-pose.z());
   q.setW(pose.w());
 
   transform.setRotation(q);
@@ -250,10 +257,12 @@ void Projection::initTracker(Tracker3D &tracker, BoundingCube &cube) {
   cube.initCube(points, mouse_start_, mouse_end_);
   cube.setVects(tracker.getFrontVects(), tracker.getBackVects());
 
+  cout << "PROJECTION CUBOID \n" << cube.str();
+
   Point2f img_center(params_.camera_model.cx(), params_.camera_model.cy());
 
   drawBoundingCube(cube.getFrontPoints(), cube.getBackPoints(),
-                   params_.camera_model.fx(), img_center, out);
+                   params_.camera_model.fx(), img_center, 3, out);
 
 #ifdef VERBOSE_LOGGING
   cout << "cube centroid " << tracker.getCurrentCentroid() << endl;
@@ -297,12 +306,26 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
   rgb_image_.copyTo(out);
 
   try {
-    //tracker.drawObjectLocation(out);
+
+
+#ifdef VERBOSE_LOGGING
+  cout << "drawing: 1 ";
+#endif
+    tracker.drawObjectLocation(out);
+
+#ifdef VERBOSE_LOGGING
+  cout << " 2 ";
+#endif
 
     drawObjectPose(
         tracker.getCurrentCentroid(), params_.camera_model.fx(),
         Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
         tracker.getPoseMatrix(), out);
+
+
+#ifdef VERBOSE_LOGGING
+  cout << " 3 ";
+#endif
 
     Point2f center;
     projectPoint(params_.camera_model.fx(),
@@ -313,11 +336,18 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
     vector<Point3f *> pts, votes;
     tracker.getActivePoints(pts, votes);
 
+
+#ifdef VERBOSE_LOGGING
+  cout << " 4 ";
+#endif
+
     drawCentroidVotes(pts, votes, Point2f(params_.camera_model.cx(),
                                           params_.camera_model.cy()),
                       true, params_.camera_model.fx(), out);
 
-
+#ifdef VERBOSE_LOGGING
+  cout << " 5 ";
+#endif
   }
   catch (cv::Exception &e) {
     cout << "error drawing results: " << e.what() << endl;
@@ -325,7 +355,13 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
   }
 
   try {
+#ifdef VERBOSE_LOGGING
+  cout << " 6 ";
+#endif
     publishPose(pt, q, back_points, front_points);
+#ifdef VERBOSE_LOGGING
+  cout << " 7 " << endl;
+#endif
   }
   catch (cv::Exception &e) {
     cout << "error publishing the pose: " << e.what() << endl;
@@ -347,14 +383,6 @@ void Projection::run() {
 
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = chrono::system_clock::now();
-
-  unique_ptr<VideoWriter> video_recorder;
-
-  if (params_.save_output) {
-    video_recorder = unique_ptr<VideoWriter>(new VideoWriter(
-        params_.output_path + "output.avi", CV_FOURCC('X', 'V', 'I', 'D'), 30,
-        Size(params_.image_width, params_.image_height), true));
-  }
 
   BoundingCube cube;
 
@@ -398,24 +426,24 @@ void Projection::run() {
         rgb_image_.copyTo(tmp);
         // experiments_out = depth_mapped.clone();
         experiments_out = rgb_image_.clone();
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
         cout << "updating tracker " << endl;
 #endif
         updateTracker(tracker, points);
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
         cout << "drawing tracker " << endl;
 #endif
         drawTrackerResults(tracker, tmp);
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
         cout << "estimating cube depth " << endl;
 #endif
         estimateCube(tracker, cube, points, experiments_out);
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
         cout << "estimated cube depth " << endl;
 #endif
         if (params_.save_output) {
           //video_recorder->write(experiments_out);
-          video_recorder->write(tmp);
+          video_recorder_->write(tmp);
         }
 
         rgb_out = tmp.clone();

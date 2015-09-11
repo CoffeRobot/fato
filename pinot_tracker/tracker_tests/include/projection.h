@@ -126,6 +126,8 @@ class Projection {
 
   std::mutex input_mutex;
 
+  std::unique_ptr<cv::VideoWriter> video_recorder_;
+
 };
 
 }  // end namespace

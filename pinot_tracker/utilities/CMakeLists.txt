@@ -49,6 +49,7 @@ add_library(${PROJECT_NAME}
   src/profiler.cpp
   src/visualization_ros.cpp
   src/data_structures.cpp
+  src/logger.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

@@ -136,10 +136,10 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
                                  std::vector<float> &visibility_ratio,
                                  Mat &out) {
 
+
+#ifdef VERBOSE_LOGGING
   ofstream file("/home/alessandro/Debug/paper_estimation.txt",
                 std::ofstream::out | std::ofstream::app);
-
-#ifdef TRACKER_VERBOSE_LOGGING
   cout << "bb 0 ";
 #endif
   // create virtual infinite bounding box
@@ -159,7 +159,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     ROS_ERROR("BOUNDING_CUBE: error in rotation");
     return;
   }
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
   cout << "1 ";
 #endif
   for (const auto &pt : front) {
@@ -179,7 +179,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     back.at(i) += center;
     spawn_front.at(i) += center;
   }
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
   cout << "2 ";
 #endif
   // select the side of the box that is visible
@@ -198,19 +198,19 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   // face not visible enough
   if (face_visibility < 0.3f) return;
 
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
   cout << "3 ";
 #endif
   Scalar color(0, 255, 255);
 //  drawBoundingCube(center, front, back, fx_, center_image, color, 2, out);
 // drawBoundingCube(center, front, back, fx_, center_image, out);
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
   cout << "4 ";
 #endif
   Mat1b mask(out.rows, out.cols, uchar(0));
 // drawTriangleMask(top_front, down_front, top_back, mask);
 // drawTriangleMask(top_back, down_front, down_back, mask);
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
   cout << "5 ";
 #endif
   // drawTriangle(top_front, down_front, top_back, Scalar(255, 0, 0), 0.3, out);
@@ -219,7 +219,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   // spawn linear connected components to find the depth of the object
 
   int num_tracks = 10;
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
   cout << "6 ";
 #endif
   vector<Point2f> track_start(num_tracks, Point2f(0, 0));
@@ -228,7 +228,7 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
 
   createLinearTracks(num_tracks, top_front, down_front, top_back, down_back,
                      track_start, track_end);
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
   cout << "7 ";
 #endif
   int line_jump = 2;
@@ -240,12 +240,12 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
     }
     // line(out, track_start.at(i), track_end.at(i), Scalar(0, 255, 0), 1);
   }
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
   cout << "8 ";
 #endif
   float avg_depth, median_depth;
   getDepth(points, track_start, depth_found, avg_depth, median_depth);
-#ifdef TRACKER_VERBOSE_LOGGING
+#ifdef VERBOSE_LOGGING
   cout << "9 \n";
 #endif
   drawEstimatedCube(center, rotation, median_depth, Scalar(0, 255, 255), out);
@@ -256,20 +256,23 @@ void BoundingCube::estimateDepth(const cv::Mat &points, Point3f center,
   auto sliding_average = accumulate(averages_.begin(), averages_.end(), 0.0f) /
                          static_cast<float>(averages_.size());
 
+#ifdef VERBOSE_LOGGING
   cout << "AVG: " << sliding_average << " " << averages_.size() << " median "
        << median_depth << "\n";
   file << face_visibility << " " << median_depth << " "<< sliding_average
        << "\n";
+#endif
 
   // current visibility is inferior to the one already estimated
   if (stored_estimations_.size() > 0) {
     if (face_visibility > stored_estimations_.back().first)
       stored_estimations_.push_back(
           pair<float, float>(face_visibility, sliding_average));
-
+#ifdef VERBOSE_LOGGING
     cout << "Estimated depth, side view " << stored_estimations_.back().first
          << " depth  " << stored_estimations_.back().second
          << " estimation stored " << stored_estimations_.size() << endl;
+#endif
   } else {
     stored_estimations_.push_back(
         pair<float, float>(face_visibility, sliding_average));
@@ -337,8 +340,15 @@ std::string BoundingCube::str() {
   stringstream ss;
   ss << "CUBE VALUES:\n";
   ss << "center: " << centroid_;
-  ss << "top_left: " << front_points_.at(0);
-  ss << "bottom_left: " << front_points_.at(2) << "\n";
+  ss << "front points \n";
+  for(auto pt : front_points_)
+    ss << pt << " ";
+  ss << "\n";
+  ss << "back points \n";
+  for(auto pt : back_points_)
+    ss << pt << " ";
+  ss << "\n Perspective: \n";
+  ss << fx_ << " " << fy_ << " " << cx_ << " " << cy_<< "\n";
 
   return ss.str();
 }
@@ -522,13 +532,15 @@ void BoundingCube::getDepth(const Mat &points,
                             const std::vector<Point2f> &track_start,
                             const std::vector<Point2f> &depth_found,
                             float &average_distance, float &median_distance) {
+
+  //BUG: nan or invalid values here cause a crash
   vector<float> distances;
   float avg = 0;
   int valid_distances = 0;
   for (auto i = 0; i < track_start.size(); ++i) {
-    const auto &fst =
+    const auto fst =
         points.at<Vec3f>(track_start.at(i).y, track_start.at(i).x);
-    const auto &scd =
+    const auto scd =
         points.at<Vec3f>(depth_found.at(i).y, depth_found.at(i).x);
     auto dis = getDistance(fst, scd);
 

@@ -21,6 +21,7 @@ void drawBoundingCube(const cv::Point3f& center,
 void drawBoundingCube(const std::vector<cv::Point3f>& front_box,
                       const std::vector<cv::Point3f>& back_box,
                       const float focal, const cv::Point2f& imgCenter,
+                      int line_width,
                       cv::Mat& out);
 
 void drawBoundingCube(const std::vector<cv::Point3f>& front_box,

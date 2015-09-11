@@ -24,12 +24,12 @@ void drawBoundingCube(const Point3f& center, const vector<Point3f>& front_box,
   tmp = projectPoint(focal, imgCenter, center);
   circle(out, tmp, 7, Scalar(255, 0, 0), -1);
 
-  drawBoundingCube(front_box, back_box, focal, imgCenter, out);
+  drawBoundingCube(front_box, back_box, focal, imgCenter, 3, out);
 }
 
 void drawBoundingCube(const vector<Point3f>& front_box,
                       const vector<Point3f>& back_box, const float focal,
-                      const Point2f& imgCenter, Mat& out) {
+                      const Point2f& imgCenter, int line_width, Mat& out) {
   int cols = out.cols;
 
   if (back_box.size() < 4) {
@@ -45,38 +45,38 @@ void drawBoundingCube(const vector<Point3f>& front_box,
   /*                  Draw back face */
   /*********************************************************************************************/
   line(out, projectPoint(focal, imgCenter, back_box.at(0)),
-       projectPoint(focal, imgCenter, back_box.at(1)), Scalar(0, 0, 255), 3);
+       projectPoint(focal, imgCenter, back_box.at(1)), Scalar(0, 0, 255), line_width);
   line(out, projectPoint(focal, imgCenter, back_box.at(1)),
-       projectPoint(focal, imgCenter, back_box.at(2)), Scalar(0, 0, 255), 3);
+       projectPoint(focal, imgCenter, back_box.at(2)), Scalar(0, 0, 255), line_width);
   line(out, projectPoint(focal, imgCenter, back_box.at(2)),
-       projectPoint(focal, imgCenter, back_box.at(3)), Scalar(0, 0, 255), 3);
+       projectPoint(focal, imgCenter, back_box.at(3)), Scalar(0, 0, 255), line_width);
   line(out, projectPoint(focal, imgCenter, back_box.at(3)),
-       projectPoint(focal, imgCenter, back_box.at(0)), Scalar(0, 0, 255), 3);
+       projectPoint(focal, imgCenter, back_box.at(0)), Scalar(0, 0, 255), line_width);
 
   /*********************************************************************************************/
   /*                  Draw connecting lines */
   /*********************************************************************************************/
   line(out, projectPoint(focal, imgCenter, front_box.at(0)),
-       projectPoint(focal, imgCenter, back_box.at(0)), Scalar(0, 255, 0), 3);
+       projectPoint(focal, imgCenter, back_box.at(0)), Scalar(0, 255, 0), line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(1)),
-       projectPoint(focal, imgCenter, back_box.at(1)), Scalar(0, 255, 255), 3);
+       projectPoint(focal, imgCenter, back_box.at(1)), Scalar(0, 255, 255), line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(2)),
-       projectPoint(focal, imgCenter, back_box.at(2)), Scalar(255, 255, 0), 3);
+       projectPoint(focal, imgCenter, back_box.at(2)), Scalar(255, 255, 0), line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(3)),
-       projectPoint(focal, imgCenter, back_box.at(3)), Scalar(255, 0, 255), 3);
+       projectPoint(focal, imgCenter, back_box.at(3)), Scalar(255, 0, 255), line_width);
 
   /*********************************************************************************************/
   /*                  Draw front face */
   /*********************************************************************************************/
 
   line(out, projectPoint(focal, imgCenter, front_box.at(0)),
-       projectPoint(focal, imgCenter, front_box.at(1)), Scalar(255, 0, 0), 3);
+       projectPoint(focal, imgCenter, front_box.at(1)), Scalar(255, 0, 0), line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(1)),
-       projectPoint(focal, imgCenter, front_box.at(2)), Scalar(255, 0, 0), 3);
+       projectPoint(focal, imgCenter, front_box.at(2)), Scalar(255, 0, 0), line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(2)),
-       projectPoint(focal, imgCenter, front_box.at(3)), Scalar(255, 0, 0), 3);
+       projectPoint(focal, imgCenter, front_box.at(3)), Scalar(255, 0, 0), line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(3)),
-       projectPoint(focal, imgCenter, front_box.at(0)), Scalar(255, 0, 0), 3);
+       projectPoint(focal, imgCenter, front_box.at(0)), Scalar(255, 0, 0), line_width);
 }
 
 void drawBoundingCube(const std::vector<Point3f>& front_box,
@@ -319,9 +319,9 @@ void drawObjectPose(const Point3f& centroid, const float focal,
     pt.z = b.at<float>(2);
   };
 
-  Point3f x_axis(0.04,0,0);
-  Point3f y_axis(0,0.04,0);
-  Point3f z_axis(0,0,0.04);
+  Point3f x_axis(0.06,0,0);
+  Point3f y_axis(0,0.06,0);
+  Point3f z_axis(0,0,0.06);
   //x_axis = y_axis = z_axis = centroid;
 
   //x_axis.x = 0.02 - x_axis.x;
