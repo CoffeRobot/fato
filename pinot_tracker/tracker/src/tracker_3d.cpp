@@ -45,7 +45,6 @@
 #include "../../utilities/include/utilities.h"
 #include "../../utilities/include/draw_functions.h"
 #include "../../utilities/include/profiler.h"
-#include "../../utilities/include/logger.h"
 
 // TOFIX: replace all vector<T>[] with vector<T>.at() better for debugging
 
@@ -60,7 +59,12 @@ Tracker3D::~Tracker3D() { clear(); }
 
 int Tracker3D::init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
                     cv::Point2d& top_left, cv::Point2d& bottom_right) {
-  debug_file_.open("/home/alessandro/Debug/debug.txt");
+
+#ifdef VERBOSE_LOGGING
+  string homedir = getenv("HOME");
+  log_file_.open(homedir+"/pinot_tracker_log/tracker.txt", std::ofstream::out);
+#endif
+
   params_ = params;
   auto mask = getMask(rgb.rows, rgb.cols, top_left, bottom_right);
 
@@ -134,8 +138,9 @@ int Tracker3D::init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
     return -1;
   }
 
-  bounding_cube_.setPerspective(params_.camera_model.fx(), params_.camera_model.fy(),
-                                params_.camera_model.cx(), params_.camera_model.cy());
+  bounding_cube_.setPerspective(
+      params_.camera_model.fx(), params_.camera_model.fy(),
+      params_.camera_model.cx(), params_.camera_model.cy());
   bounding_cube_.initCube(points, top_left, bottom_right);
 
   m_fstCube.m_center = bounding_cube_.getCentroid();
@@ -215,12 +220,11 @@ int Tracker3D::init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
   m_learnedFaceMedianAngle.resize(6, numeric_limits<double>::max());
   m_learnedFaceMedianAngle.at(FACE::FRONT) = 0;
 
-  //NOTE: store the old cub for experiments. Remove this once experiments
+  // NOTE: store the old cub for experiments. Remove this once experiments
   // are done.
   old_cube_ = m_fstCube;
   max_visibility_depth_estimate = 0.0f;
   max_depth_estimated = 0.0f;
-
 
   learning_count = 0;
 
@@ -281,7 +285,10 @@ void Tracker3D::clear() {
 
   m_faceColors.clear();
 
-  debug_file_.close();
+#ifdef VERBOSE_LOGGING
+  log_file_.close();
+#endif
+
 }
 
 void Tracker3D::next(const Mat& rgb, const Mat& points) {
@@ -313,30 +320,26 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
 
   auto& profiler = Profiler::getInstance();
 
-  /****************************************************************************/
-  /*                             PICK FACES                                   */
-  /****************************************************************************/
-#ifdef VERBOSE_LOGGING
-  auto& logger = Logger::getInstance();
-  logger->info("next 0");
-#endif
+/****************************************************************************/
+/*                             PICK FACES                                   */
+/****************************************************************************/
   profiler->start("pick_face");
   getCurrentPoints(m_currentFaces, pointsStatus, fstPoints, updPoints,
                    fstKeypoint, updKeypoint, relPointPos, fstDescriptors,
                    colors, isClustered);
   profiler->stop("pick_face");
 #ifdef VERBOSE_LOGGING
-  logger->info("next 1");
+
 #endif
   /****************************************************************************/
   /*                             TRACKING */
   /****************************************************************************/
   profiler->start("optical_flow");
-  int activeKp = trackFeatures(grayImg, points, pointsStatus, updPoints,
-                               updKeypoint, numTracked, numBoth);
+  int activeKp = trackFeatures(grayImg, points, pointsStatus, fstPoints,
+                               updPoints, updKeypoint, numTracked, numBoth);
   profiler->stop("optical_flow");
-#ifdef  VERBOSE_LOGGING
-  logger->info("next 2");
+#ifdef VERBOSE_LOGGING
+
 #endif
   // optical = m_fstCube.m_pointStatus.at(FACE::FRONT);
   /****************************************************************************/
@@ -383,7 +386,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     cout << " TRACK LOST! " << endl;
   }
 #ifdef VERBOSE_LOGGING
-  logger->info("next 3");
+
 #endif
   /*********************************************************************************************/
   /*                             CALCULATING QUATERNION */
@@ -400,7 +403,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     profiler->stop("quaternion");
   }
 #ifdef VERBOSE_LOGGING
-  logger->info("next 4");
+
 #endif
   /*********************************************************************************************/
   /*                             VOTING */
@@ -413,7 +416,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     profiler->stop("voting");
   }
 #ifdef VERBOSE_LOGGING
-  logger->info("next 5");
+
 #endif
   /*********************************************************************************************/
   /*                             CLUSTERING */
@@ -429,7 +432,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     profiler->stop("clustering");
   }
 #ifdef VERBOSE_LOGGING
-  logger->info("next 6");
+
 #endif
   /*********************************************************************************************/
   /*                             UPDATE VOTES */
@@ -449,11 +452,11 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     profiler->stop("update");
   }
   m_updatedModel.m_center = m_updatedCentroid;
-  //  end = chrono::system_clock::now();
-  //  m_partialTimes[7] +=
-  //      chrono::duration_cast<chrono::milliseconds>(end - start).count();
+//  end = chrono::system_clock::now();
+//  m_partialTimes[7] +=
+//      chrono::duration_cast<chrono::milliseconds>(end - start).count();
 #ifdef VERBOSE_LOGGING
-  logger->info("next 7");
+
 #endif
   /****************************************************************************/
   /*                             UPDATE STATUS OF NOT CLUSTERED POINTS        */
@@ -464,12 +467,12 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     profiler->stop("update_status");
   }
 #ifdef VERBOSE_LOGGING
-  logger->info("next 8");
+
 #endif
   /****************************************************************************/
   /*                            STORE CURRENT RESULT                          */
   /****************************************************************************/
-  //debug_file_ << "STATUS " << m_numFrames << "\n";
+  // debug_file_ << "STATUS " << m_numFrames << "\n";
 
   m_votingPoints.clear();
   m_votedPoints.clear();
@@ -485,8 +488,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     }
   }
 
-  if(m_votingPoints.size() == 0)
-  {
+  if (m_votingPoints.size() == 0) {
     isLost = true;
   }
   /****************************************************************************/
@@ -505,14 +507,8 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   }
   visibility_ratio_ = visibilityRatio;
 
-  debug_file_ << m_numFrames << " " << counter << " ";
-
-  for(auto val : visibility_ratio_)
-    debug_file_ << val << " ";
-  debug_file_ << "\n";
-
 #ifdef VERBOSE_LOGGING
-  logger->info("next 9");
+
 #endif
   /****************************************************************************/
   /*                             ESTIMATE DEPTH OF CUBOID                     */
@@ -520,12 +516,12 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   profiler->start("depth_estimation");
   Mat tmp = rgb.clone();
   if (!isLost) {
-  bounding_cube_.estimateDepth(points, m_updatedCentroid, updated_rotation_,
-                               visibility_ratio_, tmp);
+    bounding_cube_.estimateDepth(points, m_updatedCentroid, updated_rotation_,
+                                 visibility_ratio_, tmp);
   }
   profiler->stop("depth_estimation");
 #ifdef VERBOSE_LOGGING
-  logger->info("next 10");
+
 #endif
   /****************************************************************************/
   /*                             LEARN NEW APPEARANCE                         */
@@ -546,18 +542,15 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     if (newLearning) {
       float estimated_depth = bounding_cube_.getEstimatedDepth();
 
-      if(params_.estimate_cuboid_depth)
-      {
+      if (params_.estimate_cuboid_depth) {
         cout << "updating cuboid with depth " << estimated_depth
              << " face to learn " << face_to_learn << endl;
         float visibility = visibilityRatio.at(face_to_learn);
-        if(visibility > max_visibility_depth_estimate)
-        {
+        if (visibility > max_visibility_depth_estimate) {
           updateEstimatedCube(estimated_depth, rotation);
           max_visibility_depth_estimate = visibility;
           max_depth_estimated = estimated_depth;
         }
-
       }
 
       learnFrame(rgb, points, face_to_learn, rotation);
@@ -565,7 +558,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     }
   }
 #ifdef VERBOSE_LOGGING
-  logger->info("next 11");
+
 #endif
   /*********************************************************************************************/
   /*                            CHOOSE VISIBLE FACES */
@@ -591,7 +584,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     }
   }
 #ifdef VERBOSE_LOGGING
-  logger->info("next 12");
+
 #endif
   /*********************************************************************************************/
   /*                             EXTRACTION */
@@ -602,7 +595,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   m_featuresDetector.compute(grayImg, nextKeypoints, nextDescriptors);
   profiler->stop("extraction");
 #ifdef VERBOSE_LOGGING
-  logger->info("next 13");
+
 #endif
   /*********************************************************************************************/
   /*                             MATCHING */
@@ -621,7 +614,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
 
       // TOFIX:check here, seems wrong
       profiler->start("matching");
-      //vector<Point3f*>
+      // vector<Point3f*>
       if (m_currentFaces.size() > 0) {
         for (size_t i = 0; i < m_currentFaces.size(); i++) {
           int face = m_currentFaces[i];
@@ -647,7 +640,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     }
   }
 #ifdef VERBOSE_LOGGING
-  logger->info("next 15");
+
 #endif
   /****************************************************************************/
   /*                            RECOVERY                                      */
@@ -666,7 +659,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
     }
   }
 #ifdef VERBOSE_LOGGING
-  logger->info("next 16");
+
 #endif
   /*********************************************************************************************/
   /*                            SAVING */
@@ -676,7 +669,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   points.copyTo(m_currCloud);
   m_numFrames++;
 #ifdef VERBOSE_LOGGING
-  logger->info("next 17");
+
 #endif
 }
 
@@ -754,6 +747,7 @@ int Tracker3D::matchFeaturesCustom(const Mat& fstDescriptors,
 
 int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
                              vector<Status*>& keypointStatus,
+                             std::vector<Point3f*>& fstPoints,
                              vector<Point3f*>& updPoints,
                              vector<KeyPoint*>& updKeypoints, int& trackedCount,
                              int& bothCount) {
@@ -786,12 +780,11 @@ int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
 
   int activeKeypoints = 0;
 
-  // m_debugFile << "Updating cloud:\n";
-
-  // debug_file_ << "OPTICAL FLOW: \n";
-
+#ifdef VERBOSE_LOGGING
+  log_file_ << "OPTICAL FLOW: \n";
+#endif
   for (int i = 0; i < nextPoints.size(); ++i) {
-    float error = getDistance(currPoints[i], prevPoints[i]);
+    float error = getDistance(currPoints.at(i), prevPoints.at(i));
 
     Status* s = keypointStatus[ids[i]];
 
@@ -802,9 +795,13 @@ int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
 
       // FIXME: potential value of 0 in the cloud due to errors in the kinect
       // is this the case?
-      const Vec3f& tmp = cloud.at<Vec3f>(nextPoints[i]);
+      const Vec3f& tmp = cloud.at<Vec3f>(nextPoints.at(i));
 
-      if (*s == Status::MATCH) {
+      if (tmp[2] == 0 || fstPoints[id]->z == 0) {
+             // FIXME: ugly fix to manage the error in kinect sensor
+             *keypointStatus[id] = Status::LOST;
+      }
+      else if (*s == Status::MATCH) {
         *keypointStatus[id] = Status::TRACK;
         bothCount++;
         activeKeypoints++;
@@ -814,17 +811,21 @@ int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
         *keypointStatus[id] = Status::NOCLUSTER;
         trackedCount++;
         activeKeypoints++;
-      } else if (tmp[2] == 0) {
-        //FIXME: ugly fix to manage the error in kinect sensor
-        *keypointStatus[id] = Status::LOST;
-      } else {
+      }
+      else {
         *keypointStatus[id] = Status::TRACK;
         trackedCount++;
         activeKeypoints++;
       }
 
+#ifdef VERBOSE_LOGGING
+      log_file_ << *fstPoints[id]  << " : "
+                << *updPoints[id] << " -> "
+                << toString(tmp) << toString(*keypointStatus.at(id)) << "\n";
+#endif
+
       // m_debugFile << toString(m_firstFrameCloud[id])  << " : "
-      //	 << toString(m_updatedFrameCloud[id]) << " -> " << toString(tmp)
+      //	 << *updPoints[id] << " -> " << toString(tmp)
 
       //<< "\n";
 
@@ -1399,9 +1400,8 @@ void Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
   Mat1b mask(rgb.rows, rgb.cols, static_cast<uchar>(0));
   Mat3b maskResult(rgb.rows, rgb.cols, Vec3b(0, 0, 0));
   rgb.copyTo(result);
-  drawBoundingCube(m_updatedModel.m_pointsFront,
-                   m_updatedModel.m_pointsBack, m_focal, m_imageCenter, 1,
-                   result);
+  drawBoundingCube(m_updatedModel.m_pointsFront, m_updatedModel.m_pointsBack,
+                   m_focal, m_imageCenter, 1, result);
   vector<Point3f> facePoints = m_updatedModel.getFacePoints(faceToLearn);
 
   Point2f a, b, c, d;
@@ -1424,9 +1424,8 @@ void Tracker3D::learnFrame(const Mat& rgb, const Mat& cloud,
 
     rgb.copyTo(maskResult, mask);
 
-
     stringstream ss;
-    ss << params_.output_path  << "learning" << learning_count << ".png";
+    ss << params_.output_path << "learning" << learning_count << ".png";
     imwrite(ss.str(), result);
 
     //    int imageCount =
@@ -1902,33 +1901,31 @@ void Tracker3D::drawRansacEstimation(Mat& out) {
                    m_imageCenter, out);
 }
 
-void Tracker3D::updateEstimatedCube(float estimated_depth,const Mat& rotation)
-{
-    float front_d = m_fstCube.m_pointsFront[0].z;
-    float back_d = front_d + estimated_depth;
+void Tracker3D::updateEstimatedCube(float estimated_depth,
+                                    const Mat& rotation) {
+  float front_d = m_fstCube.m_pointsFront[0].z;
+  float back_d = front_d + estimated_depth;
 
-    for(auto& pt : m_fstCube.m_pointsBack)
-        pt.z = back_d;
+  for (auto& pt : m_fstCube.m_pointsBack) pt.z = back_d;
 
-    float rel_distance = back_d - m_fstCube.m_center.z;
+  float rel_distance = back_d - m_fstCube.m_center.z;
 
-    for(auto& pt : m_fstCube.m_relativeDistBack)
-        pt.z = rel_distance;
+  for (auto& pt : m_fstCube.m_relativeDistBack) pt.z = rel_distance;
 
-    vector<Point3f> updatedPoints;
-    rotateBBox(m_fstCube.m_relativeDistFront, rotation, updatedPoints);
+  vector<Point3f> updatedPoints;
+  rotateBBox(m_fstCube.m_relativeDistFront, rotation, updatedPoints);
 
-    for (int i = 0; i < m_fstCube.m_pointsFront.size(); ++i) {
-      m_updatedModel.m_pointsFront.at(i) =
-          m_updatedCentroid + updatedPoints.at(i);
-    }
+  for (int i = 0; i < m_fstCube.m_pointsFront.size(); ++i) {
+    m_updatedModel.m_pointsFront.at(i) =
+        m_updatedCentroid + updatedPoints.at(i);
+  }
 
-    updatedPoints.clear();
-    rotateBBox(m_fstCube.m_relativeDistBack, rotation, updatedPoints);
+  updatedPoints.clear();
+  rotateBBox(m_fstCube.m_relativeDistBack, rotation, updatedPoints);
 
-    for (int i = 0; i < m_fstCube.m_pointsBack.size(); ++i) {
-      m_updatedModel.m_pointsBack.at(i) = m_updatedCentroid + updatedPoints.at(i);
-    }
+  for (int i = 0; i < m_fstCube.m_pointsBack.size(); ++i) {
+    m_updatedModel.m_pointsBack.at(i) = m_updatedCentroid + updatedPoints.at(i);
+  }
 }
 
 }  // end namespace

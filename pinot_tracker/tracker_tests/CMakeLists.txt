@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   image_geometry
   utilities
   tracker_cpu
+  tracker_io
 )
 
 find_package(OpenCV 2.4.8 REQUIRED)

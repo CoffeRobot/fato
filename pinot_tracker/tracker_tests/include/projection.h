@@ -48,12 +48,15 @@
 #include <string>
 #include <mutex>
 #include "../../tracker/include/tracker_3d.h"
+#include "../../io/include/VideoWriter.h"
 
 namespace pinot_tracker {
 
 class Projection {
  public:
   Projection();
+
+  virtual ~Projection();
 
  protected:
   void rgbCallback(const sensor_msgs::ImageConstPtr& rgb_msg,
@@ -126,7 +129,10 @@ class Projection {
 
   std::mutex input_mutex;
 
-  std::unique_ptr<cv::VideoWriter> video_recorder_;
+  //std::unique_ptr<cv::VideoWriter> video_recorder_;
+  std::unique_ptr<VideoWriter> buffered_video_recorder_;
+  //TODO: remove after ICRA
+  std::unique_ptr<VideoWriter> icra_video_writer_;
 
 };
 

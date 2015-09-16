@@ -40,6 +40,8 @@
 #include "../../utilities/include/utilities.h"
 #include "../../tracker/include/bounding_cube.h"
 #include "../../utilities/include/visualization_ros.h"
+#include "../../io/include/filemanager.h"
+
 
 using namespace cv;
 using namespace std;
@@ -73,11 +75,18 @@ Projection::Projection()
 
 #ifdef VERBOSE_LOGGING
   cout << "Tracker initialized in verbose mode!!!" << endl;
+  string homedir = getenv("HOME");
+  create_dir(homedir + "/pinot_tracker_log");
 #endif
 
   initRGBD();
 
   run();
+}
+
+Projection::~Projection()
+{
+
 }
 
 void Projection::readImage(const sensor_msgs::Image::ConstPtr msgImage,
@@ -146,9 +155,19 @@ void Projection::rgbdCallback(
     params_.image_height = camera_info_msg->height;
 
     if (params_.save_output) {
-      video_recorder_ = unique_ptr<VideoWriter>(new VideoWriter(
-          params_.output_path + "output.avi", CV_FOURCC('X', 'V', 'I', 'D'), 30,
-          Size(params_.image_width, params_.image_height), true));
+//      video_recorder_ = unique_ptr<cv::VideoWriter>(new cv::VideoWriter(
+//          params_.output_path + "output.avi", CV_FOURCC('X', 'V', 'I', 'D'), 30,
+//          Size(params_.image_width, params_.image_height), true));
+
+      buffered_video_recorder_ = unique_ptr<VideoWriter>(
+            new VideoWriter(params_.output_path, "tracker.avi",
+                            params_.image_width, params_.image_height,
+                            VideoWriter::RGB, 30));
+
+      icra_video_writer_ = unique_ptr<VideoWriter>(
+            new VideoWriter(params_.output_path, "estimation.avi",
+                            params_.image_width, params_.image_height,
+                            VideoWriter::RGB, 30));
     }
 
 
@@ -425,7 +444,7 @@ void Projection::run() {
         Mat tmp;
         //rgb_image_.copyTo(tmp);
          experiments_out = depth_mapped.clone();
-        experiments_out = rgb_image_.clone();
+        //experiments_out = rgb_image_.clone();
 #ifdef VERBOSE_LOGGING
         cout << "updating tracker " << endl;
 #endif
@@ -443,7 +462,9 @@ void Projection::run() {
 #endif
         if (params_.save_output) {
           //video_recorder->write(experiments_out);
-          video_recorder_->write(tmp);
+          //video_recorder_->write(tmp);
+          buffered_video_recorder_->write(tmp);
+          icra_video_writer_->write(experiments_out);
         }
 
         rgb_out = tmp.clone();

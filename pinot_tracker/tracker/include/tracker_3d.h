@@ -139,6 +139,7 @@ class Tracker3D {
   // uses lucas kanade to track keypoints, faster implemetation
   int trackFeatures(const cv::Mat& grayImg, const cv::Mat& cloud,
                     std::vector<Status*>& keypointStatus,
+                    std::vector<cv::Point3f*>& fstPoints,
                     std::vector<cv::Point3f*>& updPoints,
                     std::vector<cv::KeyPoint*>& updKeypoints, int& trackedCount,
                     int& bothCount);
@@ -373,9 +374,6 @@ class Tracker3D {
 
   std::vector<cv::Point3f> m_votingPoints;
   std::vector<cv::Point3f> m_votedPoints;
-
-  std::ofstream debug_file_;
-
   /*********************************************************************************************/
   /*                        LEARNING */
   /*********************************************************************************************/
@@ -395,6 +393,13 @@ class Tracker3D {
   float max_depth_estimated;
 
   bool hasAppearanceToChange;
+
+  /****************************************************************************/
+  /*                        DEBUGGING                                         */
+  /****************************************************************************/
+#ifdef VERBOSE_LOGGING
+ std::ofstream log_file_;
+#endif
 
   std::string toPythonString2(const std::vector<cv::Point3f>& firstFrameCloud,
                               const std::vector<cv::Point3f>& updatedFrameCloud,
