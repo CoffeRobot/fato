@@ -423,8 +423,8 @@ void Projection::run() {
         input_mutex.unlock();
 
         Mat tmp;
-        rgb_image_.copyTo(tmp);
-        // experiments_out = depth_mapped.clone();
+        //rgb_image_.copyTo(tmp);
+         experiments_out = depth_mapped.clone();
         experiments_out = rgb_image_.clone();
 #ifdef VERBOSE_LOGGING
         cout << "updating tracker " << endl;

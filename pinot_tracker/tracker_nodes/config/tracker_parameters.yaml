@@ -26,7 +26,7 @@ pinot/offline/box_h: 89
 pinot/offline/video_result: out.avi
 
 # estimation of the size
-pinot/cuboid/estimate_size: false
+pinot/cuboid/estimate_size: true
 
 # debug and testing
 pinot/results/save_output: true
