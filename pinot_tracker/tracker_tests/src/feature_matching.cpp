@@ -29,97 +29,112 @@
 /*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
-
-#include "../include/VideoWriter.h"
-#include "../include/filemanager.h"
 #include <iostream>
+#include <memory>
+#include <opencv2/highgui/highgui.hpp>
+#include <fstream>
+#include <boost/algorithm/string.hpp>
+#include <algorithm>
 
-using namespace std;
+#include "../../utilities/include/draw_functions.h"
+#include "../../utilities/include/profiler.h"
+#include "../../utilities/include/utilities.h"
+#include "../../tracker/include/bounding_cube.h"
+#include "../../utilities/include/visualization_ros.h"
+#include "../../io/include/filemanager.h"
+#include "../include/feature_matching.h"
+
 using namespace cv;
-
-namespace fs = boost::filesystem;
+using namespace std;
 
 namespace pinot_tracker {
 
-VideoWriter::VideoWriter(std::string path, string name, int width, int height,
-                         int type, int framerate)
-    : m_path(path),
-      m_name(name),
-      m_width(width),
-      m_height(height),
-      m_type(type),
-      m_framerate(framerate),
-      m_producerStopped(false),
-      m_consumerStopped(false) {
-  m_queueStatus = async(std::launch::async, &VideoWriter::initConsumer, this);
-}
-
-VideoWriter::~VideoWriter()
+FeatureBenchmark::FeatureBenchmark()
 {
-   stopRecording();
+
 }
 
-int VideoWriter::initConsumer() {
+FeatureBenchmark::~FeatureBenchmark()
+{
 
-#ifdef VERBOSE_LOGGING
-  cout << "Recorder thread initialized \n";
-#endif
-  createDir(m_path);
+}
 
-  string filename = m_path + m_name;
+void FeatureBenchmark::testVideo(string path)
+{
+  vector<string> image_names;
+  vector<Rect> boxes;
 
-  string codec;
-  if (m_type == IMG_TYPE::DEPTH)
-    codec = "ffv1";
-  else
-    codec = "libx264";
 
-  Encoderx264 writer(filename.c_str(), m_width, m_height, m_framerate,
-                          codec.c_str(), 25, "superfast");
+  parseGT(path+"groundtruth.txt", boxes);
+  getFiles(path+"imgs/", ".png", image_names);
 
-  bool savingFinished = false;
+  sort(image_names.begin(), image_names.end());
 
-  int count = 0;
+  cout << "GT " << boxes.size() << " " << image_names.size() << endl;
 
-  while (!savingFinished) {
+
+
+  for(auto i = 0; i < image_names.size(); ++i)
+  {
+
     Mat img;
-    m_mutex.lock();
-    if (m_imgsQueue.size() == 0 && m_producerStopped) {
-      savingFinished = true;
-      m_consumerStopped = true;
-    } else if (m_imgsQueue.size() > 0) {
-      img = m_imgsQueue.front();
-      m_imgsQueue.pop();
-    }
-    m_mutex.unlock();
-    if (img.data) {
-      if (m_type == IMG_TYPE::DEPTH) {
-        vector<int> compression_params;
-        compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
-        compression_params.push_back(1);
-        stringstream ss;
-        ss << m_path << count << ".png";
+    img = imread(path+"imgs/" + image_names.at(i),1);
 
-        imwrite(ss.str(), img, compression_params);
-      } else {
-        writer.addFrame(img.data);
-      }
-      count++;
+    if(i < boxes.size())
+    {
+      cout << boxes.at(i) << endl;
+      rectangle(img, boxes.at(i), Scalar(0,0,255), 3);
+    }
+
+    imshow("benchmark", img);
+    waitKey(30);
+  }
+
+}
+
+void FeatureBenchmark::parseGT(string path, std::vector<Rect> &ground_truth) {
+  ifstream file(path);
+
+  if (!file.is_open())
+  {
+   cout << "Cannot open gt file!" << endl;
+
+    return;
+  }
+
+
+  string line;
+  while (getline(file, line)) {
+
+    vector<string> words;
+    boost::split(words, line, boost::is_any_of(","));
+
+
+    if(words.size() == 4)
+    {
+      auto x = atof(words[0].c_str());
+      auto y = atof(words[1].c_str());
+      auto w = atof(words[2].c_str());
+      auto h = atof(words[3].c_str());
+
+      ground_truth.push_back(cv::Rect(Point2f(x,y), Point2f(x+w,y+h)));
     }
   }
 
-#ifdef VERBOSE_LOGGING
-  cout << "VideoWriter finished!\n Frames written" << count << "\n\n\n";
-#endif
-  return 0;
+  cout << "GT size " << ground_truth.size() << endl;
 }
-
-void VideoWriter::write(cv::Mat img) {
-  m_mutex.lock();
-  m_imgsQueue.push(img);
-  m_mutex.unlock();
-}
-
-bool VideoWriter::hasFinished() { return m_consumerStopped; }
 
 }  // end namespace
+
+int main(int argc, char *argv[]) {
+  ROS_INFO("Starting tracker input");
+  ros::init(argc, argv, "pinot_tracker_feature_matching");
+
+  vector<Rect> gt;
+
+  pinot_tracker::FeatureBenchmark fb;
+  fb.testVideo("/media/alessandro/Super "
+               "Fat/Dataset/tracking_clean/ball/");
+
+  return 0;
+}

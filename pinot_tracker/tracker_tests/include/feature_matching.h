@@ -29,97 +29,29 @@
 /*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
+#ifndef FEATURE_MATCHING_H
+#define FEATURE_MATCHING_H
 
-#include "../include/VideoWriter.h"
-#include "../include/filemanager.h"
-#include <iostream>
-
-using namespace std;
-using namespace cv;
-
-namespace fs = boost::filesystem;
+#include <string>
+#include <vector>
+#include <opencv2/core/core.hpp>
 
 namespace pinot_tracker {
 
-VideoWriter::VideoWriter(std::string path, string name, int width, int height,
-                         int type, int framerate)
-    : m_path(path),
-      m_name(name),
-      m_width(width),
-      m_height(height),
-      m_type(type),
-      m_framerate(framerate),
-      m_producerStopped(false),
-      m_consumerStopped(false) {
-  m_queueStatus = async(std::launch::async, &VideoWriter::initConsumer, this);
+class FeatureBenchmark {
+
+ public:
+  FeatureBenchmark();
+
+  virtual ~FeatureBenchmark();
+
+  void testVideo(std::string path);
+
+private:
+
+  void parseGT(std::string path, std::vector<cv::Rect>& ground_truth);
+};
+
 }
 
-VideoWriter::~VideoWriter()
-{
-   stopRecording();
-}
-
-int VideoWriter::initConsumer() {
-
-#ifdef VERBOSE_LOGGING
-  cout << "Recorder thread initialized \n";
-#endif
-  createDir(m_path);
-
-  string filename = m_path + m_name;
-
-  string codec;
-  if (m_type == IMG_TYPE::DEPTH)
-    codec = "ffv1";
-  else
-    codec = "libx264";
-
-  Encoderx264 writer(filename.c_str(), m_width, m_height, m_framerate,
-                          codec.c_str(), 25, "superfast");
-
-  bool savingFinished = false;
-
-  int count = 0;
-
-  while (!savingFinished) {
-    Mat img;
-    m_mutex.lock();
-    if (m_imgsQueue.size() == 0 && m_producerStopped) {
-      savingFinished = true;
-      m_consumerStopped = true;
-    } else if (m_imgsQueue.size() > 0) {
-      img = m_imgsQueue.front();
-      m_imgsQueue.pop();
-    }
-    m_mutex.unlock();
-    if (img.data) {
-      if (m_type == IMG_TYPE::DEPTH) {
-        vector<int> compression_params;
-        compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);
-        compression_params.push_back(1);
-        stringstream ss;
-        ss << m_path << count << ".png";
-
-        imwrite(ss.str(), img, compression_params);
-      } else {
-        writer.addFrame(img.data);
-      }
-      count++;
-    }
-  }
-
-#ifdef VERBOSE_LOGGING
-  cout << "VideoWriter finished!\n Frames written" << count << "\n\n\n";
-#endif
-  return 0;
-}
-
-void VideoWriter::write(cv::Mat img) {
-  m_mutex.lock();
-  m_imgsQueue.push(img);
-  m_mutex.unlock();
-}
-
-bool VideoWriter::hasFinished() { return m_consumerStopped; }
-
-}  // end namespace
+#endif  // FEATURE_MATCHING_H

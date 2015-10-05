@@ -34,15 +34,17 @@
 #define FILEMANAGER_H
 
 #include <string>
+#include <vector>
 
-namespace pinot_tracker
-{
+namespace pinot_tracker {
 
-bool dir_exists(std::string path);
+bool dirExists(std::string path);
 
-void create_dir(std::string path);
+void createDir(std::string path);
 
-} // end namespace
+void getFiles(std::string path, std::string ext,
+              std::vector<std::string>& files);
 
-#endif // FILEMANAGER_H
+}  // end namespace
 
+#endif  // FILEMANAGER_H

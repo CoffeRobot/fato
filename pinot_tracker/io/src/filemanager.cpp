@@ -32,25 +32,47 @@
 
 #include "../include/filemanager.h"
 #include <boost/filesystem.hpp>
+#include <iostream>
 
 namespace fs = boost::filesystem;
 
 namespace pinot_tracker
 {
 
-bool dir_exists(std::string path)
+bool dirExists(std::string path)
 {
   fs::path dir(path);
   return fs::exists(dir);
 }
 
-void create_dir(std::string path)
+void createDir(std::string path)
 {
   fs::path dir(path);
   if (!fs::exists(dir)) {
     fs::create_directory(dir);
   }
 }
+
+void getFiles(std::string path, std::string ext, std::vector<std::string>& files)
+{
+  fs::path dir(path);
+
+  if(!fs::exists(dir))
+    return;
+
+
+  fs::directory_iterator it(dir);
+  fs::directory_iterator endit;
+  while(it != endit)
+  {
+    if(fs::is_regular_file(*it) && it->path().extension().string() == ext )
+      files.push_back(it->path().filename().string());
+    ++it;
+  }
+
+}
+
+
 
 } // end namespace
 

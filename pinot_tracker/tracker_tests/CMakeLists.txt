@@ -15,7 +15,6 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
   cv_bridge
   image_transport
-#  pcl_ros
   tf
   image_geometry
   utilities
@@ -26,11 +25,8 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(OpenCV 2.4.8 REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
-#find_package(PCL 1.7 REQUIRED)
+find_package(Boost COMPONENTS filesystem system REQUIRED)
 
-#include_directories(${PCL_INCLUDE_DIRS})
-#link_directories(${PCL_LIBRARY_DIRS})
-#add_definitions(${PCL_DEFINITIONS})
 
 catkin_package(
   INCLUDE_DIRS include
@@ -57,7 +53,8 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
 include_directories(include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
-  ${EIGEN_INCLUDE_DIR} 
+  ${EIGEN_INCLUDE_DIR}
+  ${Boost_INCLUDE_DIRS}
 )
 
 add_executable(test_projection
@@ -76,5 +73,6 @@ add_executable(benchmark_features
 target_link_libraries(benchmark_features
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
+  ${Boost_LIBRARIES}
 )
 
