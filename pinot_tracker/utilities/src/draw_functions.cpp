@@ -292,7 +292,7 @@ void drawCentroidVotes(const vector<Point3f*>& points,
     Point2f vote_prj, point_prj;
     projectPoint(focal, center, votes.at(i), vote_prj);
     projectPoint(focal, center, points.at(i), point_prj);
-    Scalar color(255, 0, 0);
+    Scalar color(0, 255, 0);
     Scalar color2(0,102,255);
     circle(out, vote_prj, 2, color, -1);
     circle(out, point_prj, 3, color, 1);

@@ -362,7 +362,7 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
 
     drawCentroidVotes(pts, votes, Point2f(params_.camera_model.cx(),
                                           params_.camera_model.cy()),
-                      true, params_.camera_model.fx(), out);
+                      false, params_.camera_model.fx(), out);
 
 #ifdef VERBOSE_LOGGING
   cout << " 5 ";

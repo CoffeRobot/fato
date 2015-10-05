@@ -56,7 +56,6 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
 
 include_directories(include
   ${catkin_INCLUDE_DIRS}
-#  ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR} 
 )
@@ -65,9 +64,17 @@ add_executable(test_projection
   src/projection.cpp
   )
 
-
 target_link_libraries(test_projection
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
-#  ${PCL_LIBRARIES}
 )
+
+add_executable(benchmark_features
+  src/feature_matching.cpp
+  )
+
+target_link_libraries(benchmark_features
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+)
+
