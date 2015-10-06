@@ -115,6 +115,7 @@ class Projection {
   const std::string camera_info_topic_;
 
   cv::Mat rgb_image_, depth_image_;
+  cv::Mat3f points_;
   cv::Mat camera_matrix_;
   bool img_updated_;
   bool camera_matrix_initialized_;

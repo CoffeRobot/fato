@@ -57,6 +57,7 @@ float Profiler::getTime(string id) {
 
 string Profiler::getProfile() {
   mutex_.lock();
+
   stringstream ss;
   float overall = 0;
   for (auto it = profiler_.begin(); it != profiler_.end(); ++it) {

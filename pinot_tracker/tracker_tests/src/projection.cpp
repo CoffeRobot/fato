@@ -42,7 +42,6 @@
 #include "../../utilities/include/visualization_ros.h"
 #include "../../io/include/filemanager.h"
 
-
 using namespace cv;
 using namespace std;
 
@@ -87,10 +86,9 @@ Projection::Projection()
   run();
 }
 
-Projection::~Projection()
-{
-    cout << "callback frames " << callback_frames_ << " tracker "
-         << recorded_frames_ << endl;
+Projection::~Projection() {
+  cout << "callback frames " << callback_frames_ << " tracker "
+       << recorded_frames_ << endl;
 }
 
 void Projection::readImage(const sensor_msgs::Image::ConstPtr msgImage,
@@ -159,19 +157,18 @@ void Projection::rgbdCallback(
     params_.image_height = camera_info_msg->height;
 
     if (params_.save_output) {
-//      video_recorder_ = unique_ptr<cv::VideoWriter>(new cv::VideoWriter(
-//          params_.output_path + "output.avi", CV_FOURCC('X', 'V', 'I', 'D'), 30,
-//          Size(params_.image_width, params_.image_height), true));
+      //      video_recorder_ = unique_ptr<cv::VideoWriter>(new cv::VideoWriter(
+      //          params_.output_path + "output.avi", CV_FOURCC('X', 'V', 'I',
+      // 'D'), 30,
+      //          Size(params_.image_width, params_.image_height), true));
 
-      buffered_video_recorder_ = unique_ptr<VideoWriter>(
-            new VideoWriter(params_.output_path, "tracker.avi",
-                            params_.image_width, params_.image_height,
-                            VideoWriter::RGB, 30));
+      buffered_video_recorder_ = unique_ptr<VideoWriter>(new VideoWriter(
+          params_.output_path, "tracker.avi", params_.image_width,
+          params_.image_height, VideoWriter::RGB, 30));
 
-      icra_video_writer_ = unique_ptr<VideoWriter>(
-            new VideoWriter(params_.output_path, "estimation.avi",
-                            params_.image_width, params_.image_height,
-                            VideoWriter::RGB, 30));
+      icra_video_writer_ = unique_ptr<VideoWriter>(new VideoWriter(
+          params_.output_path, "estimation.avi", params_.image_width,
+          params_.image_height, VideoWriter::RGB, 30));
     }
     //    waitKey(0);
     camera_matrix_initialized_ = true;
@@ -184,14 +181,18 @@ void Projection::rgbdCallback(
 
   readImage(rgb_msg, rgb);
   readImage(depth_msg, depth);
+  Mat3f points(depth.rows, depth.cols, cv::Vec3f(0, 0, 0));
 
-  if(tracker_initialized_)
-      callback_frames_++;
+  if (tracker_initialized_) callback_frames_++;
 
+  depthTo3d(depth_image_, params_.camera_model.cx(),
+            params_.camera_model.cy(), params_.camera_model.fx(),
+            params_.camera_model.fy(), points);
 
   input_mutex.lock();
   rgb_image_ = rgb.clone();
   depth_image_ = depth.clone();
+  points_ = points.clone();
   img_updated_ = true;
   input_mutex.unlock();
 }
@@ -332,14 +333,13 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
 
   try {
 
-
 #ifdef VERBOSE_LOGGING
-  cout << "drawing: 1 ";
+    cout << "drawing: 1 ";
 #endif
     tracker.drawObjectLocation(out);
 
 #ifdef VERBOSE_LOGGING
-  cout << " 2 ";
+    cout << " 2 ";
 #endif
 
     drawObjectPose(
@@ -347,9 +347,8 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
         Point2f(params_.camera_model.cx(), params_.camera_model.cy()),
         tracker.getPoseMatrix(), out);
 
-
 #ifdef VERBOSE_LOGGING
-  cout << " 3 ";
+    cout << " 3 ";
 #endif
 
     Point2f center;
@@ -361,9 +360,8 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
     vector<Point3f *> pts, votes;
     tracker.getActivePoints(pts, votes);
 
-
 #ifdef VERBOSE_LOGGING
-  cout << " 4 ";
+    cout << " 4 ";
 #endif
 
     drawCentroidVotes(pts, votes, Point2f(params_.camera_model.cx(),
@@ -371,7 +369,7 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
                       false, params_.camera_model.fx(), out);
 
 #ifdef VERBOSE_LOGGING
-  cout << " 5 ";
+    cout << " 5 ";
 #endif
   }
   catch (cv::Exception &e) {
@@ -381,11 +379,11 @@ void Projection::drawTrackerResults(Tracker3D &tracker, Mat &out) {
 
   try {
 #ifdef VERBOSE_LOGGING
-  cout << " 6 ";
+    cout << " 6 ";
 #endif
     publishPose(pt, q, back_points, front_points);
 #ifdef VERBOSE_LOGGING
-  cout << " 7 " << endl;
+    cout << " 7 " << endl;
 #endif
   }
   catch (cv::Exception &e) {
@@ -409,6 +407,11 @@ void Projection::run() {
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = chrono::system_clock::now();
 
+  std::chrono::time_point<std::chrono::system_clock> p_start, p_end;
+
+  int p_frames;
+  float time;
+
   BoundingCube cube;
 
   ros::Rate r(100);
@@ -418,7 +421,11 @@ void Projection::run() {
     Mat rgb_out;
     Mat experiments_out;
 
+
     if (img_updated_) {
+
+      p_start = chrono::system_clock::now();
+
       Mat tmp;
       rgb_image_.copyTo(tmp);
       Mat depth_mapped;
@@ -438,27 +445,32 @@ void Projection::run() {
         rgb_out = tmp.clone();
         experiments_out = depth_mapped.clone();
       } else if (tracker_initialized_) {
+
+
         profiler->start("frame_total");
         // getting 3d points from disparity
         profiler->start("cloud");
-        input_mutex.lock();
-        Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
-        depthTo3d(depth_image_, params_.camera_model.cx(),
-                  params_.camera_model.cy(), params_.camera_model.fx(),
-                  params_.camera_model.fy(), points);
-        input_mutex.unlock();
+//        input_mutex.lock();
+//        Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
+//        depthTo3d(depth_image_, params_.camera_model.cx(),
+//                  params_.camera_model.cy(), params_.camera_model.fx(),
+//                  params_.camera_model.fy(), points);
+//        input_mutex.unlock();
         profiler->stop("cloud");
 
         Mat tmp;
-        //rgb_image_.copyTo(tmp);
-         experiments_out = depth_mapped.clone();
-        //experiments_out = rgb_image_.clone();
+        rgb_image_.copyTo(tmp);
+        //experiments_out = depth_mapped.clone();
+// experiments_out = rgb_image_.clone();
 #ifdef VERBOSE_LOGGING
         cout << "updating tracker " << endl;
 #endif
-        //profiler->start("tracker");
-        updateTracker(tracker, points);
-        //profiler->stop("tracker");
+        // profiler->start("tracker");
+
+        updateTracker(tracker, points_);
+
+
+        // profiler->stop("tracker");
         recorded_frames_++;
 #ifdef VERBOSE_LOGGING
         cout << "drawing tracker " << endl;
@@ -469,18 +481,18 @@ void Projection::run() {
 #ifdef VERBOSE_LOGGING
         cout << "estimating cube depth " << endl;
 #endif
-        profiler->start("cubeext");
-        estimateCube(tracker, cube, points, experiments_out);
-        profiler->stop("cubeext");
+        //profiler->start("cubeext");
+        //estimateCube(tracker, cube, points, experiments_out);
+        //profiler->stop("cubeext");
 #ifdef VERBOSE_LOGGING
         cout << "estimated cube depth " << endl;
 #endif
         if (params_.save_output) {
-          //video_recorder->write(experiments_out);
-          //video_recorder_->write(tmp);
+          // video_recorder->write(experiments_out);
+          // video_recorder_->write(tmp);
           profiler->start("save");
           buffered_video_recorder_->write(tmp);
-          icra_video_writer_->write(experiments_out);
+          //icra_video_writer_->write(experiments_out);
           profiler->stop("save");
         }
 
@@ -496,9 +508,12 @@ void Projection::run() {
           start = end;
           ss << "\n" << profiler->getProfile() << "\n";
           ss << "callback frames " << callback_frames_ << " tracker "
-               << recorded_frames_ << "\n";
-          ROS_INFO(ss.str().c_str());
+             << recorded_frames_ << "\n";
 
+          ss << " chrono: " << (time / static_cast<float>(p_frames));
+          p_frames = 0;
+          time = 0;
+          ROS_INFO(ss.str().c_str());
         }
         char c = waitKey(1);
 
@@ -507,11 +522,16 @@ void Projection::run() {
 
       profiler->start("show");
       imshow("Tracker", rgb_out);
-      imshow("Experiments", experiments_out);
+      //imshow("Experiments", experiments_out);
       profiler->stop("show");
 
       img_updated_ = false;
 
+      p_end = chrono::system_clock::now();
+      float eps = chrono::duration_cast<chrono::milliseconds>(p_end - p_start)
+                      .count();
+      time += eps;
+      p_frames++;
       profiler->stop("frame_total");
     }
   }
