@@ -58,12 +58,15 @@ float Profiler::getTime(string id) {
 string Profiler::getProfile() {
   mutex_.lock();
   stringstream ss;
+  float overall = 0;
   for (auto it = profiler_.begin(); it != profiler_.end(); ++it) {
     float avg_time =
         it->second.total_time / static_cast<float>(it->second.num_calls);
     ss << it->first << ": " << avg_time << endl;
+    overall += avg_time;
   }
   mutex_.unlock();
+  ss << "-----> overall: " << overall << " <-----\n";
   return ss.str();
 }
 

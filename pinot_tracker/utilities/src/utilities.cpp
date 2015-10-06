@@ -98,6 +98,9 @@ void depthTo3d(const cv::Mat& disparity, float cx, float cy, float fx, float fy,
   assert(depth.cols != 0 && depth.rows != 0);
   assert(fx != 0 && fy != 0);
 
+  float inv_fx = 1.0 / fx;
+  float inv_fy = 1.0 / fy;
+
   for (size_t y = 0; y < rows; y++) {
     for (size_t x = 0; x < cols; x++) {
       uint16_t val = disparity.at<uint16_t>(y, x);
@@ -112,9 +115,9 @@ void depthTo3d(const cv::Mat& disparity, float cx, float cy, float fx, float fy,
       float yp = -(y - cy);
 
       float Z = DepthTraits<uint16_t>::toMeters(d);
-      ;
-      float X = xp * Z / fx;
-      float Y = yp * Z / fy;
+
+      float X = xp * Z * inv_fx;
+      float Y = yp * Z * inv_fy;
 
       depth.at<cv::Vec3f>(y, x) = cv::Vec3f(X, Y, Z);
     }

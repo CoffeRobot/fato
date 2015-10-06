@@ -73,10 +73,13 @@ Projection::Projection()
   markers_publisher_ =
       nh_.advertise<visualization_msgs::Marker>("pinot_tracker/pose", 10);
 
+  callback_frames_ = 0;
+  recorded_frames_ = 0;
+
 #ifdef VERBOSE_LOGGING
   cout << "Tracker initialized in verbose mode!!!" << endl;
   string homedir = getenv("HOME");
-  create_dir(homedir + "/pinot_tracker_log");
+  createDir(homedir + "/pinot_tracker_log");
 #endif
 
   initRGBD();
@@ -86,7 +89,8 @@ Projection::Projection()
 
 Projection::~Projection()
 {
-
+    cout << "callback frames " << callback_frames_ << " tracker "
+         << recorded_frames_ << endl;
 }
 
 void Projection::readImage(const sensor_msgs::Image::ConstPtr msgImage,
@@ -169,8 +173,6 @@ void Projection::rgbdCallback(
                             params_.image_width, params_.image_height,
                             VideoWriter::RGB, 30));
     }
-
-
     //    waitKey(0);
     camera_matrix_initialized_ = true;
     ROS_INFO("Initialized camera parameters...");
@@ -182,6 +184,10 @@ void Projection::rgbdCallback(
 
   readImage(rgb_msg, rgb);
   readImage(depth_msg, depth);
+
+  if(tracker_initialized_)
+      callback_frames_++;
+
 
   input_mutex.lock();
   rgb_image_ = rgb.clone();
@@ -432,14 +438,16 @@ void Projection::run() {
         rgb_out = tmp.clone();
         experiments_out = depth_mapped.clone();
       } else if (tracker_initialized_) {
+        profiler->start("frame_total");
         // getting 3d points from disparity
-
+        profiler->start("cloud");
         input_mutex.lock();
         Mat3f points(depth_image_.rows, depth_image_.cols, cv::Vec3f(0, 0, 0));
         depthTo3d(depth_image_, params_.camera_model.cx(),
                   params_.camera_model.cy(), params_.camera_model.fx(),
                   params_.camera_model.fy(), points);
         input_mutex.unlock();
+        profiler->stop("cloud");
 
         Mat tmp;
         //rgb_image_.copyTo(tmp);
@@ -448,23 +456,32 @@ void Projection::run() {
 #ifdef VERBOSE_LOGGING
         cout << "updating tracker " << endl;
 #endif
+        //profiler->start("tracker");
         updateTracker(tracker, points);
+        //profiler->stop("tracker");
+        recorded_frames_++;
 #ifdef VERBOSE_LOGGING
         cout << "drawing tracker " << endl;
 #endif
+        profiler->start("drawing");
         drawTrackerResults(tracker, tmp);
+        profiler->stop("drawing");
 #ifdef VERBOSE_LOGGING
         cout << "estimating cube depth " << endl;
 #endif
+        profiler->start("cubeext");
         estimateCube(tracker, cube, points, experiments_out);
+        profiler->stop("cubeext");
 #ifdef VERBOSE_LOGGING
         cout << "estimated cube depth " << endl;
 #endif
         if (params_.save_output) {
           //video_recorder->write(experiments_out);
           //video_recorder_->write(tmp);
+          profiler->start("save");
           buffered_video_recorder_->write(tmp);
           icra_video_writer_->write(experiments_out);
+          profiler->stop("save");
         }
 
         rgb_out = tmp.clone();
@@ -478,17 +495,24 @@ void Projection::run() {
         if (elapsed > 3.0) {
           start = end;
           ss << "\n" << profiler->getProfile() << "\n";
+          ss << "callback frames " << callback_frames_ << " tracker "
+               << recorded_frames_ << "\n";
           ROS_INFO(ss.str().c_str());
+
         }
-        char c = waitKey(30);
+        char c = waitKey(1);
 
         if (c == 's') cout << "save" << endl;
       }
 
+      profiler->start("show");
       imshow("Tracker", rgb_out);
       imshow("Experiments", experiments_out);
+      profiler->stop("show");
 
       img_updated_ = false;
+
+      profiler->stop("frame_total");
     }
   }
 

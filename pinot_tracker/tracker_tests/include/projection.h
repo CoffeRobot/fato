@@ -134,6 +134,9 @@ class Projection {
   //TODO: remove after ICRA
   std::unique_ptr<VideoWriter> icra_video_writer_;
 
+  int callback_frames_;
+  int recorded_frames_;
+
 };
 
 }  // end namespace
