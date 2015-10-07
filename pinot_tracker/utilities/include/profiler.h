@@ -7,7 +7,28 @@
 #include <string>
 #include <mutex>
 
+#ifdef TRACKER_WITH_GPU
+#include <cuda_runtime.h>
+#endif
+
 namespace pinot_tracker{
+
+
+#ifdef TRACKER_WITH_GPU
+
+struct GpuTimeEntry
+{
+  cudaEvent_t start_time;
+  cudaEvent_t stop_time;
+  float total_time;
+  int num_calls;
+
+  GpuTimeEntry():
+    start_time(), end_time(), total_time(0.0f), num_calls(0)
+  {};
+}
+
+#endif
 
 struct TimeEntry
 {
@@ -35,16 +56,24 @@ public:
 
     void start(std::string id);
     void stop(std::string id);
+    void startGPU(std::string id);
+    void stopGPU(std::string id);
     float getTime(std::string id);
+    float getTimeGPU(std::string id);
     std::string getProfile();
 
 private:
     Profiler();
 
-
+    ~Profiler();
 
     std::map<std::string,TimeEntry> profiler_;
     std::mutex mutex_;
+
+    #ifdef TRACKER_WITH_GPU
+    std::map<std::string,GpuTimeEntry> gpu_profiler_;
+    #endif
+
 };
 
 }

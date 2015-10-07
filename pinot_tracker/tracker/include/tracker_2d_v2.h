@@ -247,7 +247,7 @@ class TrackerV2 {
   std::vector<cv::KeyPoint> m_initKeypoints;
   std::vector<cv::Point2f> m_points;
   std::vector<Status> m_pointsStatus;
-  Matcher m_customMatcher;
+  CustomMatcher m_customMatcher;
   cv::BRISK m_featuresDetector;
   /****************************************************************************/
   /*                       TRACKER VARIABLES                                  */

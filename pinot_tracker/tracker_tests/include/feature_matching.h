@@ -35,6 +35,9 @@
 #include <string>
 #include <vector>
 #include <opencv2/core/core.hpp>
+#include <opencv2/features2d/features2d.hpp>
+
+
 
 namespace pinot_tracker {
 
@@ -50,6 +53,30 @@ class FeatureBenchmark {
 private:
 
   void parseGT(std::string path, std::vector<cv::Rect>& ground_truth);
+
+  void initBrisk(const cv::Mat& in, cv::Rect& bbox);
+
+  void initOrb(const cv::Mat& in, cv::Rect& bbox);
+
+  void initSift(const cv::Mat&in, cv::Rect& bbox);
+
+  void matchBrisk(const cv::Mat&in, cv::Rect& bbox, cv::Mat& out);
+
+  void matchOrb(const cv::Mat&in, cv::Rect& bbox, cv::Mat& out);
+
+  void matchSift(const cv::Mat&in, cv::Rect& bbox, cv::Mat& out);
+
+
+  cv::BRISK brisk_detector_;
+  cv::ORB orb_detector_;
+
+  std::vector<cv::KeyPoint> brisk_keypoints_;
+  std::vector<cv::KeyPoint> orb_keypoints_;
+  cv::Mat brisk_descriptors_;
+  cv::Mat orb_descriptors_;
+  std::vector<bool> brisk_label_;
+  std::vector<bool> orb_label_;
+
 };
 
 }

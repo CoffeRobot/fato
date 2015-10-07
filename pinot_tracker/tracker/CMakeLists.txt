@@ -6,7 +6,7 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
   clustering
   utilities
-#  pcl_ros
+  image_geometry
 )
 
 if(TRACKER_VERBOSE_LOGGING)
@@ -18,13 +18,9 @@ find_package(OpenCV REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 
-#find_package(PCL 1.7 REQUIRED)
-#link_directories(${PCL_LIBRARY_DIRS})
-#add_definitions(${PCL_DEFINITIONS})
-
 catkin_package(
   INCLUDE_DIRS include
-#  DEPENDS pcl_ros
+  DEPENDS image_geometry
   LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS utilities clustering
 )

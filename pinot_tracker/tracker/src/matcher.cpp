@@ -49,16 +49,16 @@ namespace pinot_tracker
 {
 
 
-Matcher::Matcher()
+CustomMatcher::CustomMatcher()
 {
 }
 
 
-Matcher::~Matcher()
+CustomMatcher::~CustomMatcher()
 {
 }
 
-void Matcher::match(const Mat& query, const Mat& train, int bestNum, vector<vector<DMatch>>& matches)
+void CustomMatcher::match(const Mat& query, const Mat& train, int bestNum, vector<vector<DMatch>>& matches)
 {
 
 	__int64* fstData = (__int64*)query.data;
@@ -103,7 +103,7 @@ void Matcher::match(const Mat& query, const Mat& train, int bestNum, vector<vect
 }
 
 
-void Matcher::match32(const cv::Mat& query, const cv::Mat& train, int bestNum,
+void CustomMatcher::match32(const cv::Mat& query, const cv::Mat& train, int bestNum,
 	std::vector<std::vector<cv::DMatch>>& matches)
 {
 	__int32* fstData = (__int32*)query.data;

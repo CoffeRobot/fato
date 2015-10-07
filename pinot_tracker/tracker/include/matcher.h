@@ -30,7 +30,8 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-#pragma once
+#ifndef CUSTOM_MATCHER_H
+#define CUSTOM_MATCHER_H
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
@@ -39,11 +40,11 @@
 
 namespace pinot_tracker{
 
-class Matcher
+class CustomMatcher
 {
 public:
-	Matcher();
-	~Matcher();
+  CustomMatcher();
+  ~CustomMatcher();
 
 	void match(const cv::Mat& query, const cv::Mat& train, int bestNum, 
 		       std::vector<std::vector<cv::DMatch> >& matches);
@@ -56,3 +57,4 @@ public:
 
 } // end namespace
 
+#endif

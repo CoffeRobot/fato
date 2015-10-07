@@ -288,7 +288,7 @@ class Tracker3D {
   // object to extract and compare features
   cv::BRISK m_featuresDetector;
   std::unique_ptr<cv::DescriptorMatcher> m_featureMatcher;
-  Matcher m_customMatcher;
+  CustomMatcher m_customMatcher;
   /****************************************************************************/
   /*                          Configuration Parameters                        */
   /****************************************************************************/

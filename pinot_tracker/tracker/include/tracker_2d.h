@@ -197,7 +197,7 @@ class Tracker2D {
   // object to extract and compare features
   cv::BRISK m_featuresDetector;
   std::unique_ptr<cv::DescriptorMatcher> m_featureMatcher;
-  Matcher m_customMatcher;
+  CustomMatcher m_customMatcher;
 
   cv::Mat m_firstFrameDescriptors;
   std::vector<cv::KeyPoint> m_firstFrameKeypoints;

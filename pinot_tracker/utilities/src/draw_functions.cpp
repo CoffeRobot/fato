@@ -45,38 +45,50 @@ void drawBoundingCube(const vector<Point3f>& front_box,
   /*                  Draw back face */
   /*********************************************************************************************/
   line(out, projectPoint(focal, imgCenter, back_box.at(0)),
-       projectPoint(focal, imgCenter, back_box.at(1)), Scalar(0, 0, 255), line_width);
+       projectPoint(focal, imgCenter, back_box.at(1)), Scalar(0, 0, 255),
+       line_width);
   line(out, projectPoint(focal, imgCenter, back_box.at(1)),
-       projectPoint(focal, imgCenter, back_box.at(2)), Scalar(0, 0, 255), line_width);
+       projectPoint(focal, imgCenter, back_box.at(2)), Scalar(0, 0, 255),
+       line_width);
   line(out, projectPoint(focal, imgCenter, back_box.at(2)),
-       projectPoint(focal, imgCenter, back_box.at(3)), Scalar(0, 0, 255), line_width);
+       projectPoint(focal, imgCenter, back_box.at(3)), Scalar(0, 0, 255),
+       line_width);
   line(out, projectPoint(focal, imgCenter, back_box.at(3)),
-       projectPoint(focal, imgCenter, back_box.at(0)), Scalar(0, 0, 255), line_width);
+       projectPoint(focal, imgCenter, back_box.at(0)), Scalar(0, 0, 255),
+       line_width);
 
   /*********************************************************************************************/
   /*                  Draw connecting lines */
   /*********************************************************************************************/
   line(out, projectPoint(focal, imgCenter, front_box.at(0)),
-       projectPoint(focal, imgCenter, back_box.at(0)), Scalar(0, 255, 0), line_width);
+       projectPoint(focal, imgCenter, back_box.at(0)), Scalar(0, 255, 0),
+       line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(1)),
-       projectPoint(focal, imgCenter, back_box.at(1)), Scalar(0, 255, 255), line_width);
+       projectPoint(focal, imgCenter, back_box.at(1)), Scalar(0, 255, 255),
+       line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(2)),
-       projectPoint(focal, imgCenter, back_box.at(2)), Scalar(255, 255, 0), line_width);
+       projectPoint(focal, imgCenter, back_box.at(2)), Scalar(255, 255, 0),
+       line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(3)),
-       projectPoint(focal, imgCenter, back_box.at(3)), Scalar(255, 0, 255), line_width);
+       projectPoint(focal, imgCenter, back_box.at(3)), Scalar(255, 0, 255),
+       line_width);
 
   /*********************************************************************************************/
   /*                  Draw front face */
   /*********************************************************************************************/
 
   line(out, projectPoint(focal, imgCenter, front_box.at(0)),
-       projectPoint(focal, imgCenter, front_box.at(1)), Scalar(255, 0, 0), line_width);
+       projectPoint(focal, imgCenter, front_box.at(1)), Scalar(255, 0, 0),
+       line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(1)),
-       projectPoint(focal, imgCenter, front_box.at(2)), Scalar(255, 0, 0), line_width);
+       projectPoint(focal, imgCenter, front_box.at(2)), Scalar(255, 0, 0),
+       line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(2)),
-       projectPoint(focal, imgCenter, front_box.at(3)), Scalar(255, 0, 0), line_width);
+       projectPoint(focal, imgCenter, front_box.at(3)), Scalar(255, 0, 0),
+       line_width);
   line(out, projectPoint(focal, imgCenter, front_box.at(3)),
-       projectPoint(focal, imgCenter, front_box.at(0)), Scalar(255, 0, 0), line_width);
+       projectPoint(focal, imgCenter, front_box.at(0)), Scalar(255, 0, 0),
+       line_width);
 }
 
 void drawBoundingCube(const std::vector<Point3f>& front_box,
@@ -293,7 +305,7 @@ void drawCentroidVotes(const vector<Point3f*>& points,
     projectPoint(focal, center, votes.at(i), vote_prj);
     projectPoint(focal, center, points.at(i), point_prj);
     Scalar color(0, 255, 0);
-    Scalar color2(0,102,255);
+    Scalar color2(0, 102, 255);
     circle(out, vote_prj, 2, color, -1);
     circle(out, point_prj, 3, color, 1);
     if (drawLines) line(out, vote_prj, point_prj, color2, 1);
@@ -319,14 +331,14 @@ void drawObjectPose(const Point3f& centroid, const float focal,
     pt.z = b.at<float>(2);
   };
 
-  Point3f x_axis(0.06,0,0);
-  Point3f y_axis(0,0.06,0);
-  Point3f z_axis(0,0,0.06);
-  //x_axis = y_axis = z_axis = centroid;
+  Point3f x_axis(0.06, 0, 0);
+  Point3f y_axis(0, 0.06, 0);
+  Point3f z_axis(0, 0, 0.06);
+  // x_axis = y_axis = z_axis = centroid;
 
-  //x_axis.x = 0.02 - x_axis.x;
-  //y_axis.y += 0.02;
-  //z_axis.z -= 0.02;
+  // x_axis.x = 0.02 - x_axis.x;
+  // y_axis.y += 0.02;
+  // z_axis.z -= 0.02;
 
   rotatePoint(rotation, x_axis);
   x_axis = centroid + x_axis;
@@ -342,8 +354,8 @@ void drawObjectPose(const Point3f& centroid, const float focal,
   Point2f za = projectPoint(focal, img_center, z_axis);
 
   arrowedLine(out, center, xa, Scalar(0, 0, 255), 3);
-  arrowedLine(out, center, ya, Scalar(0,255,0), 3);
-  arrowedLine(out, center, za, Scalar(255,0,0), 3);
+  arrowedLine(out, center, ya, Scalar(0, 255, 0), 3);
+  arrowedLine(out, center, za, Scalar(255, 0, 0), 3);
 }
 
 void arrowedLine(Mat& img, Point2f pt1, Point2f pt2, const Scalar& color,
@@ -359,6 +371,29 @@ void arrowedLine(Mat& img, Point2f pt1, Point2f pt2, const Scalar& color,
   p.x = cvRound(pt2.x + tipSize * cos(angle - CV_PI / 4));
   p.y = cvRound(pt2.y + tipSize * sin(angle - CV_PI / 4));
   line(img, p, pt2, color, thickness, line_type, shift);
+}
+
+void cross(Mat& img, Point2f center, const Scalar& color, int thickness,
+           int line_offset, int line_type, int shift, double tipLength)
+{
+
+  Point2f tp, bp, lp, rp;
+  tp = bp = lp = rp = center;
+
+  tp.y -= line_offset;
+  (tp.y < 0) ? tp.y = 0 : tp.y;
+
+  bp.y += line_offset;
+  (bp.y > img.rows) ? bp.y = img.rows - 1 : bp.y;
+
+  lp.x -= line_offset;
+  (lp.x < 0) ? lp.x = 0 : lp.x;
+
+  rp.x += line_offset;
+  (rp.x > img.cols) ? rp.x = img.cols - 1 : rp.y;
+
+  line(img, tp, bp, color, thickness, line_type, shift);
+  line(img, lp, rp, color, thickness, line_type, shift);
 }
 
 }  // end namespace

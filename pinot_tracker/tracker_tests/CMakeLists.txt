@@ -9,6 +9,10 @@ if(TRACKER_VERBOSE_LOGGING)
   add_definitions(-DVERBOSE_LOGGING)
 endif()
 
+if(TRACKER_WITH_GPU)
+  add_definitions(-DTRACKER_WITH_GPU)
+endif()
+
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -20,6 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
   utilities
   tracker_cpu
   tracker_io
+  cuda_sift
 )
 
 find_package(OpenCV 2.4.8 REQUIRED)
@@ -30,9 +35,9 @@ find_package(Boost COMPONENTS filesystem system REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
+  LIBRARIES ${PROJECT_NAME}
   DEPENDS cv_bridge
           image_transport
-#          pcl_ros
           roscpp
           tf
           image_geometry
@@ -57,6 +62,7 @@ include_directories(include
   ${Boost_INCLUDE_DIRS}
 )
 
+
 add_executable(test_projection
   src/projection.cpp
   )
@@ -64,6 +70,7 @@ add_executable(test_projection
 target_link_libraries(test_projection
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
+  ${Boost_LIBRARIES}
 )
 
 add_executable(benchmark_features

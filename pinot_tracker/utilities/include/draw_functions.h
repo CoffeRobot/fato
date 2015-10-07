@@ -21,8 +21,7 @@ void drawBoundingCube(const cv::Point3f& center,
 void drawBoundingCube(const std::vector<cv::Point3f>& front_box,
                       const std::vector<cv::Point3f>& back_box,
                       const float focal, const cv::Point2f& imgCenter,
-                      int line_width,
-                      cv::Mat& out);
+                      int line_width, cv::Mat& out);
 
 void drawBoundingCube(const std::vector<cv::Point3f>& front_box,
                       const std::vector<cv::Point3f>& back_box,
@@ -50,6 +49,10 @@ void drawObjectPose(const cv::Point3f& centroid, const float focal,
 void arrowedLine(cv::Mat& img, cv::Point2f pt1, cv::Point2f pt2,
                  const cv::Scalar& color, int thickness = 1, int line_type = 8,
                  int shift = 0, double tipLength = 0.1);
+
+void cross(cv::Mat& img, cv::Point2f center, const cv::Scalar& color,
+           int thickness = 1, int line_offset = 1, int line_type = 8, int shift = 0,
+           double tipLength = 0.1);
 
 }  // end namespace
 

@@ -32,17 +32,20 @@
 #include <iostream>
 #include <memory>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include <fstream>
 #include <boost/algorithm/string.hpp>
 #include <algorithm>
+#include <ros/ros.h>
 
-#include "../../utilities/include/draw_functions.h"
+#include "../../tracker/include/matcher.h"
+
 #include "../../utilities/include/profiler.h"
-#include "../../utilities/include/utilities.h"
-#include "../../tracker/include/bounding_cube.h"
-#include "../../utilities/include/visualization_ros.h"
+#include "../../utilities/include/draw_functions.h"
 #include "../../io/include/filemanager.h"
 #include "../include/feature_matching.h"
+
+
 
 using namespace cv;
 using namespace std;
@@ -72,17 +75,29 @@ void FeatureBenchmark::testVideo(string path)
 
   cout << "GT " << boxes.size() << " " << image_names.size() << endl;
 
+  if(image_names.size() == 0)
+    return;
 
+  Mat img;
+  img = imread(path+"imgs/" + image_names.at(0),1);
+  Mat gray;
+  cvtColor(img, gray, CV_BGR2GRAY);
 
-  for(auto i = 0; i < image_names.size(); ++i)
+  initBrisk(gray, boxes.at(0));
+  initOrb(gray, boxes.at(0));
+
+  for(auto i = 1; i < image_names.size(); ++i)
   {
 
-    Mat img;
     img = imread(path+"imgs/" + image_names.at(i),1);
+
+    // check if image is grayscale
+    cvtColor(img, gray, CV_BGR2GRAY);
 
     if(i < boxes.size())
     {
-      cout << boxes.at(i) << endl;
+      matchBrisk(gray, boxes.at(i), img);
+      matchOrb(gray, boxes.at(i), img);
       rectangle(img, boxes.at(i), Scalar(0,0,255), 3);
     }
 
@@ -122,6 +137,178 @@ void FeatureBenchmark::parseGT(string path, std::vector<Rect> &ground_truth) {
   }
 
   cout << "GT size " << ground_truth.size() << endl;
+}
+
+void FeatureBenchmark::initBrisk(const Mat &in, Rect &bbox)
+{
+  brisk_detector_.detect(in, brisk_keypoints_);
+  brisk_detector_.compute(in, brisk_keypoints_, brisk_descriptors_);
+
+  brisk_label_.resize(brisk_keypoints_.size(), false);
+
+  for(auto i = 0; i < brisk_keypoints_.size(); ++i)
+  {
+    auto& kp = brisk_keypoints_.at(i).pt;
+
+    if(kp.x > bbox.tl().x && kp.x < bbox.br().x &&
+       kp.y > bbox.tl().y && kp.y < bbox.br().y)
+    {
+      brisk_label_.at(i) = true;
+    }
+  }
+}
+
+void FeatureBenchmark::initOrb(const Mat &in, Rect &bbox)
+{
+  orb_detector_.detect(in, orb_keypoints_);
+  orb_detector_.compute(in, orb_keypoints_, orb_descriptors_);
+
+  orb_label_.resize(orb_keypoints_.size(), false);
+
+  for(auto i = 0; i < orb_keypoints_.size(); ++i)
+  {
+    auto& kp = orb_keypoints_.at(i).pt;
+
+    if(kp.x > bbox.tl().x && kp.x < bbox.br().x &&
+       kp.y > bbox.tl().y && kp.y < bbox.br().y)
+    {
+      orb_label_.at(i) = true;
+    }
+  }
+}
+
+void FeatureBenchmark::initSift(const Mat &in, Rect &bbox)
+{
+
+}
+
+void FeatureBenchmark::matchBrisk(const Mat &in, Rect &bbox, Mat &out)
+{
+  vector<KeyPoint> kps;
+  Mat descriptors;
+
+  Profiler::getInstance()->start("brisk_extract");
+  brisk_detector_.detect(in, kps);
+  brisk_detector_.compute(in, kps, descriptors);
+  Profiler::getInstance()->stop("brisk_extract");
+
+  vector<vector<DMatch>> matches;
+  pinot_tracker::CustomMatcher cm;
+
+  Profiler::getInstance()->start("brisk_match");
+  cm.match(descriptors, brisk_descriptors_, 2, matches);
+  Profiler::getInstance()->stop("brisk_match");
+
+  for (size_t i = 0; i < matches.size(); i++) {
+    int queryId = matches[i][0].queryIdx;
+    int trainId = matches[i][0].trainIdx;
+
+    if (queryId < 0 && queryId >= kps.size()) continue;
+
+    if (trainId < 0 && trainId >= brisk_keypoints_.size()) continue;
+
+    float confidence = 1 - (matches[i][0].distance / 512.0);
+    float ratio = matches[i][0].distance / matches[i][1].distance;
+
+    if (confidence >= 0.80f && ratio <= 0.8)
+    {
+
+      auto& obj_pt = brisk_keypoints_.at(trainId).pt;
+      auto& pt = kps.at(queryId).pt;
+
+      if(brisk_label_.at(trainId))
+      {
+        if(pt.x > bbox.tl().x && pt.x < bbox.br().x &&
+           pt.y > bbox.tl().y && pt.y < bbox.br().y)
+        {
+          // true positive
+          circle(out, pt, 3, Scalar(0,255,0));
+        }
+        else
+        {
+          // false positive
+          circle(out, pt, 3, Scalar(0,0,255));
+        }
+      }
+      else
+      {
+        if(pt.x > bbox.tl().x && pt.x < bbox.br().x &&
+           pt.y > bbox.tl().y && pt.y < bbox.br().y)
+        {
+          // false negative
+          circle(out, pt, 3, Scalar(255,0,0));
+        }
+      }
+    }
+
+  }
+
+}
+
+void FeatureBenchmark::matchOrb(const Mat &in, Rect &bbox, Mat &out)
+{
+  vector<KeyPoint> kps;
+  Mat descriptors;
+
+  Profiler::getInstance()->start("orb_extract");
+  orb_detector_.detect(in, kps);
+  orb_detector_.compute(in, kps, descriptors);
+  Profiler::getInstance()->stop("orb_extract");
+
+  vector<vector<DMatch>> matches;
+  pinot_tracker::CustomMatcher cm;
+  Profiler::getInstance()->start("orb_match");
+  cm.match32(descriptors, orb_descriptors_, 2, matches);
+  Profiler::getInstance()->stop("orb_match");
+
+  for (size_t i = 0; i < matches.size(); i++) {
+    int queryId = matches[i][0].queryIdx;
+    int trainId = matches[i][0].trainIdx;
+
+    if (queryId < 0 && queryId >= kps.size()) continue;
+
+    if (trainId < 0 && trainId >= orb_keypoints_.size()) continue;
+
+    float confidence = 1 - (matches[i][0].distance / 256.0);
+    float ratio = matches[i][0].distance / matches[i][1].distance;
+
+    if (confidence >= 0.80f && ratio <= 0.8)
+    {
+
+      auto& obj_pt = orb_keypoints_.at(trainId).pt;
+      auto& pt = kps.at(queryId).pt;
+
+      if(orb_label_.at(trainId))
+      {
+        if(pt.x > bbox.tl().x && pt.x < bbox.br().x &&
+           pt.y > bbox.tl().y && pt.y < bbox.br().y)
+        {
+          // true positive
+          cross(out, pt, Scalar(0,255,0));
+        }
+        else
+        {
+          // false positive
+          cross(out, pt, Scalar(0,0,255));
+        }
+      }
+      else
+      {
+        if(pt.x > bbox.tl().x && pt.x < bbox.br().x &&
+           pt.y > bbox.tl().y && pt.y < bbox.br().y)
+        {
+          // false negative
+          cross(out, pt, Scalar(255,0,0));
+        }
+      }
+    }
+
+  }
+}
+
+void FeatureBenchmark::matchSift(const Mat &in, Rect &bbox, Mat &out)
+{
+
 }
 
 }  // end namespace
