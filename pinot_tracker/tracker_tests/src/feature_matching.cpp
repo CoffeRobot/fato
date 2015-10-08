@@ -112,7 +112,7 @@ void FeatureBenchmark::parseGT(string path, std::vector<Rect> &ground_truth) {
 
   if (!file.is_open())
   {
-   cout << "Cannot open gt file!" << endl;
+   cout << "Cannot open gt file in path: " << path << "!" << endl;
 
     return;
   }
