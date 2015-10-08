@@ -320,8 +320,7 @@ int main(int argc, char *argv[]) {
   vector<Rect> gt;
 
   pinot_tracker::FeatureBenchmark fb;
-  fb.testVideo("/media/alessandro/Super "
-               "Fat/Dataset/tracking_clean/ball/");
+  fb.testVideo("/home/alessandro/Dataset/ball/");
 
   return 0;
 }

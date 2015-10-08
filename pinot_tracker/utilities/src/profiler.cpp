@@ -35,9 +35,9 @@ void Profiler::startGPU(string id)
   if (entry == gpu_profiler_.end()) {
     GpuTimeEntry te;
     cudaEventCreate(&te.start_time);
-    cudaEventCreate(&te.stop_time);
+    cudaEventCreate(&te.end_time);
     cudaEventRecord(te.start_time, 0);
-    gpu_profiler_.insert(pair<string, TimeEntry>(id, te));
+    gpu_profiler_.insert(pair<string, GpuTimeEntry>(id, te));
   } else {
     cudaEventRecord(entry->second.start_time, 0);
   }
@@ -79,9 +79,9 @@ void Profiler::stopGPU(string id)
   auto begin = entry->second.start_time;
 
   float elapsed;
-  cudaEventSynchronize(m_stop);
+  cudaEventSynchronize(entry->second.end_time);
   cudaEventElapsedTime(&elapsed, entry->second.start_time,
-                       entry->second.stop_time);
+                       entry->second.end_time);
 
   entry->second.total_time += elapsed;
   entry->second.num_calls++;

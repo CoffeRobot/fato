@@ -9,22 +9,25 @@ if(TRACKER_VERBOSE_LOGGING)
   add_definitions(-DVERBOSE_LOGGING)
 endif()
 
+set(TRACKER_MODULES
+      roscpp
+      cmake_modules
+      cv_bridge
+      image_transport
+      tf
+      image_geometry
+      utilities
+      tracker_cpu
+      tracker_io
+)
+
 if(TRACKER_WITH_GPU)
   add_definitions(-DTRACKER_WITH_GPU)
+set(TRACKER_MODULES ${TRACKER_MODULES} cuda_sift)
 endif()
 
-
 find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  cmake_modules
-  cv_bridge
-  image_transport
-  tf
-  image_geometry
-  utilities
-  tracker_cpu
-  tracker_io
-  cuda_sift
+  ${TRACKER_MODULES}
 )
 
 find_package(OpenCV 2.4.8 REQUIRED)

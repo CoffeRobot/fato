@@ -111,7 +111,7 @@ void TrackerGpu2D::start() {
         Point2f p = gpu_tracker.getCentroid();
         circle(rgb_image_, p, 5, Scalar(255, 0, 0), -1);
         Scalar color(255, 0, 0);
-        drawBoundingBox(gpu_tracker.getBoundingBox(), color, rgb_image_);
+        //drawBoundingBox(gpu_tracker.getBoundingBox(), color, rgb_image_);
         
       }
 

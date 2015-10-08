@@ -8,6 +8,8 @@ set(TRACKER_CUSTON_OPENCV_PATH CACHE PATH "path to gpu compiled opencv")
 if(TRACKER_WITH_GPU)
   if ("${TRACKER_CUSTON_OPENCV_PATH}" STREQUAL "")
     message(FATAL_ERROR "please set the path pointing to opencv compiled with cuda")
+  else()
+    message(INFO "custom opencv path: ${TRACKER_CUSTON_OPENCV_PATH}")
   endif()
   find_package(CUDA REQUIRED)
 endif()
@@ -37,7 +39,7 @@ if(TRACKER_WITH_GPU)
 
   include_directories(include
   ${catkin_INCLUDE_DIRS}
-  ${CUSTON_OPENCV_PATH}/include
+  ${TRACKER_CUSTON_OPENCV_PATH}/include
   ${CUDA_INCLUDE_DIRS}
   )
 
@@ -46,15 +48,20 @@ if(TRACKER_WITH_GPU)
   src/tracker.cpp
   )
 
+  set(CUSTOM_OPENCV_LIBS
+    ${TRACKER_CUSTON_OPENCV_PATH}/lib/libopencv_highgui.so
+    ${TRACKER_CUSTON_OPENCV_PATH}/lib/libopencv_gpu.so
+    ${TRACKER_CUSTON_OPENCV_PATH}/lib/libopencv_flann.so
+    ${TRACKER_CUSTON_OPENCV_PATH}/lib/libopencv_features2d.so
+    ${TRACKER_CUSTON_OPENCV_PATH}/lib/libopencv_core.so
+    ${TRACKER_CUSTON_OPENCV_PATH}/lib/libopencv_contrib.so
+    ${TRACKER_CUSTON_OPENCV_PATH}/lib/libopencv_calib3d.so
+  )
+
+  message(INFO ${CUSTOM_OPENCV_LIBS})
+
   target_link_libraries(${PROJECT_NAME}
-  ${CUSTON_OPENCV_PATH}/lib/opencv_gpu
-  ${CUSTON_OPENCV_PATH}/lib/opencv_highgui
-  ${CUSTON_OPENCV_PATH}/lib/opencv_gpu
-  ${CUSTON_OPENCV_PATH}/lib/opencv_flann
-  ${CUSTON_OPENCV_PATH}/lib/opencv_features2d
-  ${CUSTON_OPENCV_PATH}/lib/opencv_core
-  ${CUSTON_OPENCV_PATH}/lib/opencv_contrib
-  ${CUSTON_OPENCV_PATH}/lib/opencv_calib3d
+  ${CUSTOM_OPENCV_LIBS}
   ${CUDA_LIBRARIES}
   )
 endif()

@@ -73,13 +73,15 @@ add_library(${PROJECT_NAME}
 )
 
 if(TRACKER_WITH_GPU)
-
+  target_link_libraries(${PROJECT_NAME}
+    ${catkin_LIBRARIES}
+    ${OpenCV_LIBS}
+    ${CUDA_LIBRARIES}
+  )
 else()
-
 target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
-  ${CUDA_LIBRARIES}
 )
 endif()
 

@@ -19,14 +19,14 @@ namespace pinot_tracker{
 struct GpuTimeEntry
 {
   cudaEvent_t start_time;
-  cudaEvent_t stop_time;
+  cudaEvent_t end_time;
   float total_time;
   int num_calls;
 
   GpuTimeEntry():
     start_time(), end_time(), total_time(0.0f), num_calls(0)
   {};
-}
+};
 
 #endif
 
@@ -54,6 +54,8 @@ public:
         return instance;
     }
 
+     ~Profiler();
+
     void start(std::string id);
     void stop(std::string id);
     void startGPU(std::string id);
@@ -64,8 +66,6 @@ public:
 
 private:
     Profiler();
-
-    ~Profiler();
 
     std::map<std::string,TimeEntry> profiler_;
     std::mutex mutex_;
