@@ -36,13 +36,32 @@
 #include <vector>
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
-
-
+#include <opencv2/nonfree/features2d.hpp>
+#include <vector>
+#include <map>
 
 namespace pinot_tracker {
 
-class FeatureBenchmark {
+struct BenchResults {
+  int true_positive;
+  int false_positive;
+  int true_negative;
+  int false_negative;
+  float average_time;
+  int features_count;
+  std::string feature_name;
 
+  BenchResults()
+      : true_positive(0),
+        false_positive(0),
+        true_negative(0),
+        false_negative(0),
+        average_time(0.0),
+        features_count(0),
+        feature_name(""){};
+};
+
+class FeatureBenchmark {
  public:
   FeatureBenchmark();
 
@@ -50,7 +69,9 @@ class FeatureBenchmark {
 
   void testVideo(std::string path);
 
-private:
+ private:
+  void saveVideoResult(std::string path);
+
 
   void parseGT(std::string path, std::vector<cv::Rect>& ground_truth);
 
@@ -58,27 +79,25 @@ private:
 
   void initOrb(const cv::Mat& in, cv::Rect& bbox);
 
-  void initSift(const cv::Mat&in, cv::Rect& bbox);
+  void initSift(const cv::Mat& in, cv::Rect& bbox);
 
-  void matchBrisk(const cv::Mat&in, cv::Rect& bbox, cv::Mat& out);
+  void matchBrisk(const cv::Mat& in, cv::Rect& bbox, cv::Mat& out);
 
-  void matchOrb(const cv::Mat&in, cv::Rect& bbox, cv::Mat& out);
+  void matchOrb(const cv::Mat& in, cv::Rect& bbox, cv::Mat& out);
 
-  void matchSift(const cv::Mat&in, cv::Rect& bbox, cv::Mat& out);
-
+  void matchSift(const cv::Mat& in, cv::Rect& bbox, cv::Mat& out);
 
   cv::BRISK brisk_detector_;
   cv::ORB orb_detector_;
 
-  std::vector<cv::KeyPoint> brisk_keypoints_;
-  std::vector<cv::KeyPoint> orb_keypoints_;
-  cv::Mat brisk_descriptors_;
-  cv::Mat orb_descriptors_;
-  std::vector<bool> brisk_label_;
-  std::vector<bool> orb_label_;
 
+  std::vector<cv::KeyPoint> brisk_keypoints_, orb_keypoints_, sift_keypoints_;
+  cv::Mat brisk_descriptors_, orb_descriptors_, sift_descriptors_;
+  std::vector<bool> brisk_label_, orb_label_, sift_label_;
+
+
+  std::map<std::string, BenchResults> resuls_;
 };
-
 }
 
 #endif  // FEATURE_MATCHING_H

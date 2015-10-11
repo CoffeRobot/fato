@@ -65,6 +65,16 @@ The tracker defines some global variables used during compilation:
 - CUSTON_OPENCV_PATH: since the gpu tracker uses some function defined in opencv you need to point to you local installation of OpenCV compiled with WITH_GPU enabled. The standard opencv installation does not come with that enabled.
 - TRACKER_VERBOSE_LOGGING: flag used for debugging purposes. The tracker prints and save more information during the intermediate steps.
 
+Standalone opencv library:
+
+The version of OpenCV included in ROS does not include the gpu module and the nonfree module. Since they are required by some nodes of the tracker, it is necessary to build opencv from scratch and link it to the project. The instruction to compile the library can be found on the official website. It is quite tricky to link it properly inside ROS. The only working hack I could find is to edit ~/.bashrc file and add the following line:
+
+```
+export CMAKE_PREFIX_PATH=path_where_opencv_is_installed:$CMAKE_PREFIX_PATH
+```
+
+This prevent ROS to look for OpenCV in its default location. If you have a nicer way to solve this issue please let me know.
+
 ## Cameras
 
 The tracker support many cameras, each camera has a different launch file where the input to the tracker can be configured.

@@ -14,11 +14,8 @@ add_definitions(${EIGEN_DEFINITIONS})
 if(TRACKER_WITH_GPU)
   add_definitions(-DTRACKER_WITH_GPU)
   find_package(CUDA REQUIRED)
+  message(INFO "${CUDA_INCLUDE_DIRS}")
 endif()
-
-#find_package(PCL 1.7 REQUIRED)
-#link_directories(${PCL_LIBRARY_DIRS})
-#add_definitions(${PCL_DEFINITIONS})
 
 if(TRACKER_WITH_GPU)
 catkin_package(

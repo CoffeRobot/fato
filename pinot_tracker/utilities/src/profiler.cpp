@@ -9,7 +9,13 @@ Profiler::Profiler() {}
 
 Profiler::~Profiler()
 {
-
+#ifdef TRACKER_WITH_GPU
+    for(auto it = gpu_profiler_.begin(); it != gpu_profiler_.end(); it++)
+    {
+        cudaEventDestroy(it->second.start_time);
+        cudaEventDestroy(it->second.end_time);
+    }
+#endif
 }
 
 void Profiler::start(std::string id) {
