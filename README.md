@@ -1,7 +1,7 @@
 FATO - Fast and Adaptive Tracker of Objects
 =====
 
-ROS-package for detecting and tracking unknown objects in 2D and 3D. 
+ROS-package for detecting and tracking unknown objects in 2D and 3D. For more information please refer to the following paper:
 
 *A.Pieropan; N.Bergström; M.Ishikawa; H.Kjellström (2015) [Robust 3D Tracking of Unknown Objects](http://http://www.csc.kth.se/~hedvig/publications/icra_15.pdf). IEEE International Conference on Robotics and Automation.*
 
