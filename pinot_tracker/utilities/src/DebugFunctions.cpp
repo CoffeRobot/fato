@@ -10,7 +10,7 @@ using namespace Eigen;
 namespace pinot_tracker {
 
 void cross(const cv::Point2f& p, const Scalar& c, int width, cv::Mat& out) {
-  line(out, Point2f(p.x, p.y - 2), Point2f(p.x, p.y + 2), c, width);
+  cv::line(out, Point2f(p.x, p.y - 2), Point2f(p.x, p.y + 2), c, width);
   line(out, Point2f(p.x - 2, p.y), Point2f(p.x + 2, p.y), c, width);
 }
 

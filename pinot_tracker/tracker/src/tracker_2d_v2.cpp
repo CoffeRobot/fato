@@ -53,24 +53,24 @@ namespace pinot_tracker {
 
 TrackerV2::TrackerV2()
     : matcher_confidence_(0.75),
-      matcher_ratio_(0.75),
-      m_featuresDetector(30, 3, 1.0f) {
-  m_featuresDetector.create("Feature2D.BRISK");
-}
+      matcher_ratio_(0.75){}
+//      m_featuresDetector(30, 3, 1.0f) {
+//  m_featuresDetector.create("Feature2D.BRISK");
+//}
 
 TrackerV2::TrackerV2(const TrackerParams& params)
     : matcher_confidence_(0.75),
-      matcher_ratio_(0.75),
-      m_featuresDetector(30, 3, 1.0f) {
-  m_featuresDetector.create("Feature2D.BRISK");
-}
+      matcher_ratio_(0.75){}
+//      m_featuresDetector(30, 3, 1.0f) {
+//  m_featuresDetector.create("Feature2D.BRISK");
+//}
 
 TrackerV2::TrackerV2(const TrackerParams& params, const cv::Mat& camera_matrix)
     : matcher_confidence_(0.75),
       matcher_ratio_(0.75),
-      m_featuresDetector(30, 3, 1.0f),
+      //m_featuresDetector(30, 3, 1.0f),
       camera_matrix_(camera_matrix) {
-  m_featuresDetector.create("Feature2D.BRISK");
+  //m_featuresDetector.create("Feature2D.BRISK");
   ransac_iterations_ = params.ransac_iterations;
   ransac_distance_ = params.ransac_distance;
 }

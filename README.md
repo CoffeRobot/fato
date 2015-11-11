@@ -1,17 +1,19 @@
-Pinot Tracker
+FATO - Fast and Adaptive Tracker of Objects
 =====
 
-2D and 3D tracking of unknown objects
+ROS-package for detecting and tracking unknown objects in 2D and 3D. 
+
+*A.Pieropan; N.Bergström; M.Ishikawa; H.Kjellström (2015) [Robust 3D Tracking of Unknown Objects](http://http://www.csc.kth.se/~hedvig/publications/icra_15.pdf). IEEE International Conference on Robotics and Automation.*
 
 # Contents
 
 - [Installation](#markdown-header-installation)
 - [Cameras](#markdown-header-cameras)
-- [Dependencies](#markdown-header-simulation)
+- [Dependencies](#markdown-header-dependencies)
 - [Tracker](#markdown-header-pr2)
-    - [Tracking 2D](#markdown-header-start-and-stop)
-    - [Tracking 3D](#markdown-header-object-tracking)
-    - [Offline Mode]()
+    - [Tracking 2D](#markdown-header-traking-2D)
+    - [Tracking 3D](#markdown-header-tracking=3D)
+    - [Offline Mode](#markdown-header-offline-mode)
 
 ## Installation
 
@@ -151,6 +153,8 @@ To run the tracker in this modality please write the following command in the te
 roslaunch pinot_tracker_nodes tracker_offline.launch
 
 ```
+
+
 
 
 

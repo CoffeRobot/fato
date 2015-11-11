@@ -61,11 +61,10 @@ class Tracker2D {
  public:
   Tracker2D(const TrackerParams& params)
       : params_(params),
-        m_featuresDetector(30, 3, 1.0f),
         m_featureMatcher(new cv::BFMatcher(cv::NORM_HAMMING, true)),
         m_prevFrame(),
         m_dbClusterer() {
-    m_featuresDetector.create("Feature2D.BRISK");
+    //m_featuresDetector.create("Feature2D.BRISK");
   };
 
   virtual ~Tracker2D();

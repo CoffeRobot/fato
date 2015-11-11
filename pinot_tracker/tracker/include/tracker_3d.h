@@ -81,7 +81,7 @@ class Tracker3D {
         m_fstCube(),
         m_updatedModel(),
         log_header("TRACKER: ") {
-    m_featuresDetector.create("Feature2D.BRISK");
+    //m_featuresDetector.create("Feature2D.BRISK");
   };
 
   ~Tracker3D();

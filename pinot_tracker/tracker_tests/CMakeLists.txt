@@ -11,9 +11,10 @@ if(TRACKER_WITH_CUSTOM_OPENCV)
   #include_directories(${TRACKER_CUSTON_OPENCV_PATH}/include)
   #link_directories(${TRACKER_CUSTON_OPENCV_PATH}/lib)
 
-  MESSAGE("${PROJECT_NAME}: opencv incl " ${OpenCV_INCLUDE_DIRS})
+  MESSAGE("${PROJECT_NAME}: opencv incl dirs " ${OpenCV_INCLUDE_DIRS})
   MESSAGE("${PROJECT_NAME}: opencv lib ${OpenCV_LIBS}")
-  MESSAGE("${PROJECT_NAME}: cmake prefix " ${CMAKE_MODULE_PATH})
+  #SET(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${TRACKER_CUSTON_OPENCV_PATH} )
+  MESSAGE("${PROJECT_NAME}: cmake prefix path ${CMAKE_PREFIX_PATH}")
 
 endif()
 
@@ -97,16 +98,6 @@ endif()
 add_executable(test_projection
   src/projection.cpp
   )
-
-add_executable(benchmark_features
-  src/feature_matching.cpp
-  )
-
-target_link_libraries(benchmark_features
-  ${catkin_LIBRARIES}
-  ${OPENCV_LIBS}
-  ${Boost_LIBRARIES}
-)
 
 target_link_libraries(test_projection
   ${catkin_LIBRARIES}
