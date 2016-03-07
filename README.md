@@ -29,7 +29,7 @@ mkdir -p ~/[name_of_workspace]/src
 
 Copy the contents of the following lines into a file ~/[name_of_workspace]/src/.rosinstall
 ```
-- git: {local-name: pinot_tracker, uri: 'git@bitbucket.org:robocoffee/pinot_tracker.git', version: master}
+- git: {local-name: fato_tracker, uri: 'https://github.com/CoffeRobot/fato.git', version: master}
 ```
 If you installed successfully [libfreenect2](https://github.com/OpenKinect/libfreenect2) on your system, 
 you can add this line in the install file to clone [kinect2 bridge package](https://github.com/code-iai/iai_kinect2) 
@@ -43,6 +43,7 @@ A copy of the tracker.rosinstall file with all the packages can be found in the 
 Fetch the code:
 ```
 cd ~/catkin_ws/src
+wstool init
 wstool update
 ```
 
