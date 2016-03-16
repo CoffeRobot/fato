@@ -18,7 +18,7 @@
       <!-- choose whichever uncompressed format the camera supports: -->
       <param name="video_mode" value="uncompressed"/> <!-- or yuyv/nv12/jpeg -->
       <param name="frame_rate" value="30"/>
-      <param name="auto_exposure" value="0"/> <!-- use manual exposure -->
+      <param name="auto_exposure" value="1"/> <!-- use automatic exposure -->
       <param name="exposure_absolute" value="0.1"/>
       <param name="auto_white_balance" value="false"/>
 
