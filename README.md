@@ -87,7 +87,7 @@ The tracker support many cameras, each camera has a different launch file where 
 The general usb camera launch file depends on the libuvc_camera package of ROS. Please check you have in installed on your system before 
 using the launch file. You can use a USB camera connected to your computer with the following instruction:
 ```
-roslaunch pinot_tracker_nodes usb_camera.launch
+roslaunch fato_tracker_nodes usb_camera.launch
 ```
 
 If you want to use a specific camera please consider to write your own launch file specifing the parameters you desire as 
