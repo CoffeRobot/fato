@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
-  <name>pinot_tracker_tests</name>
+  <name>fato_tracker_tests</name>
   <version>0.0.0</version>
-  <description>The pinot_tracker package</description>
+  <description>The fato_tracker package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag --> 
   <!-- Example:  -->

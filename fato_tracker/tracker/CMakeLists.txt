@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   clustering
   utilities
   image_geometry
+  roscpp
 )
 
 if(TRACKER_VERBOSE_LOGGING)
@@ -58,4 +59,5 @@ add_library(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBS}
+  ${catkin_LIBRARIES}
 )

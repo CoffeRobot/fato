@@ -94,6 +94,12 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
   m_initKeypoints = feature_detector_->getTrainingPoints();
   m_initDescriptors = feature_detector_->getTrainingDescriptors();
 
+  if(m_initKeypoints.size() == 0)
+  {
+    cerr << "Warning: no keypoint extracted. Nothing is going to be tracked!" << endl;
+    return;
+  }
+
   for (int i = 0; i < m_initKeypoints.size(); i++) {
     Point2f pt = m_initKeypoints[i].pt;
 
@@ -667,6 +673,7 @@ void Tracker::trackNext(Mat next) {
   /*                       TRACKING */
   /*************************************************************************************/
   //  cout << "Optical flow " << endl;
+  //TOFIX: crushing here because of empty points vector
   getOpticalFlow(prev_gray_, next_gray, m_updatedPoints, m_upd_to_init_ids,
                  m_pointsStatus);
   /*************************************************************************************/

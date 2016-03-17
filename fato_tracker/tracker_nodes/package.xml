@@ -2,7 +2,7 @@
 <package>
   <name>fato_tracker_nodes</name>
   <version>0.0.0</version>
-  <description>The pinot_tracker package</description>
+  <description>The fato_tracker package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag --> 
   <!-- Example:  -->

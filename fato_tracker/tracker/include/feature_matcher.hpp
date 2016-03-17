@@ -39,8 +39,8 @@
 #include <iostream>
 #include <memory>
 
-#include "profile.h"
 #include "config.h"
+#include "matcher.h"
 
 
 namespace fato {
@@ -152,6 +152,7 @@ public:
 private:
 
     cv::Ptr<cv::DescriptorMatcher> matcher_;
+    CustomMatcher matcher_custom_;
 
     int feature_id_;
     std::string feature_name;

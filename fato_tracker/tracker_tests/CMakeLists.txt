@@ -1,4 +1,4 @@
-project(pinot_tracker_tests)
+project(fato_tracker_tests)
 cmake_minimum_required(VERSION 2.8.3)
 
 if(TRACKER_WITH_CUSTOM_OPENCV)
@@ -102,5 +102,13 @@ add_executable(test_projection
 target_link_libraries(test_projection
   ${catkin_LIBRARIES}
   ${OPENCV_LIBS}
-  ${Boost_LIBRARIES}
-)
+  ${Boost_LIBRARIES})
+
+  add_executable(test_tracker2d
+    src/tracker2d_test.cpp
+   )
+
+  target_link_libraries(test_tracker2d
+    ${catkin_LIBRARIES}
+    ${OPENCV_LIBS}
+    ${Boost_LIBRARIES})

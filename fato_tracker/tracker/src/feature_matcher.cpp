@@ -44,7 +44,10 @@ namespace fato {
 
 FeatureMatcher::~FeatureMatcher() {}
 
-BriskMatcher::BriskMatcher() { feature_id_ = -1; }
+BriskMatcher::BriskMatcher() {
+    feature_id_ = -1;
+    initExtractor();
+}
 
 BriskMatcher::~BriskMatcher() {}
 
@@ -55,11 +58,6 @@ void BriskMatcher::init(int feature_id) {
 }
 
 void BriskMatcher::setTarget(const Mat &img) {
-  if (feature_id_ == -1) {
-    cerr << "feature_matcher: not initialized properly, params and feature "
-            "type need to be set!" << endl;
-    return;
-  }
 
   if (img.empty()) {
     cerr << "feature_matcher: image is empty!" << endl;
@@ -102,7 +100,9 @@ void BriskMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
   if (query_descriptors.rows == 0) {
     return;
   }
-  matcher_->knnMatch(train_descriptors_, query_descriptors, matches, 2);
+  //TOFIX: opencv matcher does not work in 2.4
+  //matcher_->knnMatch(train_descriptors_, query_descriptors, matches, 1);
+  matcher_custom_.match(train_descriptors_, query_descriptors, 2, matches);
 }
 
 std::vector<cv::KeyPoint> &BriskMatcher::getTrainingPoints() {

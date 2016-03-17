@@ -62,7 +62,7 @@ TrackerNode2D::TrackerNode2D()
   namedWindow("Image Viewer");
   setMouseCallback("Image Viewer", TrackerNode2D::mouseCallback, this);
 
-  publisher_ = nh_.advertise<sensor_msgs::Image>("pinot_tracker/output", 1);
+  publisher_ = nh_.advertise<sensor_msgs::Image>("fato_tracker/output", 1);
 
   getTrackerParameters();
 
@@ -198,12 +198,11 @@ void TrackerNode2D::run() {
   Config params;
 
   std::unique_ptr<FeatureMatcher> derived =
-
-              std::unique_ptr<BriskMatcher>(new BriskMatcher);
+      std::unique_ptr<BriskMatcher>(new BriskMatcher);
 
   Tracker tracker(params, BRISK, std::move(derived));
   // Tracker2D tracker(params_);
-  //TrackerV2 tracker(params_, camera_matrix_);
+  // TrackerV2 tracker(params_, camera_matrix_);
 
   auto &profiler = Profiler::getInstance();
 
@@ -263,7 +262,7 @@ void TrackerNode2D::run() {
 
 int main(int argc, char *argv[]) {
   ROS_INFO("Starting tracker input");
-  ros::init(argc, argv, "pinot_tracker_node");
+  ros::init(argc, argv, "fato_tracker_node");
 
   fato::TrackerNode2D manager;
 

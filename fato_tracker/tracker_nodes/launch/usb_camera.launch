@@ -3,10 +3,10 @@
 <!-- include the launch file of the desired camera-->
 <include file="$(find tracker_cameras)/launch/c920.launch"/>
 
-<rosparam command="load" file="$(find pinot_tracker_nodes)/config/tracker_parameters.yaml"/>
+<rosparam command="load" file="$(find fato_tracker_nodes)/config/tracker_parameters.yaml"/>
 
 <!-- uncomment to use the medium version-->
- <node name="tracker" pkg="pinot_tracker_nodes" type="tracker_node_2d" output="screen">
+ <node name="tracker" pkg="fato_tracker_nodes" type="tracker_node_2d" output="screen">
   <remap from="/tracker_input/rgb" to="/image_raw" />
   <remap from="/tracker_input/rgb/compressed" to="/image_raw/compressed" />
   <remap from="/tracker_input/camera_info" to="/camera_info" />
