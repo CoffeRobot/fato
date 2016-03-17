@@ -65,7 +65,7 @@
 #include "model.h"
 
 
-namespace pinot_tracker {
+namespace fato {
 
 class Tracker3D {
  public:

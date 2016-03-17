@@ -45,7 +45,7 @@ extern "C" {
 
 #include <string>
 
-namespace pinot_tracker{
+namespace fato{
 
 class Encoderx264
 {

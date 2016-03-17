@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2016, Alessandro Pieropan                                  */
+/*  Copyright (c) 2015, Alessandro Pieropan                                  */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -30,14 +30,12 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
+
 #ifndef UTILITIES_H
 #define UTILITIES_H
 
 #include<cmath>
 #include <opencv2/core/core.hpp>
-#include <image_geometry/pinhole_camera_model.h>
-#include <image_transport/image_transport.h>
-#include <sensor_msgs/image_encodings.h>
 #include <limits>
 #ifdef __WIN64
 #include <Eigen/Dense>
@@ -45,14 +43,14 @@
 #ifdef __unix__
 #include <eigen3/Eigen/Dense>
 #endif
-//#include <pcl/point_types.h>
-//#include <pcl/point_cloud.h>
-
-
-
-#include "../include/traits.h"
 
 namespace fato{
+
+
+void parseGT(std::string path, std::vector<cv::Rect>& ground_truth);
+
+void parseGT(std::string path,
+             std::vector<std::vector<cv::Point2f>>& ground_truth);
 
 inline float roundUpToNearest(float src_number, float round_to)
 {
@@ -121,13 +119,6 @@ bool projectPoint(const float focal, const cv::Point2f& center,
 bool projectPoint(const float focal, const cv::Point2f& center,
                   const cv::Point3f* src, cv::Point2f& dst);
 
-void depthTo3d(const cv::Mat& disparity, float cx, float cy,
-                      float fx, float fy, cv::Mat3f &depth);
-
-//void cvToPcl(const cv::Mat3f& points, pcl::PointCloud<pcl::PointXYZ>& cloud);
-
-//void cvToPcl(const cv::Mat3f& points, const cv::Mat1b& mask,
-//             pcl::PointCloud<pcl::PointXYZ>& cloud);
 
 template<typename T>
 bool is_infinite( const T &value )
@@ -150,7 +141,6 @@ bool is_valid( const T &value )
 {
     return ! is_infinite(value) && ! is_nan(value);
 }
-
 
 
 } // end namespace

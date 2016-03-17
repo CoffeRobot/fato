@@ -33,14 +33,14 @@
 #include "../include/pose_estimation.h"
 #include <opencv2/calib3d/calib3d.hpp>
 #include <boost/math/constants/constants.hpp>
-#include "../../utilities/include/utilities.h"
+#include "../include/utilities.h"
 #include <eigen3/Eigen/Geometry>
 
 using namespace std;
 using namespace cv;
 using namespace Eigen;
 
-namespace pinot_tracker {
+namespace fato {
 
 void getPoseRansac(const std::vector<cv::Point3f>& model_points,
                    const std::vector<cv::Point2f>& tracked_points, int method,

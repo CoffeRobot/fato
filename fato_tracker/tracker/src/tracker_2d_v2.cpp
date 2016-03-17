@@ -49,7 +49,7 @@
 using namespace std;
 using namespace cv;
 
-namespace pinot_tracker {
+namespace fato {
 
 TrackerV2::TrackerV2()
     : matcher_confidence_(0.75),
@@ -249,7 +249,7 @@ void TrackerV2::getOpticalFlow(const Mat& prev, const Mat& next,
                        prev_errors);
   m_flow_counter = 0;
   for (int i = 0; i < next_points.size(); ++i) {
-    float error = pinot_tracker::getDistance(points[i], prev_points[i]);
+    float error = fato::getDistance(points[i], prev_points[i]);
 
     Status& s = status[ids[i]];
 
@@ -327,9 +327,9 @@ float TrackerV2::getMedianScale(const vector<Point2f>& initPoints,
     for (size_t j = 0; j < updPoints.size(); j++) {
       if (isPointValid(ids[i]) && isPointValid(ids[j])) {
         float nextDistance =
-            pinot_tracker::getDistance(updPoints[i], updPoints[j]);
+            fato::getDistance(updPoints[i], updPoints[j]);
         float currDistance =
-            pinot_tracker::getDistance(initPoints[ids[i]], initPoints[ids[j]]);
+            fato::getDistance(initPoints[ids[i]], initPoints[ids[j]]);
 
         if (currDistance != 0 && i != j) {
           scales.push_back(nextDistance / currDistance);
@@ -507,9 +507,9 @@ void TrackerV2::discardNotClustered(std::vector<Point2f>& upd_points,
     auto id = ids[i];
 
     if (pointsStatus[id] == Status::NOCLUSTER) {
-      float init_dist = pinot_tracker::getDistance(init_pts[id], init_centroid);
+      float init_dist = fato::getDistance(init_pts[id], init_centroid);
       float upd_dist =
-          pinot_tracker::getDistance(upd_points[i], upd_centroid) * m_scale;
+          fato::getDistance(upd_points[i], upd_centroid) * m_scale;
 
       float ratio = min(init_dist, upd_dist) / max(init_dist, upd_dist);
 
@@ -856,9 +856,9 @@ void TrackerV2::detectNext(Mat next) {
 
 bool TrackerV2::evaluatePose(const float& angle, const float& scale) {
   // discretize angle
-  float angle_change = pinot_tracker::roundDownToNearest(angle, 0.30);
+  float angle_change = fato::roundDownToNearest(angle, 0.30);
   // discretize scale
-  float scale_change = pinot_tracker::roundDownToNearest(scale - 1, 0.30);
+  float scale_change = fato::roundDownToNearest(scale - 1, 0.30);
 
   /****************************************************************************/
   /**                adding to history                                        */
@@ -900,7 +900,7 @@ bool TrackerV2::evaluatePose(const float& angle, const float& scale) {
   auto max_variation_mov = 0.0f;
   while (it_mov != m_center_history.end()) {
     max_variation_mov = std::max(
-        max_variation_mov, pinot_tracker::getDistance(prev_val_mov, *it_mov));
+        max_variation_mov, fato::getDistance(prev_val_mov, *it_mov));
     prev_val_mov = *it_mov;
     ++it_mov;
   }
@@ -980,80 +980,5 @@ void TrackerV2::projectPointsToModel(const Point2f& model_centroid,
     proj_pts.push_back(model_centroid + rm);
   }
 }
-
-// void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
-//                        const GpuMat& d_gray, std::vector<Point2f>& init_pts,
-//                        std::vector<Point2f>& upd_pts,
-//                        std::vector<Status>& pts_status,
-//                        std::vector<int>& pts_id) {
-
-// extract features
-//  cv::gpu::GpuMat d_keypoints;
-//  cv::gpu::GpuMat d_descriptors;
-//  ORB_GPU orbDetector;
-//  orbDetector(d_gray, GpuMat(), d_keypoints, d_descriptors);
-//  // find feature points that belongs to the model
-//  std::vector<KeyPoint> keypoints;
-//  std::vector<Point2f> points_to_add;
-//  Mat descriptors;
-//  orbDetector.downloadKeyPoints(d_keypoints, keypoints);
-//  d_descriptors.download(descriptors);
-//  // draw mask of the object
-//  Mat1b mask(m_height, m_width, static_cast<uchar>(0));
-//  drawTriangleMask(bbox[0], bbox[1], bbox[2], mask);
-//  drawTriangleMask(bbox[0], bbox[2], bbox[3], mask);
-
-//  // Mat debug_img;
-//  // m_nextRgb.copyTo(debug_img);
-
-//  Mat descriptors_to_add;
-//  for (int i = 0; i < keypoints.size(); i++) {
-//    Point2f& pt = keypoints[i].pt;
-//    if (mask.at<uchar>(pt) == 255) {
-//      points_to_add.push_back(pt);
-//      descriptors_to_add.push_back(descriptors.row(i));
-//      // circle(debug_img, pt, 3, Scalar(255, 0, 0), 1);
-//    }
-//  }
-
-//  // imshow("Learn Debug", debug_img);
-//  // waitKey(0);*/
-
-//  auto pts_size = m_points.size();
-
-//  vector<Point2f> projected_pts;
-//  projectPointsToModel(m_initCentroid, m_updatedCentroid, m_angle, m_scale,
-//                       points_to_add, projected_pts);
-
-//  Mat init_debug;
-//  m_init_rgb_img.copyTo(init_debug);
-
-//  std::cout << m_points.size() << std::endl;
-
-//  for (auto i = 0; i < points_to_add.size(); i++) {
-//    if (m_points.size() > 2000) break;
-
-//    auto id = i + pts_size;
-//    auto pt = points_to_add[i];
-//    auto pt_prj = projected_pts[i];
-//    m_pointsStatus.push_back(Status::MATCH);
-//    m_updatedPoints.push_back(pt);
-//    m_votes.push_back(Point2f(0, 0));
-//    m_upd_to_init_ids.push_back(id);
-//    m_points.push_back(pt_prj);
-//    m_relativeDistances.push_back(pt_prj - m_initCentroid);
-//    m_initDescriptors.push_back(descriptors_to_add.row(i));
-//    // TODO: remove this after experiments are done
-//    m_points_status_debug.push_back(Status::LEARN);
-//    circle(init_debug, pt_prj, 3, Scalar(255, 0, 0), 1);
-//  }
-
-//  cout << "Size of points " << m_points.size() << endl;
-//  cout << "Size of descriptors " << m_initDescriptors.rows << endl;
-//  cout << "Size of points extracted " << points_to_add.size() << endl;
-
-// imshow("Learn Debug", init_debug);
-// waitKey(0);
-//}
 
 }  // end namespace pinot

@@ -48,7 +48,7 @@
 #include "Constants.h"
 #include "Matcher.h"
 
-namespace pinot {
+namespace fato {
 
 namespace gpu {
 

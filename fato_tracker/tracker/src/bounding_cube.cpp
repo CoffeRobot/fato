@@ -48,7 +48,7 @@
 using namespace cv;
 using namespace std;
 
-namespace pinot_tracker {
+namespace fato {
 
 BoundingCube::BoundingCube()
     : front_points_(4, Point3f(0, 0, 0)),

@@ -39,7 +39,7 @@ using namespace cv;
 
 namespace fs = boost::filesystem;
 
-namespace pinot_tracker {
+namespace fato {
 
 VideoWriter::VideoWriter(std::string path, string name, int width, int height,
                          int type, int framerate)

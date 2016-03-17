@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2016, Alessandro Pieropan                                  */
+/*  Copyright (c) 2015, Alessandro Pieropan                                  */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -32,6 +32,14 @@
 
 #include "../include/utilities.h"
 #include <iostream>
+#include <fstream>
+#include <boost/algorithm/string.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
+using namespace std;
+using namespace cv;
+
 
 namespace fato {
 
@@ -41,6 +49,63 @@ cv::Mat1b getMask(int rows, int cols, const cv::Point2d& begin,
   rectangle(mask, begin, end, static_cast<uchar>(255), -1);
   return mask;
 }
+
+void parseGT(string path, std::vector<cv::Rect> &ground_truth) {
+  ifstream file(path);
+
+  if (!file.is_open()) {
+    cout << "Cannot open gt file in path: " << path << "!" << endl;
+
+    return;
+  }
+
+  string line;
+  while (getline(file, line)) {
+    vector<string> words;
+    boost::split(words, line, boost::is_any_of(","));
+
+    if (words.size() == 4) {
+      auto x = atof(words[0].c_str());
+      auto y = atof(words[1].c_str());
+      auto w = atof(words[2].c_str());
+      auto h = atof(words[3].c_str());
+
+      ground_truth.push_back(cv::Rect(cv::Point2f(x, y), cv::Point2f(x + w, y + h)));
+    }
+  }
+
+  cout << "GT size " << ground_truth.size() << endl;
+}
+
+void parseGT(
+    string path, std::vector<std::vector<cv::Point2f>> &ground_truth) {
+  ifstream file(path);
+
+  if (!file.is_open()) {
+    cout << "Cannot open gt file in path: " << path << "!" << endl;
+
+    return;
+  }
+
+  string line;
+  while (getline(file, line)) {
+    vector<string> words;
+    boost::split(words, line, boost::is_any_of(","));
+
+    if (words.size() == 8) {
+      vector<cv::Point2f> points;
+      points.push_back(cv::Point2f(atoi(words[0].c_str()), atoi(words[1].c_str())));
+      points.push_back(cv::Point2f(atoi(words[2].c_str()), atoi(words[3].c_str())));
+      points.push_back(cv::Point2f(atoi(words[4].c_str()), atoi(words[5].c_str())));
+      points.push_back(cv::Point2f(atoi(words[6].c_str()), atoi(words[7].c_str())));
+
+      ground_truth.push_back(points);
+    }
+  }
+
+  cout << "GT size " << ground_truth.size() << endl;
+}
+
 
 void opencvToEigen(const cv::Mat& rot, Eigen::Matrix3d& rotation) {
   rotation = Eigen::Matrix3d(3, 3);
@@ -122,78 +187,4 @@ bool projectPoint(const float focal, const cv::Point2f& center,
   return true;
 }
 
-void depthTo3d(const cv::Mat& disparity, float cx, float cy, float fx, float fy,
-               cv::Mat3f& depth) {
-  int cols = disparity.cols;
-  int rows = disparity.rows;
-
-  assert(depth.cols != 0 && depth.rows != 0);
-  assert(fx != 0 && fy != 0);
-
-  float inv_fx = 1.0 / fx;
-  float inv_fy = 1.0 / fy;
-
-  for (size_t y = 0; y < rows; y++) {
-    for (size_t x = 0; x < cols; x++) {
-      uint16_t val = disparity.at<uint16_t>(y, x);
-      float d = static_cast<float>(val);
-
-      if (!is_valid(val)) continue;
-      if (val == 0) continue;
-
-      if (d == 0) continue;
-
-      float xp = x - cx;
-      float yp = -(y - cy);
-
-      float Z = DepthTraits<uint16_t>::toMeters(d);
-
-      float X = xp * Z * inv_fx;
-      float Y = yp * Z * inv_fy;
-
-      depth.at<cv::Vec3f>(y, x) = cv::Vec3f(X, Y, Z);
-    }
-  }
-}
-
-//void cvToPcl(const cv::Mat3f& points, pcl::PointCloud<pcl::PointXYZ>& cloud) {
-//  int width = points.cols, height = points.rows;
-
-//  cloud.points.resize(width * height);
-//  cloud.width = width;
-//  cloud.height = height;
-
-//  for (int v = 0; v < height; ++v) {
-//    for (int u = 0; u < width; ++u) {
-//      auto& point = points.at<cv::Vec3f>(v, u);
-//      pcl::PointXYZ& p = cloud(u, v);
-//      p.x = point[0];
-//      p.y = point[1];
-//      p.z = point[2];
-//    }
-//  }
-//}
-
-//void cvToPcl(const cv::Mat3f& points, const cv::Mat1b& mask,
-//             pcl::PointCloud<pcl::PointXYZ>& cloud) {
-//  int width = points.cols, height = points.rows;
-
-//  cloud.points.resize(width * height);
-//  cloud.width = width;
-//  cloud.height = height;
-
-//  for (int v = 0; v < height; ++v) {
-//    for (int u = 0; u < width; ++u) {
-//      auto& point = points.at<cv::Vec3f>(v, u);
-//      pcl::PointXYZ& p = cloud(u, v);
-//      if (mask.at<uchar>(u, v) == 255) {
-//        p.x = point[0];
-//        p.y = point[1];
-//        p.z = point[2];
-//      } else {
-//        p.x = p.y = p.z = 0;
-//      }
-//    }
-//  }
-//}
 }  // end namespace

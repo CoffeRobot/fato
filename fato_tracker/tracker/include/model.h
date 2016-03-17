@@ -45,7 +45,7 @@
 
 #include "../../utilities/include/constants.h"
 
-namespace pinot_tracker{
+namespace fato{
 
 class ObjectModel {
  public:

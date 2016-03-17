@@ -50,7 +50,7 @@
 #include "../../tracker/include/tracker_3d.h"
 #include "../../io/include/VideoWriter.h"
 
-namespace pinot_tracker {
+namespace fato {
 
 class Projection {
  public:

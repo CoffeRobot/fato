@@ -36,7 +36,7 @@
 
 namespace fs = boost::filesystem;
 
-namespace pinot_tracker
+namespace fato
 {
 
 bool dirExists(std::string path)

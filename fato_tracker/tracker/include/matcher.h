@@ -38,7 +38,7 @@
 #include <vector>
 #include <limits>
 
-namespace pinot_tracker{
+namespace fato{
 
 class CustomMatcher
 {

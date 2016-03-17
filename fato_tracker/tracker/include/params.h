@@ -41,7 +41,7 @@
 #include <opencv2/calib3d/calib3d.hpp>
 
 
-namespace pinot_tracker
+namespace fato
 {
 
 struct TrackerParams {

@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2015, Alessandro Pieropan                                  */
+/*  Copyright (c) 2016, Alessandro Pieropan                                  */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -37,7 +37,7 @@
 #include <vector>
 #include <opencv2/core/core.hpp>
 
-namespace pinot_tracker {
+namespace fato {
 
 void getCubeMarker(const std::vector<cv::Point3f>& front_points,
                    const std::vector<cv::Point3f>& back_points,

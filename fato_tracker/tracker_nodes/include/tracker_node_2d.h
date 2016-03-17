@@ -47,10 +47,11 @@
 #include <string>
 #include <tracker_2d.h>
 
+
 #include "tracker_node.h"
 
 
-namespace pinot_tracker{
+namespace fato{
 
 class TrackerNode2D : public TrackerNode{
  public:
@@ -102,7 +103,7 @@ class TrackerNode2D : public TrackerNode{
   cv::Point2d mouse_start_, mouse_end_;
   bool is_mouse_dragging_, init_requested_, tracker_initialized_;
 
-  TrackerParams params_;
+  //TrackerParams params_;
 
   ros::AsyncSpinner spinner_;
   ros::Publisher publisher_;

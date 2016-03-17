@@ -53,7 +53,7 @@
 #include "tracker_node.h"
 
 
-namespace pinot_tracker{
+namespace fato{
 
 class TrackerNode3D : public TrackerNode{
  public:

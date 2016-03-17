@@ -38,7 +38,7 @@
 #include <iostream>
 #include <list>
 
-namespace pinot_tracker {
+namespace fato {
 
 class BoundingCube {
  public:

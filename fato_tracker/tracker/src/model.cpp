@@ -36,7 +36,7 @@ using namespace Eigen;
 using namespace std;
 using namespace cv;
 
-namespace pinot_tracker{
+namespace fato{
 
 
 ObjectModel::ObjectModel() :

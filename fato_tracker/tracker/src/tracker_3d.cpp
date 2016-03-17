@@ -53,7 +53,7 @@ using namespace cv;
 using namespace std;
 using namespace Eigen;
 
-namespace pinot_tracker {
+namespace fato {
 
 Tracker3D::~Tracker3D() { clear(); }
 

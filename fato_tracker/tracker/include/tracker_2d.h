@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2015, Alessandro Pieropan                                  */
+/*  Copyright (c) 2016, Alessandro Pieropan                                  */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -30,233 +30,286 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-#ifndef PINOT_TRACKER2_H
-#define PINOT_TRACKER2_H
+#ifndef TRACKER_V2_H
+#define TRACKER_V2_H
 
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <opencv/cv.h>
+#include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <chrono>
-#include <unordered_map>
-#include <map>
 #include <vector>
+#include <queue>
 #include <memory>
+#include <future>
+#include <queue>
+#include <condition_variable>
+#include <fstream>
 #include <set>
-//TODO: find a nicer way to help qtcreator finds headers
-#include "../../clustering/include/DBScanClustering.h"
-#include "../../utilities/include/DebugFunctions.h"
-#include "../../utilities/include/constants.h"
-#include "../../utilities/include/profiler.h"
-// #include <profiler.h>
+#include <memory>
 
+#include "profiler.h"
 #include "matcher.h"
-#include "params.h"
+#include "config.h"
+#include "feature_matcher.hpp"
 
-namespace pinot_tracker {
+namespace fato {
 
-class Tracker2D {
- public:
-  Tracker2D(const TrackerParams& params)
-      : params_(params),
-        m_featureMatcher(new cv::BFMatcher(cv::NORM_HAMMING, true)),
-        m_prevFrame(),
-        m_dbClusterer() {
-    //m_featuresDetector.create("Feature2D.BRISK");
-  };
-
-  virtual ~Tracker2D();
-
-  void init(cv::Mat& src, cv::Mat& mask);
-
-  void init(cv::Mat& src, const cv::Point2d& fst, const cv::Point2d& scd);
-
-  void computeNext(cv::Mat& next, cv::Mat& out);
-
-  void drawResult(cv::Mat& out);
-
-  void close();
-
-  cv::Point2f getCentroid() { return m_updatedCentroid; }
-  std::vector<cv::Point2f> getBoundingBox() { return m_updatedBBPoints; }
-
-  int m_threshold;
-  int m_octave;
-  float m_patternScale;
-
- private:
-  void extractSyntheticKeypoints(const cv::Mat& src,
-                                 std::vector<cv::KeyPoint>& points,
-                                 cv::Mat& descriptors);
-
-  // find matches using brisk features
-  void matchFeatures(const cv::Mat& grayImg);
-  // find matches using custom match class
-  int matchFeaturesCustom(const cv::Mat& grayImg, std::vector<cv::KeyPoint>& nextKeypoint,
-                          cv::Mat& nextDescriptors);
-  // uses lucas kanade to track keypoints, faster implemetation
-  void trackFeatures(const cv::Mat& grayImg, int& trackedCount, int& bothCount);
-  // check if image is grayscale
-  void checkImage(const cv::Mat& src, cv::Mat& gray);
-  // get the median of found points
-  float getMedianScale();
-  // get the media rotation of found points
-  float getMedianRotation();
-  // given rotation and scale cast votes for the new centroid
-  void getVotes(float scale, float angle);
-  // cluster the votes
-  void clusterVotes();
-  // debug version of the clustering method
-  void clusterVotesDebug(std::vector<int>& indices,
-                         std::vector<std::vector<int>>& clusters);
-
-  void clusterVotesBorder(std::vector<int>& indices,
-                          std::vector<std::vector<int>>& clusers);
-
-  // calcualte the centroid from the initial keypoints
-  void initCentroid(std::vector<cv::KeyPoint>& keypoints);
-  // calculate the relative position of the initial keypoints
-  void initRelativePosition();
-
-  void calculateCentroid(std::vector<cv::KeyPoint>& keypoints, float scale,
-                         float angle, cv::Point2f& p);
-
-  void getClusteredEstimations(std::vector<float>& scales,
-                               std::vector<float>& angles);
-
-  void updateVotes();
-  // debug version of update votes
-  void updateVotesDebug(std::vector<int>& indices,
-                        std::vector<std::vector<int>>& clusters);
-
-  void updateCentroid();
-
-  void initBBox();
-
-  bool learnFrame(float scale, float angle);
-
-  void addLearnedFrame(float scale, float angle);
-
-  void learnKeypoints(const int numMatches, const int numTracked,
-                      const int numBoth, const cv::Mat& grayImg,
-                      const cv::Mat& next,
-                      const std::vector<cv::KeyPoint>& keypoints);
-
-  void backprojectKeypoins(const std::vector<const cv::KeyPoint*>& keypoints,
-                           cv::Mat& out);
-
-  void debugTrackingStep(const cv::Mat& fstFrame, const cv::Mat& scdFrame,
-                         const std::vector<int>& indices,
-                         std::vector<std::vector<int>>& clusters, cv::Mat& out);
-
-  void parDebugtrackingStep(const cv::Mat& fstFrame, const cv::Mat& scdFrame);
-
-  void debugTrackingStepPar(cv::Mat fstFrame, cv::Mat scdFrame);
-
-  inline float getDistance(const cv::KeyPoint& a, const cv::KeyPoint& b) {
-    return sqrt(pow(a.pt.x - b.pt.x, 2) + pow(a.pt.y - b.pt.y, 2));
-  }
-
-  inline float getDistance(const cv::Point2f& a, const cv::Point2f& b) {
-    return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
-  }
-
-  inline bool isKeypointValid(int id) {
-    return (m_keypointStatus[id] == Status::MATCH ||
-            m_keypointStatus[id] == Status::TRACK ||
-            m_keypointStatus[id] == Status::INIT ||
-            m_keypointStatus[id] == Status::BOTH);
-  }
-
-  inline bool isKeypointTracked(int id) {
-    return (m_keypointStatus[id] == Status::MATCH ||
-            m_keypointStatus[id] == Status::TRACK ||
-            m_keypointStatus[id] == Status::BOTH);
-  }
-
-  inline bool isKeypointValidCluster(int id) {
-    return isKeypointValid(id) && m_clusteredCentroidVotes[id];
-  }
-
-  inline cv::Point2f mult(cv::Mat2f& rot, cv::Point2f& p) {
-    return cv::Point2f(rot.at<float>(0, 0) * p.x + rot.at<float>(1, 0) * p.y,
-                       rot.at<float>(0, 1) * p.x + rot.at<float>(1, 1) * p.y);
-  }
-
-  void updateKeypoints();
-
-  void updateClusteredParams(float scale, float angle);
-
-  void printKeypointStatus(std::string filename, std::string message);
-
-  void debugCalculations();
-
-  // object to extract and compare features
-  cv::BRISK m_featuresDetector;
-  std::unique_ptr<cv::DescriptorMatcher> m_featureMatcher;
-  CustomMatcher m_customMatcher;
-
-  cv::Mat m_firstFrameDescriptors;
-  std::vector<cv::KeyPoint> m_firstFrameKeypoints;
-  std::vector<cv::KeyPoint> m_updatedKeypoints;
-  std::vector<Status> m_keypointStatus;
-  std::vector<cv::Point2f> m_relativePointsPos;
-  std::vector<cv::Point2f> m_centroidVotes;
-  std::vector<bool> m_clusteredCentroidVotes;
-  std::vector<bool> m_clusteredBorderVotes;
-  std::vector<cv::Scalar> m_pointsColor;
-  DBScanClustering<cv::Point2f*> m_dbClusterer;
-
-  // vectors of points used to update after matching and tracking are performed
-  std::vector<cv::Point2f> m_matchedPoints;
-  std::vector<cv::Point2f> m_trackedPoints;
-
-  std::vector<cv::KeyPoint> m_initKeypoints;
-  unsigned int m_initKPCount;
-
-  cv::Point2f m_firstCentroid;
-  cv::Point2f m_updatedCentroid;
-
-  cv::Rect m_fstBBox;
-  std::vector<cv::Point2f> m_fstRelativeBBPoints;
-  std::vector<cv::Point2f> m_fstBBPoints;
-  std::vector<cv::Point2f> m_updatedBBPoints;
-
-  std::vector<uchar> m_status;
-  std::vector<float> m_errors;
-
-  cv::Mat m_descriptor;
-  cv::Mat m_foregroundMask;
-
-  cv::Mat m_prevFrame;
-  cv::Mat m_currFrame;
-  cv::Mat m_fstFrame;
-
-  // variables used to find new learning frames
-  std::set<std::pair<int, int>> m_learnedFrames;
-  float m_angleStep;
-  float m_scaleStep;
-  float m_lastAngle;
-  float m_lastScale;
-
-  // variables used for debugging purposes
-  float m_mAngle;
-  float m_mScale;
-  int m_validKeypoints;
-  int m_clusterVoteSize;
-
-  TrackerParams params_;
-
-  /*********************************************************************************************/
-  /*                        TIMING */
-  /*********************************************************************************************/
-  float m_extractT, m_matchT, m_trackT, m_scaleT, m_rotT, m_updateT, m_votingT,
-      m_clusterT, m_centroidT, m_updateVoteT, m_drawT;
-  int m_numFrames;
+enum struct Status {
+  INIT = 0,
+  MATCH,
+  NOMATCH,
+  TRACK,
+  BOTH,
+  BACKGROUND,
+  LOST,
+  NOCLUSTER,
+  LEARN
 };
 
-}  // end namespace
 
-#endif
+class Tracker {
+ public:
+  Tracker();
+
+  Tracker(const Config& params, const cv::Mat& camera_matrix, std::unique_ptr<FeatureMatcher> matcher);
+
+  Tracker(Config &params, int descriptor_type, std::unique_ptr<FeatureMatcher> matcher);
+
+  ~Tracker();
+
+  void init(const cv::Mat &rgb, const cv::Point2d &fst, const cv::Point2d &scd);
+
+  void init(const cv::Mat& rgb, const cv::Mat& mask);
+
+  void setFeatureExtractionParameters(int num_features, float scale_factor,
+                                      int num_levels, int edge_threshold,
+                                      int first_level, int patch_size);
+
+  void setMatcerParameters(float confidence, float second_ratio);
+
+  void computeNext(const cv::Mat& rgb);
+
+  const std::vector<cv::Point2f>* getPoints() { return &m_updatedPoints; }
+
+  const std::vector<Status>* getPointsStatus() { return &m_pointsStatus; }
+
+  const std::vector<int>* getPointsIds() { return &m_upd_to_init_ids; }
+
+  const std::vector<cv::Point2f>* getInitPoints() { return &m_points; }
+
+  cv::Point2f getCentroid() { return m_updatedCentroid; }
+
+  cv::Point2f getInitCentroid() { return m_initCentroid; }
+
+  std::vector<cv::Point2f> getBoundingBox() { return m_boundingBoxUpdated; }
+
+  bool getEstimatedPosition(std::vector<cv::Point2f>& bounding_box);
+
+  const std::vector<cv::Point2f>* getVotes() { return &m_votes; }
+
+  bool isNewPose() { return m_learn_new_pose; }
+
+  void taskFinished();
+
+  float getTrackerTime() {
+    return m_trackerTime / static_cast<float>(m_trackerFrameCount);
+  }
+
+  float getDetectorTime() {
+    return m_detectorTime / static_cast<float>(m_detectorFrameCount);
+  }
+
+  float getAngle() { return m_angle; }
+
+  float getScale() { return m_scale; }
+
+  bool isLost() { return m_is_object_lost; }
+
+  /****************************************************************************/
+  /*                       STATS VARIABLES                                    */
+  /****************************************************************************/
+  std::atomic_int m_flow_counter;
+  std::atomic_int m_match_counter;
+  int m_original_model_size;
+  std::vector<Status> m_points_status_debug;
+
+ private:
+  int runTracker();
+
+  int runDetector();
+
+  cv::Point2f initCentroid(const std::vector<cv::Point2f>& points);
+
+  void initRelativeDistance(const std::vector<cv::Point2f>& points,
+                            const cv::Point2f& centroid,
+                            std::vector<cv::Point2f>& relDistances);
+
+  void initBoundingBox(const cv::Mat& mask, const cv::Point2f& centroid,
+                       std::vector<cv::Point2f>& initBox,
+                       std::vector<cv::Point2f>& relativeBox,
+                       std::vector<cv::Point2f>& updBox);
+
+  void getOpticalFlow(const cv::Mat& prev,
+                      const cv::Mat& next,
+                      std::vector<cv::Point2f>& points, std::vector<int>& ids,
+                      std::vector<Status>& status);
+
+  float getMedianRotation(const std::vector<cv::Point2f>& initPoints,
+                          const std::vector<cv::Point2f>& updPoints,
+                          const std::vector<int>& ids);
+
+  float getMedianScale(const std::vector<cv::Point2f>& initPoints,
+                       const std::vector<cv::Point2f>& updPoints,
+                       const std::vector<int>& ids);
+
+  void voteForCentroid(const std::vector<cv::Point2f>& relativeDistances,
+                       const std::vector<cv::Point2f>& updPoints,
+                       const float& angle, const float& scale,
+                       std::vector<cv::Point2f>& votes);
+
+  void updatePointsStatus(const std::vector<bool>& isClustered,
+                          std::vector<cv::Point2f>& points,
+                          std::vector<cv::Point2f>& votes,
+                          std::vector<cv::Point2f>& relDistances,
+                          std::vector<int>& ids,
+                          std::vector<Status>& pointsStatus);
+
+  void labelNotClusteredPts(const std::vector<bool>& isClustered,
+                            std::vector<cv::Point2f>& points,
+                            std::vector<cv::Point2f>& votes,
+                            std::vector<cv::Point2f>& relDistances,
+                            std::vector<int>& ids,
+                            std::vector<Status>& pointsStatus);
+
+  void discardNotClustered(std::vector<cv::Point2f>& upd_points,
+                           std::vector<cv::Point2f>& init_pts,
+                           cv::Point2f& upd_centroid,
+                           cv::Point2f& init_centroid, std::vector<int>& ids,
+                           std::vector<Status>& pointsStatus);
+
+  void removeLostPoints(const std::vector<bool>& isClustered,
+                        std::vector<cv::Point2f>& points,
+                        std::vector<cv::Point2f>& votes,
+                        std::vector<cv::Point2f>& relDistances,
+                        std::vector<int>& ids,
+                        std::vector<Status>& pointsStatus);
+
+  void updateCentroid(const float& angle, const float& scale,
+                      const std::vector<cv::Point2f>& votes,
+                      const std::vector<bool>& isClustered,
+                      cv::Point2f& updCentroid);
+
+  void updateBoundingBox(const float& angle, const float& scale,
+                         const std::vector<cv::Point2f>& boundingBoxRelative,
+                         const cv::Point2f& updCentroid,
+                         std::vector<cv::Point2f>& updBox);
+
+  void clusterVotes(std::vector<cv::Point2f>& centroidVotes,
+                    std::vector<bool>& isClustered);
+
+  bool evaluatePose(const float& angle, const float& scale);
+
+  void projectPointsToModel(const cv::Point2f& model_centroid,
+                            const cv::Point2f& upd_centroid, const float angle,
+                            const float scale,
+                            const std::vector<cv::Point2f>& pts,
+                            std::vector<cv::Point2f>& proj_pts);
+
+  void getTrackedPoints(std::vector<cv::Point2f>& model_pts,
+                        std::vector<cv::Point2f>& current_pts,
+                        const std::vector<int>& ids,
+                        std::vector<cv::Point2f*>& model_valid_pts,
+                        std::vector<cv::Point2f*>& current_valid_pts);
+
+  void getTrackedPoints(std::vector<cv::Point2f>& model_pts,
+                        std::vector<cv::Point2f>& current_pts,
+                        const std::vector<int>& ids,
+                        std::vector<cv::Point3f>& model_valid_pts,
+                        std::vector<cv::Point2f>& current_valid_pts);
+
+  bool isPointValid(const int& id);
+
+  void trackNext(cv::Mat next);
+
+  void detectNext(cv::Mat next);
+
+  int m_height, m_width;
+
+  std::future<int> m_trackerStatus, m_detectorStatus;
+
+  cv::Mat m_nextRgb, m_init_rgb_img, prev_gray_;
+  /****************************************************************************/
+  /*                       ESTIMATION VARIABLES                               */
+  /****************************************************************************/
+  float m_angle, m_scale;
+  bool m_is_object_lost;
+  int ransac_iterations_;
+  float ransac_distance_;
+  /****************************************************************************/
+  /*                       CONCURRENCY VARIABLES                              */
+  /****************************************************************************/
+  std::condition_variable m_trackerCondition, m_detectorCondition;
+  std::mutex m_trackerMutex, m_detectorMutex, m_mutex;
+  std::atomic_int m_completed;
+  std::atomic_bool m_isRunning;
+  std::atomic_bool m_trackerDone;
+  std::atomic_bool m_matcherDone;
+  /****************************************************************************/
+  /*                       DETECTOR VARIABLES                                 */
+  /****************************************************************************/
+  cv::Mat m_initDescriptors;
+  std::vector<cv::KeyPoint> m_initKeypoints;
+  std::vector<cv::Point2f> m_points;
+  std::vector<Status> m_pointsStatus;
+  std::unique_ptr<FeatureMatcher> feature_detector_;
+
+  /****************************************************************************/
+  /*                       TRACKER VARIABLES                                  */
+  /****************************************************************************/
+  std::vector<cv::Point2f> m_updatedPoints;
+  std::vector<cv::Point2f> m_relativeDistances;
+  std::vector<cv::Point2f> m_votes;
+  std::vector<int> m_upd_to_init_ids;
+  std::vector<int> m_init_to_upd_ids;
+//  cv::gpu::PyrLKOpticalFlow m_dPyrLK;
+//  cv::gpu::GpuMat dm_prev, dm_prevGray;
+  /****************************************************************************/
+  /*                       TRACKED MODEL                                      */
+  /****************************************************************************/
+  cv::Point2f m_initCentroid;
+  cv::Point2f m_updatedCentroid;
+  std::vector<cv::Point2f> m_boundingBoxRelative;
+  std::vector<cv::Point2f> m_boundingBox;
+  std::vector<cv::Point2f> m_boundingBoxUpdated;
+  /****************************************************************************/
+  /*                       LEARN MODEL                                        */
+  /****************************************************************************/
+  std::set<std::pair<float, float>> m_learned_poses;
+  bool m_learn_new_pose;
+  float m_scale_old;
+  float m_angle_old;
+  cv::Point2f m_centroid_old;
+  std::deque<float> m_scale_history;
+  std::deque<float> m_angle_history;
+  std::deque<cv::Point2f> m_center_history;
+  /****************************************************************************/
+  /*                       PROFILINGVARIABLES                                 */
+  /****************************************************************************/
+  float m_trackerTime;
+  float m_detectorTime;
+  float m_trackerFrameCount;
+  float m_detectorFrameCount;
+  /****************************************************************************/
+  /*                       PNP RANSAC REQUIREMENTS                            */
+  /****************************************************************************/
+  cv::Mat camera_matrix_;
+  int pnp_iterations_;
+  /****************************************************************************/
+  /*                       MATCHER PARAMS                                     */
+  /****************************************************************************/
+  float matcher_confidence_;
+  float matcher_ratio_;
+
+};
+
+} // end namespace
+
+#endif  // TRACKER_H

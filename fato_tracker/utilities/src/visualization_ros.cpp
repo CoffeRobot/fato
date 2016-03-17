@@ -32,7 +32,7 @@
 
 #include "../include/visualization_ros.h"
 
-namespace pinot_tracker {
+namespace fato {
 
 void getCubeMarker(const std::vector<cv::Point3f>& front_points,
                    const std::vector<cv::Point3f>& back_points,

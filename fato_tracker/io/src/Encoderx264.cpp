@@ -36,7 +36,7 @@
 
 using namespace std;
 
-namespace pinot_tracker {
+namespace fato {
 
 bool Encoderx264::initialized = false;
 mutex Encoderx264::initMutex;

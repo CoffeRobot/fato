@@ -46,7 +46,7 @@
 #include <opencv2/core/core.hpp>
 #include <string>
 
-namespace pinot_tracker {
+namespace fato {
 
 class TrackerGpu2D {
  public:

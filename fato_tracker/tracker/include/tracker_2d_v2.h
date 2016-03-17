@@ -49,7 +49,7 @@
 #include "matcher.h"
 #include "params.h"
 
-namespace pinot_tracker {
+namespace fato {
 
 class TrackerV2 {
  public:

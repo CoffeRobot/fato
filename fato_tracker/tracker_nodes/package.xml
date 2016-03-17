@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package>
-  <name>pinot_tracker_nodes</name>
+  <name>fato_tracker_nodes</name>
   <version>0.0.0</version>
   <description>The pinot_tracker package</description>
 

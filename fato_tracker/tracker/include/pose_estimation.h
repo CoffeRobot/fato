@@ -38,7 +38,7 @@
 
 #include "../../utilities/include/constants.h"
 
-namespace pinot_tracker {
+namespace fato {
 
 void getPoseRansac(const std::vector<cv::Point3f>& model_points,
                const std::vector<cv::Point2f>& tracked_points, int method,

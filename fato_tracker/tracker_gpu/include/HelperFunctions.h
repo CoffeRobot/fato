@@ -42,7 +42,7 @@ using namespace cv;
 using namespace cv::gpu;
 using namespace std;
 
-namespace pinot {
+namespace fato {
 
 namespace gpu {
 

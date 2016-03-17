@@ -30,26 +30,85 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
+#include "../include/feature_matcher.hpp"
+#include "../../cuda_sift/include/cudaImage.h"
+#include "../include/profiler.h"
 
-#include "../include/tracker_node.h"  // ugly include for qtcreator
+#include <iostream>
+#include <opencv2/imgproc/imgproc.hpp>
 
 using namespace std;
+using namespace cv;
 
 namespace fato {
 
-TrackerNode::TrackerNode() {}
+FeatureMatcher::~FeatureMatcher() {}
 
-void TrackerNode::readImage(const sensor_msgs::Image::ConstPtr msgImage,
-                            cv::Mat &image) const {
-  cv_bridge::CvImageConstPtr pCvImage;
-  pCvImage = cv_bridge::toCvShare(msgImage, msgImage->encoding);
-  pCvImage->image.copyTo(image);
+BriskMatcher::BriskMatcher() { feature_id_ = -1; }
+
+BriskMatcher::~BriskMatcher() {}
+
+void BriskMatcher::init(int feature_id) {
+  feature_id_ = feature_id;
+
+  initExtractor();
 }
 
-void TrackerNode::getCameraMatrix(const sensor_msgs::CameraInfo::ConstPtr info,
-                                  cv::Mat &camera_matrix) {
-    camera_matrix =
-        cv::Mat(3, 4, CV_64F, (void *)info->P.data()).clone();
+void BriskMatcher::setTarget(const Mat &img) {
+  if (feature_id_ == -1) {
+    cerr << "feature_matcher: not initialized properly, params and feature "
+            "type need to be set!" << endl;
+    return;
+  }
+
+  if (img.empty()) {
+    cerr << "feature_matcher: image is empty!" << endl;
+    return;
+  }
+
+  if (img.channels() > 1) {
+    cerr << "feature_matcher: image must be grayscale!" << endl;
+    return;
+  }
+
+  if (train_keypoints_.size() > 0) train_keypoints_.clear();
+  if (train_descriptors_.rows > 0) train_descriptors_ = Mat();
+
+  extract(img, train_keypoints_, train_descriptors_);
 }
 
-} // end namespace
+void BriskMatcher::initExtractor() {
+  switch (feature_id_) {
+    case BRISK:
+      cout << "FeatureMatcher: BRISK initialization " << endl;
+      feature_name = "brisk";
+      matcher_ = DescriptorMatcher::create("BruteForce-Hamming");
+      break;
+    default:
+      break;
+  }
+}
+
+void BriskMatcher::extract(const Mat &img, std::vector<KeyPoint> &keypoints,
+                        Mat &descriptors) {
+  opencv_detector_.detect(img, keypoints);
+  opencv_detector_.compute(img, keypoints, descriptors);
+}
+
+void BriskMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
+                      Mat &query_descriptors,
+                      std::vector<vector<DMatch>> &matches) {
+  extract(img, query_keypoints, query_descriptors);
+  if (query_descriptors.rows == 0) {
+    return;
+  }
+  matcher_->knnMatch(train_descriptors_, query_descriptors, matches, 2);
+}
+
+std::vector<cv::KeyPoint> &BriskMatcher::getTrainingPoints() {
+  return train_keypoints_;
+}
+
+cv::Mat &BriskMatcher::getTrainingDescriptors() { return train_descriptors_; }
+
+}  // end namespace

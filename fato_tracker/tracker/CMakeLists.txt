@@ -41,20 +41,21 @@ include_directories(include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR}
-#  ${PCL_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME}
   src/matcher.cpp
   src/pose_estimation.cpp
+  src/feature_matcher.cpp
   src/tracker_2d.cpp
   src/tracker_2d_v2.cpp
   src/tracker_3d.cpp
   src/bounding_cube.cpp
   src/model.cpp
+  src/config.cpp
+  src/utilities.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBS}
-#  ${PCL_LIBRARIES}
 )

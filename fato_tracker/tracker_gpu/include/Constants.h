@@ -31,7 +31,7 @@
 /*****************************************************************************/
 
 #pragma once
-namespace pinot {
+namespace fato {
 
 namespace gpu {
 

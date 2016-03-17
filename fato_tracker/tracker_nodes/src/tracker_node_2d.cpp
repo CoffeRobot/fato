@@ -30,7 +30,6 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-
 #include "../include/tracker_node_2d.h"
 #include <boost/thread.hpp>
 #include <mutex>
@@ -39,13 +38,12 @@
 #include <chrono>
 #include <profiler.h>
 #include <draw_functions.h>
-#include "../../tracker/include/tracker_2d_v2.h"
 #include "../../tracker/include/tracker_2d.h"
 
 using namespace cv;
 using namespace std;
 
-namespace pinot_tracker {
+namespace fato {
 
 TrackerNode2D::TrackerNode2D()
     : nh_(),
@@ -59,7 +57,6 @@ TrackerNode2D::TrackerNode2D()
       mouse_start_(0, 0),
       mouse_end_(0, 0),
       spinner_(0),
-      params_(),
       camera_matrix_initialized(false) {
   cvStartWindowThread();
   namedWindow("Image Viewer");
@@ -107,43 +104,45 @@ void TrackerNode2D::getTrackerParameters() {
 
   ss << "Tracker Input: \n";
 
-  ss << "filter_border: ";
-  if (!ros::param::get("pinot/tracker_2d/filter_border", params_.filter_border))
-    ss << "failed \n";
-  else
-    ss << params_.filter_border << "\n";
+  //  ss << "filter_border: ";
+  //  if (!ros::param::get("pinot/tracker_2d/filter_border",
+  //  params_.filter_border))
+  //    ss << "failed \n";
+  //  else
+  //    ss << params_.filter_border << "\n";
 
-  ss << "update_votes: ";
-  if (!ros::param::get("pinot/tracker_2d/update_votes", params_.update_votes))
-    ss << "failed \n";
-  else
-    ss << params_.update_votes << "\n";
+  //  ss << "update_votes: ";
+  //  if (!ros::param::get("pinot/tracker_2d/update_votes",
+  //  params_.update_votes))
+  //    ss << "failed \n";
+  //  else
+  //    ss << params_.update_votes << "\n";
 
-  ss << "eps: ";
-  if (!ros::param::get("pinot/tracker_2d/eps", params_.eps))
-    ss << "failed \n";
-  else
-    ss << params_.eps << "\n";
+  //  ss << "eps: ";
+  //  if (!ros::param::get("pinot/tracker_2d/eps", params_.eps))
+  //    ss << "failed \n";
+  //  else
+  //    ss << params_.eps << "\n";
 
-  ss << "min_points: ";
-  if (!ros::param::get("pinot/tracker_2d/min_points", params_.min_points))
-    ss << "failed \n";
-  else
-    ss << params_.min_points << "\n";
+  //  ss << "min_points: ";
+  //  if (!ros::param::get("pinot/tracker_2d/min_points", params_.min_points))
+  //    ss << "failed \n";
+  //  else
+  //    ss << params_.min_points << "\n";
 
-  ss << "ransac_iterations: ";
-  if (!ros::param::get("pinot/tracker_2d/ransac_iterations",
-                       params_.ransac_iterations))
-    ss << "failed \n";
-  else
-    ss << params_.ransac_iterations << "\n";
+  //  ss << "ransac_iterations: ";
+  //  if (!ros::param::get("pinot/tracker_2d/ransac_iterations",
+  //                       params_.ransac_iterations))
+  //    ss << "failed \n";
+  //  else
+  //    ss << params_.ransac_iterations << "\n";
 
-  ss << "ransac_distance: ";
-  if (!ros::param::get("pinot/tracker_2d/ransac_distance",
-                       params_.ransac_distance))
-    ss << "failed \n";
-  else
-    ss << params_.ransac_distance << "\n";
+  //  ss << "ransac_distance: ";
+  //  if (!ros::param::get("pinot/tracker_2d/ransac_distance",
+  //                       params_.ransac_distance))
+  //    ss << "failed \n";
+  //  else
+  //    ss << params_.ransac_distance << "\n";
 
   ROS_INFO(ss.str().c_str());
 }
@@ -195,11 +194,16 @@ void TrackerNode2D::run() {
 
   spinner_.start();
 
-  cout << params_.threshold << " " << params_.octaves << " "
-       << params_.pattern_scale << endl;
+  BriskMatcher brisk_matcher;
+  Config params;
 
+  std::unique_ptr<FeatureMatcher> derived =
+
+              std::unique_ptr<BriskMatcher>(new BriskMatcher);
+
+  Tracker tracker(params, BRISK, std::move(derived));
   // Tracker2D tracker(params_);
-  TrackerV2 tracker(params_, camera_matrix_);
+  //TrackerV2 tracker(params_, camera_matrix_);
 
   auto &profiler = Profiler::getInstance();
 
@@ -261,7 +265,7 @@ int main(int argc, char *argv[]) {
   ROS_INFO("Starting tracker input");
   ros::init(argc, argv, "pinot_tracker_node");
 
-  pinot_tracker::TrackerNode2D manager;
+  fato::TrackerNode2D manager;
 
   ros::shutdown();
 

@@ -36,7 +36,7 @@
 #include <string>
 #include <vector>
 
-namespace pinot_tracker {
+namespace fato {
 
 bool dirExists(std::string path);
 

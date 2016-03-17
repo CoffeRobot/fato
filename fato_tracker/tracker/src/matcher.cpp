@@ -45,7 +45,7 @@ typedef int32_t __int32;
 #include <smmintrin.h>
 #endif
 
-namespace pinot_tracker
+namespace fato
 {
 
 

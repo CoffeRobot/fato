@@ -47,7 +47,7 @@
 #include <utility>
 
 //FIXME: namespace standardized to the rest of the package
-namespace pinot {
+namespace fato {
 
 namespace gpu {
 

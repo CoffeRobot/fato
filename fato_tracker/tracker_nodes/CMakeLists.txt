@@ -1,4 +1,4 @@
-project(pinot_tracker_nodes)
+project(fato_tracker_nodes)
 
 cmake_minimum_required(VERSION 2.8.3)
 find_package(catkin REQUIRED)
@@ -29,26 +29,6 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(OpenCV 2.4.8 REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
-#find_package(PCL 1.7 REQUIRED)
-
-#include_directories(${PCL_INCLUDE_DIRS})
-#link_directories(${PCL_LIBRARY_DIRS})
-#add_definitions(${PCL_DEFINITIONS})
-
-## Generate actions in the 'action' folder
-#add_action_files(
-#  DIRECTORY action
-#  FILES BT.action
-#)
-
-#add_service_files(
-#  DIRECTORY srv
-#  FILES ReceiveCloud.srv StartAggregator.srv CropShelf.srv
-#)
-
-#generate_messages(
-#  DEPENDENCIES actionlib_msgs std_msgs sensor_msgs# Or other packages containing msgs
-#)
 
 catkin_package(
   INCLUDE_DIRS include

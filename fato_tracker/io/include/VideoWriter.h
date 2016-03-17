@@ -41,7 +41,7 @@
 
 #include "Encoderx264.h"
 
-namespace pinot_tracker{
+namespace fato{
 
 class VideoWriter
 {

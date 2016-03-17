@@ -37,7 +37,7 @@
 using namespace std;
 using namespace cv;
 
-namespace pinot_tracker {
+namespace fato {
 
 TrackerOffline::TrackerOffline()
     : nh_(),
@@ -238,7 +238,7 @@ int main(int argc, char* argv[]) {
   ROS_INFO("Starting tracker in offline mode");
   ros::init(argc, argv, "pinot_tracker_offline_node");
 
-  pinot_tracker::TrackerOffline offline;
+  fato::TrackerOffline offline;
 
   ros::shutdown();
 

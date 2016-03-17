@@ -30,26 +30,85 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
+#ifndef CONFIG_H
+#define CONFIG_H
 
-#include "../include/tracker_node.h"  // ugly include for qtcreator
+#include <vector>
+#include <string>
+#include <ostream>
+#include <opencv/cv.h>
 
-using namespace std;
+#define VERBOSE (0)
 
-namespace fato {
+class Config
+{
+public:
+	Config() { SetDefaults(); }
+	Config(const std::string& path);
+	
+  // GENERAL CONFIGURATION
+  int matching_type;
+  bool draw_video;
 
-TrackerNode::TrackerNode() {}
+  // COMMON PARAMETERS
+  int num_features;
+  int num_octaves;
 
-void TrackerNode::readImage(const sensor_msgs::Image::ConstPtr msgImage,
-                            cv::Mat &image) const {
-  cv_bridge::CvImageConstPtr pCvImage;
-  pCvImage = cv_bridge::toCvShare(msgImage, msgImage->encoding);
-  pCvImage->image.copyTo(image);
-}
+  // ORB CONFIGURATION
+  int orb_num_feature;
+  float orb_scale_factor;
+  int orb_levels;
+  int orb_edge_threshold;
+  int orb_first_patch_level;
+  int orb_patch_size;
 
-void TrackerNode::getCameraMatrix(const sensor_msgs::CameraInfo::ConstPtr info,
-                                  cv::Mat &camera_matrix) {
-    camera_matrix =
-        cv::Mat(3, 4, CV_64F, (void *)info->P.data()).clone();
-}
+  // BRISK CONFIGURATION
+  int brisk_thresh;
+  int brisk_octaves;
+  float brisk_pattern;
 
-} // end namespace
+  // AKAZE CONFIGURATION
+  int akaze_type;
+  int akaze_descriptor_channels;
+  float akaze_threshold;
+  int akaze_octaves;
+  int akaze_sublevels;
+  int akaze_descriptor_size;
+
+  // SIFT CONFIGURATION
+  int sift_num_features;
+  int sift_num_octaves;
+  float sift_contrast_threshold;
+  int sift_edge_threshold;
+  float sift_blur_sigma;
+
+  // CUDA SIFT CONFIGURATION
+  int cuda_num_features;
+  int cuda_num_octaves;
+  float cuda_contrast_threshold;
+  float cuda_blur_sigma;
+  float cuda_subsampling;
+
+  // FREAK CONFIGURATION
+  bool freak_orientation_normalized;
+  bool freak_scale_normalized;
+  float freak_patter_scale;
+  int freak_octaves;
+
+  // SURF CONFIGURATION
+  double surf_hessian_threshold;
+  int surf_octaves;
+  int surf_octave_layers;
+  bool surf_extended;
+  bool surf_upright;
+
+
+
+
+	friend std::ostream& operator<< (std::ostream& out, const Config& conf);
+	
+private:
+	void SetDefaults();
+};
+
+#endif

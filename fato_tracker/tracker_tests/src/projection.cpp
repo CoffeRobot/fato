@@ -45,7 +45,7 @@
 using namespace cv;
 using namespace std;
 
-namespace pinot_tracker {
+namespace fato {
 
 Projection::Projection()
     : nh_(),
@@ -545,7 +545,7 @@ int main(int argc, char *argv[]) {
   ROS_INFO("Starting tracker input");
   ros::init(argc, argv, "pinot_tracker_node_3d");
 
-  pinot_tracker::Projection tracker_node;
+  fato::Projection tracker_node;
 
   return 0;
 }

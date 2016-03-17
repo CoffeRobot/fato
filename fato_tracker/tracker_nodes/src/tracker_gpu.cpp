@@ -42,7 +42,7 @@
 using namespace std;
 using namespace cv;
 
-namespace pinot_tracker {
+namespace fato {
 
 TrackerGpu2D::TrackerGpu2D()
     : nh_(),

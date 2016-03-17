@@ -43,7 +43,7 @@
 #include "../../tracker/include/params.h"
 #include "../../tracker/include/tracker_2d_v2.h"
 
-namespace pinot_tracker{
+namespace fato{
 
 class TrackerOffline
 {
