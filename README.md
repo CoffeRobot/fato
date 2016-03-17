@@ -98,7 +98,7 @@ descibed on the libuvc_camera package.
 To run Kinect V2 please run the following commands in the terminal:
 ```
 rosrun kinect2_bridge kinect2_bridge
-roslaunch pinot_tracker_nodes kinect2.launch
+roslaunch fato_tracker_nodes kinect2.launch
 ```
 
 ### Kinect V1
@@ -121,7 +121,7 @@ roslaunch tracker_cameras kinect_v1.launch
 
 Run the following command in a terminal:
 ```
-roslaunch pinot_tracker_nodes usb_camera.launch
+roslaunch fato_tracker_nodes usb_camera.launch
 ```
 Once the video is shown on the screen please draw a bounding box aruond the object you want to track by pressing the left mouse button and draggin it.
 
@@ -137,13 +137,13 @@ It launches the kinect v1 with the proper configuration parameters. Before launc
 Now you have to options, you can run the tracker that publishes the results as rostopics using the following comand:
 
 ```
-roslaunch pinot_tracker_nodes tracker_kinect_v1.launch
+roslaunch fato_tracker_nodes tracker_kinect_v1.launch
 ```
 
 Or you can run the opencv gui version used for debugging and testing new features:
 
 ```
-roslaunch pinot_tracker_tests tracker_test_projection.launch
+roslaunch fato_tracker_tests tracker_test_projection.launch
 ```
 ### Offline Mode
 
@@ -151,7 +151,7 @@ It is possible to run the tracker offline using a video as input. The parameters
 To run the tracker in this modality please write the following command in the terminal:
 
 ```
-roslaunch pinot_tracker_nodes tracker_offline.launch
+roslaunch fato_tracker_nodes tracker_offline.launch
 
 ```
 
