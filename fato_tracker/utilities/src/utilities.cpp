@@ -31,6 +31,7 @@
 /*****************************************************************************/
 
 #include "../include/utilities.h"
+#include "../include/device_1d.h"
 #include <iostream>
 
 namespace fato {
@@ -155,6 +156,41 @@ void depthTo3d(const cv::Mat& disparity, float cx, float cy, float fx, float fy,
     }
   }
 }
+
+void initializeCUDARuntime(int device) {
+  cudaSetDevice(device);
+  cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
+
+  // dummy memcpy to init cuda runtime
+  util::Device1D<float> d_dummy(1);
+  std::vector<float> h_dummy(1);
+  d_dummy.copyFrom(h_dummy);
+
+  if (cudaGetLastError() != cudaSuccess)
+    throw std::runtime_error(
+        std::string("initializeCUDARuntime: CUDA initialization problem\n"));
+}
+
+TimerGPU::TimerGPU(cudaStream_t stream) : stream_(stream) {
+  cudaEventCreate(&start_);
+  cudaEventCreate(&stop_);
+  cudaEventRecord(start_, stream);
+}
+
+TimerGPU::~TimerGPU() {
+  cudaEventDestroy(start_);
+  cudaEventDestroy(stop_);
+}
+
+float TimerGPU::read() {
+  cudaEventRecord(stop_, stream_);
+  cudaEventSynchronize(stop_);
+  float time;
+  cudaEventElapsedTime(&time, start_, stop_);
+  return time;
+}
+
+void TimerGPU::reset() { cudaEventRecord(start_, stream_); }
 
 //void cvToPcl(const cv::Mat3f& points, pcl::PointCloud<pcl::PointXYZ>& cloud) {
 //  int width = points.cols, height = points.rows;

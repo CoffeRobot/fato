@@ -12,6 +12,7 @@ set(REQUIRED_PACKAGES
       image_geometry
       utilities
       tracker_cpu
+      fato_rendering
 )
 
 if(REQUIRED_PACKAGES)
@@ -96,6 +97,15 @@ add_executable(tracker_node_offline
 
 
 target_link_libraries(tracker_node_offline
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+)
+
+add_executable(generate_model
+  src/generate_model.cpp)
+
+
+target_link_libraries(generate_model
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
 )

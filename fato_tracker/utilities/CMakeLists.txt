@@ -3,31 +3,30 @@ project(utilities)
 
 find_package(catkin REQUIRED COMPONENTS
   cmake_modules
-#  pcl_ros
 )
 
 find_package(OpenCV REQUIRED)
-
+find_package(HDF5 COMPONENTS CXX)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 
-if(TRACKER_WITH_GPU)
+#if(TRACKER_WITH_GPU)
   add_definitions(-DTRACKER_WITH_GPU)
   find_package(CUDA REQUIRED)
   message(INFO "${CUDA_INCLUDE_DIRS}")
-endif()
+#endif()
 
-if(TRACKER_WITH_GPU)
+#if(TRACKER_WITH_GPU)
 catkin_package(
   INCLUDE_DIRS include ${CUDA_INCLUDE_DIRS}
   LIBRARIES ${PROJECT_NAME}
  )
-else()
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES ${PROJECT_NAME}
- )
-endif()
+#else()
+#catkin_package(
+#  INCLUDE_DIRS include
+#  LIBRARIES ${PROJECT_NAME}
+#)
+#endif()
 
 #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
@@ -41,20 +40,21 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
   ${PROJECT_SOURCE_DIR}/../../README.md
 )
 
-if(TRACKER_WITH_GPU)
+#if(TRACKER_WITH_GPU)
 include_directories(include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR}
   ${CUDA_INCLUDE_DIRS}
+  ${HDF5_INCLUDE_DIRS}
 )
-else()
-  include_directories(include
-    ${catkin_INCLUDE_DIRS}
-    ${OpenCV_INCLUDE_DIRS}
-    ${EIGEN_INCLUDE_DIR}
-  )
-endif()
+#else()
+#  include_directories(include
+#    ${catkin_INCLUDE_DIRS}
+#    ${OpenCV_INCLUDE_DIRS}
+#    ${EIGEN_INCLUDE_DIR}
+#  )
+#endif()
 
 
 add_library(${PROJECT_NAME}
@@ -69,16 +69,17 @@ add_library(${PROJECT_NAME}
   src/logger.cpp
 )
 
-if(TRACKER_WITH_GPU)
+#if(TRACKER_WITH_GPU)
   target_link_libraries(${PROJECT_NAME}
     ${catkin_LIBRARIES}
     ${OpenCV_LIBS}
     ${CUDA_LIBRARIES}
+    ${HDF5_LIBRARIES}
   )
-else()
-target_link_libraries(${PROJECT_NAME}
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBS}
-)
-endif()
+#else()
+#target_link_libraries(${PROJECT_NAME}
+#  ${catkin_LIBRARIES}
+#  ${OpenCV_LIBS}
+#)
+#endif()
 

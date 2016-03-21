@@ -47,7 +47,7 @@
 #endif
 //#include <pcl/point_types.h>
 //#include <pcl/point_cloud.h>
-
+#include <cuda_runtime.h>
 
 
 #include "../include/traits.h"
@@ -151,6 +151,20 @@ bool is_valid( const T &value )
     return ! is_infinite(value) && ! is_nan(value);
 }
 
+void initializeCUDARuntime(int device = 0);
+
+class TimerGPU {
+
+public:
+  TimerGPU(cudaStream_t stream_ = 0);
+  ~TimerGPU();
+  float read();
+  void reset();
+
+private:
+  const cudaStream_t stream_;
+  cudaEvent_t start_, stop_;
+};
 
 
 } // end namespace
