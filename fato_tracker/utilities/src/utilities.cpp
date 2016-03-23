@@ -157,6 +157,18 @@ void depthTo3d(const cv::Mat& disparity, float cx, float cy, float fx, float fy,
   }
 }
 
+void vectorToMat(const std::vector<uchar>& vec, std::vector<int>& size, cv::Mat& mat)
+{
+    mat = cv::Mat(size[0], size[1], CV_8UC1);
+    for(int i = 0; i < mat.rows; ++i)
+    {
+      for(int j = 0; j < mat.cols; ++j)
+      {
+          mat.at<uchar>(i,j) = vec.at(j + i * mat.cols);
+      }
+    }
+}
+
 void initializeCUDARuntime(int device) {
   cudaSetDevice(device);
   cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);

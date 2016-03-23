@@ -1,6 +1,5 @@
-project(fato_rendering)
-
 cmake_minimum_required(VERSION 2.8.7)
+project(fato_rendering)
 
 find_package(catkin REQUIRED COMPONENTS
   cmake_modules
@@ -8,9 +7,9 @@ find_package(catkin REQUIRED COMPONENTS
   resource_retriever
 )
 
-if(TRACKER_VERBOSE_LOGGING)
-  add_definitions(-DVERBOSE_LOGGING)
-endif()
+#if(TRACKER_VERBOSE_LOGGING)
+#  add_definitions(-DVERBOSE_LOGGING)
+#endif()
 
 find_package(OpenCV REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -18,17 +17,6 @@ find_package(CUDA 6.5 REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 find_package(urdfdom REQUIRED)
-
-set(GENCODE_SM35 -gencode=arch=compute_35,code=sm_35)
-set(CUDA_NVCC_FLAGS -O3;--compiler-options;-fPIC;-ftz=true;-prec-sqrt=false;-prec-div=false)
-set(CUDA_PROPAGATE_HOST_FLAGS OFF) # don't propagate c++11 options to nvcc
-if (${CUDA_VERSION_MAJOR} LESS 7)
-    set(CUDA_OPTIONS ${GENCODE_SM20} ${GENCODE_SM30} ${GENCODE_SM35} ${VERBOSE_PTXAS})
-else()
-    set(CUDA_OPTIONS ${GENCODE_SM20} ${GENCODE_SM30} ${GENCODE_SM35} ${GENCODE_SM50} ${GENCODE_SM52} ${VERBOSE_PTXAS})
-endif()
-
-
 
 pkg_check_modules(GLEW REQUIRED glew)
 
@@ -127,6 +115,7 @@ catkin_package(
   LIBRARIES
     ${PROJECT_NAME}
     ${OGRE_OV_LIBRARIES_ABS}
+    ${urdfdom_LIBRARIES}
   CATKIN_DEPENDS
     fato_cuda
     utilities

@@ -1,48 +1,37 @@
+cmake_minimum_required(VERSION 2.8.7)
+
 project(fato_tracker_nodes)
-
-cmake_minimum_required(VERSION 2.8.3)
-find_package(catkin REQUIRED)
-
-set(REQUIRED_PACKAGES
-      roscpp
-      cmake_modules
-      cv_bridge
-      image_transport
-      tf
-      image_geometry
-      utilities
-      tracker_cpu
-      fato_rendering
-)
-
-if(REQUIRED_PACKAGES)
-    message("CurDir variable exists")
-endif(REQUIRED_PACKAGES)
-
-if(TRACKER_WITH_GPU)
-  set(REQUIRED_PACKAGES tracker_gpu ${REQUIRED_PACKAGES})
-endif()
-
 find_package(catkin REQUIRED COMPONENTS
-  ${REQUIRED_PACKAGES}
+    roscpp
+    cmake_modules
+    cv_bridge
+    image_transport
+    tf
+    image_geometry
+    tracker_cpu
+    fato_rendering
 )
+
 
 find_package(OpenCV 2.4.8 REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 
 catkin_package(
-  INCLUDE_DIRS include
-  DEPENDS cv_bridge
-          image_transport
-          #pcl_ros
-          roscpp
-          tf
-          image_geometry
+  INCLUDE_DIRS
+    include
+  DEPENDS
+    cv_bridge
+    image_transport
+    roscpp
+    tf
+    image_geometry
+  LIBRARIES ${PROJECT_NAME}
+  CATKIN_DEPENDS tracker_cpu fato_rendering utilities
 )
 
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 # show additional files in qtcreator
 execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f
@@ -50,12 +39,14 @@ execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f
 string(REPLACE "\n" ";" FILES_LIST ${FILES_STRING})
 add_custom_target(additional_files_${PROJECT_NAME} SOURCES
   ${FILES_LIST}
-  #${PROJECT_SOURCE_DIR}/../README.md
+  ${PROJECT_SOURCE_DIR}/../../README.md
 )
 
-include_directories(include
+MESSAGE("INCLUDE DIRS " + ${catkin_INCLUDE_DIRS})
+
+include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
- # ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR} 
 )
@@ -71,15 +62,13 @@ if(TRACKER_WITH_GPU)
   )
 endif()
 
-
 add_executable(tracker_node_2d
   src/tracker_node.cpp
   src/tracker_node_2d.cpp)
 
-
 target_link_libraries(tracker_node_2d
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBS}
+    ${catkin_LIBRARIES}
+    ${OpenCV_LIBS}
 )
 
 add_executable(tracker_node_3d
@@ -106,6 +95,16 @@ add_executable(generate_model
 
 
 target_link_libraries(generate_model
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+)
+
+add_executable(track_model
+    src/tracker_model_based.cpp
+    src/tracker_node.cpp)
+
+
+target_link_libraries(track_model
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
 )

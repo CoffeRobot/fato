@@ -49,6 +49,7 @@ add_library(${PROJECT_NAME}
   src/pose_estimation.cpp
   src/feature_matcher.cpp
   src/tracker_2d.cpp
+  src/tracker_model.cpp
   src/tracker_2d_v2.cpp
   src/tracker_3d.cpp
   src/bounding_cube.cpp

@@ -124,6 +124,8 @@ bool projectPoint(const float focal, const cv::Point2f& center,
 void depthTo3d(const cv::Mat& disparity, float cx, float cy,
                       float fx, float fy, cv::Mat3f &depth);
 
+void vectorToMat(const std::vector<uchar>& vec, std::vector<int>& size, cv::Mat& mat);
+
 //void cvToPcl(const cv::Mat3f& points, pcl::PointCloud<pcl::PointXYZ>& cloud);
 
 //void cvToPcl(const cv::Mat3f& points, const cv::Mat1b& mask,

@@ -1,6 +1,5 @@
-project(fato_cuda)
-
 cmake_minimum_required(VERSION 2.8.7)
+project(fato_cuda)
 
 find_package(catkin REQUIRED COMPONENTS
   cmake_modules
@@ -32,9 +31,7 @@ else()
     set(CUDA_OPTIONS ${GENCODE_SM20} ${GENCODE_SM30} ${GENCODE_SM35} ${GENCODE_SM50} ${GENCODE_SM52} ${VERBOSE_PTXAS})
 endif()
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-
-
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 pkg_check_modules(GLEW REQUIRED glew)
 
@@ -135,8 +132,7 @@ catkin_package(
   CATKIN_DEPENDS
 )
 
-#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native")
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -march=native")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native")
 
 # show additional files in qtcreator
 execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f

@@ -2,11 +2,11 @@
 <package>
   <name>fato_rendering</name>
   <version>0.1.0</version>
-  <description>tracker using brisk on single core</description>
+  <description>Rendering engine</description>
   <license>BSD</license>
   <url type="website">http://www.robocoffee.org</url>
-  <author email="pieropan@kth.se">Alessandro Pieropan</author>
-  <maintainer email="pieropan@kth.se">Alessandro Pieropan</maintainer>
+  <author email="CoffeRobot@users.noreply.github.com">Alessandro Pieropan</author>
+  <maintainer email="CoffeRobot@users.noreply.github.com">Alessandro Pieropan</maintainer>
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>utilities</build_depend>
