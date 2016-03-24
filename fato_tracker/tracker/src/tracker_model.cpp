@@ -42,10 +42,12 @@
 #include <utility>
 #include <iomanip>
 
+#include <hdf5_file.h>
+
 #include "../include/pose_estimation.h"
 #include "../include/profiler.h"
 #include "../include/DBScanClustering.h"
-#include "../include/utilities.h"
+#include "../../utilities/include/utilities.h"
 
 using namespace std;
 using namespace cv;
@@ -63,7 +65,73 @@ TrackerMB::TrackerMB(Config& params, int descriptor_type,
 TrackerMB::~TrackerMB() { taskFinished(); }
 
 bool TrackerMB::isPointValid(const int& id) {
-  return m_pointsStatus[id] == Status::TRACK;
+  return m_pointsStatus[id] == Status::TRACK ||
+         m_pointsStatus[id] == Status::MATCH;
+}
+
+void TrackerMB::addModel(const Mat& descriptors,
+                         const std::vector<Point3f>& points) {
+  m_initDescriptors = descriptors.clone();
+
+  target_object_.descriptors_ = descriptors.clone();
+  target_object_.model_points_ = points;
+
+  m_pointsStatus.resize(target_object_.model_points_.size(), Status::LOST);
+  m_updatedPoints.resize(target_object_.model_points_.size(), Point2f(0, 0));
+
+  std::cout << "Model loaded with " << target_object_.model_points_.size()
+            << " key points" << std::endl;
+}
+
+void TrackerMB::addModel(const string& h5_file) {
+  util::HDF5File out_file(h5_file);
+  std::vector<uchar> descriptors;
+  std::vector<int> dscs_size, point_size;
+  std::vector<float> points;
+  // int test_feature_size;
+  out_file.readArray<uchar>("descriptors", descriptors, dscs_size);
+  out_file.readArray<float>("positions", points, point_size);
+
+  vectorToMat(descriptors, dscs_size, m_initDescriptors);
+
+  target_object_.descriptors_ = m_initDescriptors.clone();
+  target_object_.model_points_.resize(point_size[0], cv::Point3f(0, 0, 0));
+
+  for (int i = 0; i < point_size[0]; ++i) {
+    target_object_.model_points_.at(i) =
+        cv::Point3f(points[3 * i], points[3 * i + 1], points[3 * i + 2]);
+  }
+
+  m_pointsStatus.resize(target_object_.model_points_.size(), Status::LOST);
+  m_updatedPoints.resize(target_object_.model_points_.size(), Point2f(0, 0));
+
+  for(auto i = 0; i < m_updatedPoints.size(); ++i)
+  {
+      m_upd_to_init_ids.push_back(i);
+      m_init_to_upd_ids.push_back(i);
+  }
+
+  feature_detector_->setTarget(m_initDescriptors);
+
+  std::cout << "Model loaded with " << target_object_.model_points_.size()
+            << " key points and " << m_initDescriptors.rows << " descriptors "
+            << std::endl;
+}
+
+void TrackerMB::learnBackground(const Mat& rgb) {
+  Mat gray;
+  cvtColor(rgb, gray, CV_BGR2GRAY);
+  feature_detector_->extractTarget(gray);
+
+  Mat bg_descriptors = feature_detector_->getTargetDescriptors();
+
+  cout << "Learning the background, keypoints: " << bg_descriptors.rows << endl;
+  cout << " - prev descriptors " << m_initDescriptors.rows << endl;
+
+  cv::vconcat(m_initDescriptors, bg_descriptors, m_initDescriptors);
+  cout << " - curr descriptors " << m_initDescriptors.rows << endl;
+
+  feature_detector_->setTarget(m_initDescriptors);
 }
 
 void TrackerMB::init(const cv::Mat& rgb, const cv::Point2d& fst,
@@ -73,11 +141,9 @@ void TrackerMB::init(const cv::Mat& rgb, const cv::Point2d& fst,
 }
 
 void TrackerMB::init(const Mat& rgb, const Mat& mask) {
-
-  if(!feature_detector_)
-  {
-      cerr << "Error: feature matcher is not initialized!" << endl;
-      return;
+  if (!feature_detector_) {
+    cerr << "Error: feature matcher is not initialized!" << endl;
+    return;
   }
 
   Mat gray;
@@ -91,12 +157,12 @@ void TrackerMB::init(const Mat& rgb, const Mat& mask) {
 
   // cout << "After set model" << endl;
 
-  m_initKeypoints = feature_detector_->getTrainingPoints();
-  m_initDescriptors = feature_detector_->getTrainingDescriptors();
+  m_initKeypoints = feature_detector_->getTargetPoints();
+  m_initDescriptors = feature_detector_->getTargetDescriptors();
 
-  if(m_initKeypoints.size() == 0)
-  {
-    cerr << "Warning: no keypoint extracted. Nothing is going to be tracked!" << endl;
+  if (m_initKeypoints.size() == 0) {
+    cerr << "Warning: no keypoint extracted. Nothing is going to be tracked!"
+         << endl;
     return;
   }
 
@@ -145,15 +211,6 @@ void TrackerMB::init(const Mat& rgb, const Mat& mask) {
   // cout << "Init bounding box" << endl;
   initBoundingBox(mask, m_initCentroid, m_boundingBox, m_boundingBoxRelative,
                   m_boundingBoxUpdated);
-  /****************************************************************************/
-  /*                          INIT LEARNING                                   */
-  /****************************************************************************/
-  m_learned_poses.insert(make_pair<float, float>(0, 0));
-  m_angle = 0;
-  m_scale = 1;
-  m_scale_old = m_scale;
-  m_angle_old = m_angle;
-  m_centroid_old = m_initCentroid;
   /****************************************************************************/
   /*                          INIT THREADS                                    */
   /****************************************************************************/
@@ -241,11 +298,15 @@ void TrackerMB::getOpticalFlow(const Mat& prev, const Mat& next,
   vector<uchar> next_status, prev_status;
   vector<float> next_errors, prev_errors;
 
+  cout << "OF 1" << endl;
+  cout << "Points size: " << points.size() << endl;
   calcOpticalFlowPyrLK(prev, next, points, next_points, next_status,
                        next_errors);
-
+  cout << "OF 2" << endl;
   calcOpticalFlowPyrLK(next, prev, next_points, prev_points, prev_status,
                        prev_errors);
+
+  cout << "OF 3" << endl;
   m_flow_counter = 0;
   for (int i = 0; i < next_points.size(); ++i) {
     float error = fato::getDistance(points[i], prev_points[i]);
@@ -276,6 +337,7 @@ void TrackerMB::getOpticalFlow(const Mat& prev, const Mat& next,
       // list
     }
   }
+  cout << "OF 4" << endl;
 }
 
 float TrackerMB::getMedianRotation(const vector<Point2f>& initPoints,
@@ -582,21 +644,15 @@ void TrackerMB::computeNext(const Mat& next) {
   while (!m_trackerDone || !m_matcherDone) {
     std::this_thread::sleep_for(sleepTime);
   }
-  /****************************************************************************/
-  /*                LEARNING PROCEDURE                                        */
-  /****************************************************************************/
-  // m_learn_new_pose = evaluatePose(m_angle, m_scale);
-  /*if (m_learn_new_pose && !m_is_object_lost) {
-    learnPose(m_boundingBoxUpdated, dm_prevGray, m_points, m_updatedPoints,
-              m_pointsStatus, m_init_to_upd_ids);
-  }*/
-  /****************************************************************************/
-  /*                STORE COMPUTATIONS                                        */
-  /****************************************************************************/
+
   m_scale_old = m_scale;
   m_angle_old = m_angle;
   m_centroid_old = m_updatedCentroid;
 }
+
+void TrackerMB::computeNextSequential(Mat& rgb) {
+    //trackSequential(rgb);
+    detectSequential(rgb); }
 
 void TrackerMB::taskFinished() {
   m_isRunning = false;
@@ -673,22 +729,22 @@ void TrackerMB::trackNext(Mat next) {
   /*                       TRACKING */
   /*************************************************************************************/
   //  cout << "Optical flow " << endl;
-  //TOFIX: crushing here because of empty points vector
+  // TOFIX: crushing here because of empty points vector
   getOpticalFlow(prev_gray_, next_gray, m_updatedPoints, m_upd_to_init_ids,
                  m_pointsStatus);
   /*************************************************************************************/
   /*                             POSE ESTIMATION /
   /*************************************************************************************/
-  //auto& profiler = Profiler::getInstance();
+  // auto& profiler = Profiler::getInstance();
 
   vector<Point2f*> model_pts;
   vector<Point2f*> tracked_pts;
-  //profiler->start("pose_n");
+  // profiler->start("pose_n");
   getTrackedPoints(m_points, m_updatedPoints, m_upd_to_init_ids, model_pts,
                    tracked_pts);
   float scale, angle;
   getPose2D(model_pts, tracked_pts, scale, angle);
-  //profiler->stop("pose_n");
+  // profiler->stop("pose_n");
   /*************************************************************************************/
   /*                             VOTING */
   /*************************************************************************************/
@@ -780,6 +836,142 @@ void TrackerMB::detectNext(Mat next) {
     Status& s = m_pointsStatus.at(fst_match.queryIdx);
 
     // if (confidence < 0.80f) continue;
+
+    if (ratio > 0.8f) continue;
+
+    if (s == Status::BACKGROUND) continue;
+
+    // if (s == Status::TRACK) continue;
+
+    m_pointsStatus.at(fst_match.queryIdx) = Status::MATCH;
+    m_updatedPoints.at(fst_match.queryIdx) =
+        keypoints.at(fst_match.trainIdx).pt;
+  }
+}
+
+void TrackerMB::trackSequential(Mat& next)
+{
+  /*************************************************************************************/
+  /*                       LOADING IMAGES */
+  /*************************************************************************************/
+  Mat next_gray;
+  cvtColor(next, next_gray, CV_BGR2GRAY);
+  /*************************************************************************************/
+  /*                       TRACKING */
+  /*************************************************************************************/
+  cout << "Optical flow " << endl;
+  // TOFIX: crushing here because of empty points vector
+  //getOpticalFlow(prev_gray_, next_gray, m_updatedPoints, m_upd_to_init_ids,
+  //               m_pointsStatus);
+  /*************************************************************************************/
+  /*                             POSE ESTIMATION /
+  /*************************************************************************************/
+  // auto& profiler = Profiler::getInstance();
+  cout << "Tracked points" << endl;
+  vector<Point2f*> model_pts;
+  vector<Point2f*> tracked_pts;
+  // profiler->start("pose_n");
+  getTrackedPoints(m_points, m_updatedPoints, m_upd_to_init_ids, model_pts,
+                   tracked_pts);
+  //float scale, angle;
+  //getPose2D(model_pts, tracked_pts, scale, angle);
+  // profiler->stop("pose_n");
+  /*************************************************************************************/
+  /*                             VOTING */
+  /*************************************************************************************/
+  //   cout << "Vote " << endl;
+  //voteForCentroid(m_relativeDistances, m_updatedPoints, angle, scale, m_votes);
+  /*************************************************************************************/
+  /*                             CLUSTERING */
+  /*************************************************************************************/
+  //   cout << "Cluster " << endl;
+  //vector<bool> isClustered;
+  //clusterVotes(m_votes, isClustered);
+  /*************************************************************************************/
+  /*                             UPDATING LIST OF POINTS */
+  /*************************************************************************************/
+  // TODO: tracker works better without removing points here, WHY?!?
+  //labelNotClusteredPts(isClustered, m_updatedPoints, m_votes,
+  //                     m_relativeDistances, m_upd_to_init_ids, m_pointsStatus);
+
+  // discardNotClustered(m_updatedPoints, m_points, m_updatedCentroid,
+  //                    m_initCentroid, m_upd_to_init_ids, m_pointsStatus);
+
+  // removeLostPoints(isClustered, m_updatedPoints, m_votes,
+  //                 m_relativeDistances, m_pointsIds, m_pointsStatus);
+  /*************************************************************************************/
+  /*                             UPDATING CENTROID */
+  /*************************************************************************************/
+  //   cout << "Upd centroid " << endl;
+  //updateCentroid(angle, scale, m_votes, isClustered, m_updatedCentroid);
+  /*************************************************************************************/
+  /*                             UPDATING BOX */
+  /*************************************************************************************/
+  //   cout << "Upd box " << endl;
+  //updateBoundingBox(angle, scale, m_boundingBoxRelative, m_updatedCentroid,
+  //                  m_boundingBoxUpdated);
+  /*************************************************************************************/
+  /*                       SWAP MEMORY */
+  /*************************************************************************************/
+  next_gray.copyTo(prev_gray_);
+}
+
+void TrackerMB::detectSequential(Mat& next) {
+  /*************************************************************************************/
+  /*                       FEATURE EXTRACTION */
+  /*************************************************************************************/
+  vector<KeyPoint> keypoints;
+  Mat gray, descriptors;
+  cvtColor(next, gray, CV_BGR2GRAY);
+  // m_featuresDetector->detect(gray, keypoints);
+  // m_featuresDetector->compute(gray, keypoints, descriptors);
+  /*************************************************************************************/
+  /*                       FEATURE MATCHING */
+  /*************************************************************************************/
+  vector<vector<DMatch>> matches;
+  // cout << "Before match" << endl;
+  feature_detector_->match(gray, keypoints, descriptors, matches);
+  // std::cout << "Number of matches " << matches.size() << std::endl;
+  // cout << "After match" << endl;
+  // m_customMatcher.matchHamming(descriptors, m_initDescriptors, 2, matches);
+  /*************************************************************************************/
+  /*                       ADD FEATURES TO TRACKER */
+  /*************************************************************************************/
+  if (matches.size() < 2) return;
+  if (matches.at(0).size() != 2) return;
+
+  m_pointsStatus.clear();
+  m_pointsStatus.resize(target_object_.model_points_.size(), Status::LOST);
+
+  for (size_t i = 0; i < matches.size(); i++) {
+    // cout << i << endl;
+    // const int& queryId = matches[i][0].queryIdx;
+    // const int& trainId = matches[i][0].trainIdx;
+
+    const DMatch& fst_match = matches.at(i).at(0);
+    const DMatch& scd_match = matches.at(i).at(1);
+
+    if (fst_match.trainIdx < 0 || fst_match.trainIdx >= keypoints.size())
+      continue;
+    // the descriptor mat includes the objects and the background stacked
+    // vertically, therefore
+    // the index shoud be less than the target object points
+    if (fst_match.queryIdx < 0 ||
+        fst_match.queryIdx >= target_object_.model_points_.size())
+      continue;
+
+    //    if (fst_match.queryIdx >= target_object_.model_points_.size())
+    //      std::cout << " query idx oob" << std::endl;
+
+    //    if (fst_match.trainIdx >= target_object_.model_points_.size())
+    //      std::cout << " train idx oob" << std::endl;
+
+    float confidence = 1 - (matches[i][0].distance / 512.0);
+    auto ratio = (fst_match.distance / scd_match.distance);
+
+    Status& s = m_pointsStatus.at(fst_match.queryIdx);
+
+    if (confidence < 0.80f) continue;
 
     if (ratio > 0.8f) continue;
 
@@ -934,6 +1126,29 @@ void TrackerMB::projectPointsToModel(const Point2f& model_centroid,
     rm = mult(rotMat, rm);
 
     proj_pts.push_back(model_centroid + rm);
+  }
+}
+
+std::vector<cv::Point2f> TrackerMB::getActivePoints() {
+  vector<Point2f> valid_points;
+
+  for (auto i = 0; i < m_updatedPoints.size(); ++i) {
+    if (isPointValid(i)) {
+      valid_points.push_back(m_updatedPoints.at(i));
+    }
+  }
+
+  return valid_points;
+}
+
+void TrackerMB::getActiveModelPoints(std::vector<Point3f> &model, std::vector<Point2f> &active)
+{
+
+  for (auto i = 0; i < m_updatedPoints.size(); ++i) {
+    if (isPointValid(i)) {
+      model.push_back(target_object_.model_points_.at(i));
+      active.push_back(m_updatedPoints.at(i));
+    }
   }
 }
 

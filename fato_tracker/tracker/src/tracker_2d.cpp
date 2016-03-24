@@ -91,8 +91,8 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
 
   // cout << "After set model" << endl;
 
-  m_initKeypoints = feature_detector_->getTrainingPoints();
-  m_initDescriptors = feature_detector_->getTrainingDescriptors();
+  m_initKeypoints = feature_detector_->getTargetPoints();
+  m_initDescriptors = feature_detector_->getTargetDescriptors();
 
   if(m_initKeypoints.size() == 0)
   {

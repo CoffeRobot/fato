@@ -46,6 +46,7 @@ include_directories(include
 
 add_library(${PROJECT_NAME}
   src/matcher.cpp
+  src/target.cpp
   src/pose_estimation.cpp
   src/feature_matcher.cpp
   src/tracker_2d.cpp

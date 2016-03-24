@@ -38,11 +38,14 @@
 #include <chrono>
 #include <profiler.h>
 #include <draw_functions.h>
-#include <tracker_2d.h>
+#include <opencv2/calib3d/calib3d.hpp>
 
 #include "../../utilities/include/hdf5_file.h"
 #include "../include/tracker_model_based.h"
 #include "../../utilities/include/utilities.h"
+#include "../../tracker/include/tracker_model.h"
+#include "../../tracker/include/pose_estimation.h"
+#include "../../utilities/include/draw_functions.h"
 
 using namespace cv;
 using namespace std;
@@ -51,8 +54,8 @@ namespace fato {
 
 TrackerModel::TrackerModel(string model_file)
     : nh_(),
-      rgb_topic_("/tracker_input/rgb"),
-      camera_info_topic_("/tracker_input/camera_info"),
+      rgb_topic_("/image_raw"),
+      camera_info_topic_("/camera_info"),
       queue_size(5),
       is_mouse_dragging_(false),
       img_updated_(false),
@@ -83,6 +86,9 @@ void TrackerModel::initRGB() {
 
   sync_rgb_.reset(new SynchronizerRGB(SyncPolicyRGB(queue_size), sub_rgb_,
                                       sub_camera_info_));
+
+  sync_rgb_->registerCallback(
+      boost::bind(&TrackerModel::rgbCallback, this, _1, _2));
 }
 
 void TrackerModel::rgbCallback(
@@ -116,7 +122,7 @@ void TrackerModel::rgbdCallback(
 }
 
 void TrackerModel::run(string model_file) {
-  ROS_INFO("INPUT: init tracker");
+  ROS_INFO("TrackerMB: init...");
 
   spinner_.start();
 
@@ -127,30 +133,107 @@ void TrackerModel::run(string model_file) {
 
   util::HDF5File in_file(model_file);
 
-  std::vector<uchar> model_descriptors;
-  std::vector<int> descriptors_size;
-  //int test_feature_size;
-  in_file.readArray<uchar>("descriptors", model_descriptors, descriptors_size);
-  cv::Mat mat_descriptors;
-  vectorToMat(model_descriptors, descriptors_size, mat_descriptors);
+  //  std::vector<uchar> model_descriptors;
+  //  std::vector<int> descriptors_size;
+  //  //int test_feature_size;
+  //  in_file.readArray<uchar>("descriptors", model_descriptors,
+  //  descriptors_size);
+  //  cv::Mat mat_descriptors;
+  //  vectorToMat(model_descriptors, descriptors_size, mat_descriptors);
+  //  derived->setTarget(mat_descriptors);
 
   TrackerMB tracker(params, BRISK, std::move(derived));
-  // Tracker2D tracker(params_);
-  // TrackerV2 tracker(params_, camera_matrix_);
-
-  auto &profiler = Profiler::getInstance();
-
+  ROS_INFO("TrackerMB: setting model...");
+  tracker.addModel(model_file);
+  ROS_INFO("TrackerMB: starting...");
   ros::Rate r(100);
   while (ros::ok()) {
-
     if (img_updated_) {
       cv_bridge::CvImage cv_img;
+
+      //      std::vector<cv::KeyPoint> query_keypoints;
+      //      cv::Mat query_descriptors;
+      //      std::vector<std::vector<cv::DMatch>> matches;
+
+      //      derived->match(rgb_image_,query_keypoints, query_descriptors,
+      //      matches);
+
+      // cout << "Frame" << endl;
+      tracker.computeNextSequential(rgb_image_);
+
+      char c = waitKey(5);
+      if (c == 'b') {
+        std::cout << "Learning background" << std::endl;
+        tracker.learnBackground(rgb_image_);
+      }
+
+      vector<Point2f> valid_points;
+      vector<Point3f> model_points;
+
+      tracker.getActiveModelPoints(model_points, valid_points);
+
+      // getPoseRansac(model_points, valid_points, camera_matrix_, )
+
+      Mat rotation, translation;
+      vector<int> inliers;
+
+      //        for(auto pt : model_points)
+      //        {
+      //            cout << pt << endl;
+      //        }
+
+      // cout << camera_matrix_ << endl;
+
+      Mat cam(3, 3, CV_64FC1);
+      for (int i = 0; i < cam.rows; ++i) {
+        for (int j = 0; j < cam.cols; ++j) {
+          cam.at<double>(i, j) = camera_matrix_.at<double>(i, j);
+        }
+      }
+      // cout << cam << endl;
+      fato::getPoseRansac(model_points, valid_points, cam, 100, 5.0, inliers,
+                          rotation, translation);
+      // cout << "frame " << endl;
+
+      vector<bool> is_in(valid_points.size(), false);
+      for (int i : inliers) {
+        is_in[i] = true;
+      }
+
+      cv::Point3f center(0,0,0);
+      for (auto i = 0; i < valid_points.size(); ++i) {
+        if (is_in.at(i))
+        {
+          circle(rgb_image_, valid_points.at(i), 3, cv::Scalar(255, 0, 0));
+          center += model_points.at(i);
+        }
+        else
+          circle(rgb_image_, valid_points.at(i), 3, cv::Scalar(0, 0, 255));
+      }
+      center.x = center.x / static_cast<float>(inliers.size());
+      center.y = center.y / static_cast<float>(inliers.size());
+      center.z = center.z / static_cast<float>(inliers.size());
+
+      drawObjectPose(center, cam, rotation, translation, rgb_image_);
+
+      //      for (auto pt : valid_points)
+      //        circle(rgb_image_, pt, 3, cv::Scalar(255, 0, 0));
+
+      //      for(int i = 0; i < matches.size(); ++i)
+      //      {
+      //        cv::DMatch& d = matches.at(i)[0];
+      //        circle(rgb_image_, query_keypoints.at(d.trainIdx).pt, 3,
+      //        cv::Scalar(255,0,0));
+      //      }
+
       cv_img.image = rgb_image_;
       cv_img.encoding = sensor_msgs::image_encodings::BGR8;
       publisher_.publish(cv_img.toImageMsg());
       r.sleep();
     }
   }
+
+  cv::destroyAllWindows();
 }
 
 }  // end namespace

@@ -36,6 +36,7 @@
 #include <vector>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/calib3d/calib3d.hpp>
 
 #include "constants.h"
 
@@ -77,6 +78,9 @@ void drawCentroidVotes(const std::vector<cv::Point3f*>& points,
 void drawObjectPose(const cv::Point3f& centroid, const float focal,
                     const cv::Point2f& img_center, const cv::Mat& rotation,
                     cv::Mat& out);
+
+void drawObjectPose(const cv::Point3f& centroid, cv::Mat& camera_matrix, cv::Mat& rotation,
+                    cv::Mat& translation, cv::Mat& out);
 
 void arrowedLine(cv::Mat& img, cv::Point2f pt1, cv::Point2f pt2,
                  const cv::Scalar& color, int thickness = 1, int line_type = 8,

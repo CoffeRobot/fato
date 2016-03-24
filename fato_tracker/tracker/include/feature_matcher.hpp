@@ -113,14 +113,16 @@ class FeatureMatcher {
 
   virtual ~FeatureMatcher() = 0;
 
-  virtual void setTarget(const cv::Mat& img) = 0;
+  virtual void extractTarget(const cv::Mat& img) = 0;
+
+  virtual void setTarget(const cv::Mat& descriptors) = 0;
 
   virtual void match(const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
              cv::Mat& query_descriptors,
              std::vector<std::vector<cv::DMatch>>& matches) = 0;
 
-  virtual std::vector<cv::KeyPoint>& getTrainingPoints() = 0;
-  virtual cv::Mat& getTrainingDescriptors() = 0;
+  virtual std::vector<cv::KeyPoint>& getTargetPoints() = 0;
+  virtual cv::Mat& getTargetDescriptors() = 0;
 
 protected:
   FeatureMatcher(){};
@@ -139,15 +141,17 @@ public:
 
     void init(int feature_id);
 
-    void setTarget(const cv::Mat& img);
+    void extractTarget(const cv::Mat& img);
+
+    void setTarget(const cv::Mat& descriptors);
 
     void match(const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
                  cv::Mat& query_descriptors,
                  std::vector<std::vector<cv::DMatch>>& matches);
 
-    std::vector<cv::KeyPoint>& getTrainingPoints();
+    std::vector<cv::KeyPoint>& getTargetPoints();
 
-    cv::Mat& getTrainingDescriptors();
+    cv::Mat& getTargetDescriptors();
 
 private:
 

@@ -57,7 +57,7 @@ void BriskMatcher::init(int feature_id) {
   initExtractor();
 }
 
-void BriskMatcher::setTarget(const Mat &img) {
+void BriskMatcher::extractTarget(const Mat &img) {
 
   if (img.empty()) {
     cerr << "feature_matcher: image is empty!" << endl;
@@ -73,6 +73,11 @@ void BriskMatcher::setTarget(const Mat &img) {
   if (train_descriptors_.rows > 0) train_descriptors_ = Mat();
 
   extract(img, train_keypoints_, train_descriptors_);
+}
+
+void BriskMatcher::setTarget(const Mat& descriptors)
+{
+    train_descriptors_ = descriptors.clone();
 }
 
 void BriskMatcher::initExtractor() {
@@ -95,7 +100,7 @@ void BriskMatcher::extract(const Mat &img, std::vector<KeyPoint> &keypoints,
 
 void BriskMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
                       Mat &query_descriptors,
-                      std::vector<vector<DMatch>> &matches) {
+                      std::vector<vector<DMatch>> &matches) {  
   extract(img, query_keypoints, query_descriptors);
   if (query_descriptors.rows == 0) {
     return;
@@ -105,10 +110,10 @@ void BriskMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
   matcher_custom_.match(train_descriptors_, query_descriptors, 2, matches);
 }
 
-std::vector<cv::KeyPoint> &BriskMatcher::getTrainingPoints() {
+std::vector<cv::KeyPoint> &BriskMatcher::getTargetPoints() {
   return train_keypoints_;
 }
 
-cv::Mat &BriskMatcher::getTrainingDescriptors() { return train_descriptors_; }
+cv::Mat &BriskMatcher::getTargetDescriptors() { return train_descriptors_; }
 
 }  // end namespace

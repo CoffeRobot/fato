@@ -711,7 +711,7 @@ void TrackerV2::trackNext(Mat next) {
   //  vector<int> inliers;
   //  Mat rotation, translation;
   //  profiler->start("ransac");
-  //  getPose2D(model_pts_alt, tracked_pts_alt, camera_matrix_,
+  //getPose2D(model_pts_alt, tracked_pts_alt, camera_matrix_,
   //  ransac_iterations_,
   //            ransac_distance_, inliers, rotation, translation);
   //  profiler->stop("ransac");

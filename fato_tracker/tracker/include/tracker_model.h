@@ -30,8 +30,8 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-#ifndef TRACKER_V2_H
-#define TRACKER_V2_H
+#ifndef TRACKER_MODEL_H
+#define TRACKER_MODEL_H
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
@@ -45,25 +45,13 @@
 #include <set>
 #include <memory>
 
-#include "profiler.h"
+#include "target.hpp"
 #include "matcher.h"
 #include "config.h"
 #include "feature_matcher.hpp"
+#include "tracker_2d_v2.h"
 
 namespace fato {
-
-enum struct Status {
-  INIT = 0,
-  MATCH,
-  NOMATCH,
-  TRACK,
-  BOTH,
-  BACKGROUND,
-  LOST,
-  NOCLUSTER,
-  LEARN
-};
-
 
 class TrackerMB {
  public:
@@ -77,9 +65,15 @@ class TrackerMB {
 
   void addModel(const cv::Mat& descriptors, const std::vector<cv::Point3f>& points);
 
+  void addModel(const std::string& h5_file);
+
+  void learnBackground(const cv::Mat& rgb);
+
   void init(const cv::Mat &rgb, const cv::Point2d &fst, const cv::Point2d &scd);
 
   void init(const cv::Mat& rgb, const cv::Mat& mask);
+
+  void initSequential(const cv::Mat& rgb, const cv::Mat& mask);
 
   void setFeatureExtractionParameters(int num_features, float scale_factor,
                                       int num_levels, int edge_threshold,
@@ -89,9 +83,15 @@ class TrackerMB {
 
   void computeNext(const cv::Mat& rgb);
 
+  void computeNextSequential(cv::Mat& rgb);
+
   const std::vector<cv::Point2f>* getPoints() { return &m_updatedPoints; }
 
   const std::vector<Status>* getPointsStatus() { return &m_pointsStatus; }
+
+  std::vector<cv::Point2f> getActivePoints();
+
+  void getActiveModelPoints(std::vector<cv::Point3f>& model, std::vector<cv::Point2f>& active);
 
   const std::vector<int>* getPointsIds() { return &m_upd_to_init_ids; }
 
@@ -233,6 +233,10 @@ class TrackerMB {
 
   void detectNext(cv::Mat next);
 
+  void trackSequential(cv::Mat& next);
+
+  void detectSequential(cv::Mat& next);
+
   int m_height, m_width;
 
   std::future<int> m_trackerStatus, m_detectorStatus;
@@ -309,6 +313,10 @@ class TrackerMB {
   /****************************************************************************/
   float matcher_confidence_;
   float matcher_ratio_;
+  /****************************************************************************/
+  /*                       TARGETS TO TRACK                                   */
+  /****************************************************************************/
+  Target target_object_;
 
 };
 

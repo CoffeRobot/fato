@@ -43,7 +43,7 @@ using namespace Eigen;
 namespace fato {
 
 void getPoseRansac(const std::vector<cv::Point3f>& model_points,
-                   const std::vector<cv::Point2f>& tracked_points, int method,
+                   const std::vector<cv::Point2f>& tracked_points,
                    const cv::Mat& camera_model, int iterations, float distance,
                    vector<int>& inliers, Mat& rotation, Mat& translation) {
   if (model_points.size() > 4) {
@@ -51,7 +51,7 @@ void getPoseRansac(const std::vector<cv::Point3f>& model_points,
     solvePnPRansac(model_points, tracked_points, camera_model,
                    Mat::zeros(1, 8, CV_32F), rotation_vect, translation, false,
                    iterations, distance, model_points.size(), inliers,
-                   CV_ITERATIVE);
+                   CV_P3P);
 
     try
     {

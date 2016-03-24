@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
   // check existence output file
   size_t ext_pos = obj_file_name.find_last_of(".");
   std::string h5_file_name = obj_file_name;
-  h5_file_name.replace(ext_pos, 4, "_SIFT.h5");
+  h5_file_name.replace(ext_pos, 4, "_features.h5");
 
   if (boost::filesystem::exists(boost::filesystem::path(h5_file_name))) {
     char user_input = ' ';
@@ -221,9 +221,9 @@ int main(int argc, char **argv) {
     //    if (!success)
     //      throw std::runtime_error("SiftGPU failed");
 
-    matcher.setTarget(sift_img_gray);
-    std::vector<cv::KeyPoint> &points = matcher.getTrainingPoints();
-    cv::Mat &dscs = matcher.getTrainingDescriptors();
+    matcher.extractTarget(sift_img_gray);
+    std::vector<cv::KeyPoint> &points = matcher.getTargetPoints();
+    cv::Mat &dscs = matcher.getTargetDescriptors();
     int num_features = points.size();
 
     if (!is_init && num_features > 0) {
@@ -289,8 +289,15 @@ int main(int argc, char **argv) {
                  CV_RGB(0, 255, 0), -1, 8);
 
     cv::imshow(window_name, sift_img_keys);
-    cv::waitKey(10);
+    cv::waitKey(0);
   }
+
+  //TODO: some points are NaN, investigate!
+//  std::cout << "Keypoint size: " << all_keypoints.size() << std::endl;
+//  for (auto i = 0; i < all_keypoints.size(); i += 3) {
+//    std::cout << all_keypoints[i] << " " << all_keypoints[i + 1] << " "
+//              << all_keypoints[i + 2] << "\n";
+//  }
 
   // randomly shuffle positions and descriptors (siftgpu limitation)
   //  std::vector<int> shuffle_inds(all_num_features);
@@ -316,27 +323,24 @@ int main(int argc, char **argv) {
   std::vector<int> positions_size{all_num_features, 3};
   out_file.writeArray("descriptors", all_descriptors, descriptors_size, true);
   out_file.writeArray("positions", all_keypoints, positions_size, true);
-  //out_file.writeScalar("feature_size", 64);
+  // out_file.writeScalar("feature_size", 64);
 
   std::vector<uchar> test_descriptors;
-  std::vector<int> test_size;
-  //int test_feature_size;
+  std::vector<int> test_size, point_size;
+  std::vector<float> points;
+  // int test_feature_size;
   out_file.readArray<uchar>("descriptors", test_descriptors, test_size);
+  out_file.readArray<float>("positions", points, point_size);
 
-  std::cout << "feature size in: " << test_size[0] << " " << test_size[1] << std::endl;
-  //out_file.readScalar<uchar>("feature_size", test_feature_size);
 
-  cv::Mat1b test;//(test_size[0], test_size[1]);
+  std::cout << "feature size in: " << test_size[0] << " " << test_size[1]
+            << std::endl;
+  std::cout << "points size in: " << point_size[0] << " " << point_size[1]
+            << std::endl;
+
+  cv::Mat1b test;  //(test_size[0], test_size[1]);
 
   fato::vectorToMat(test_descriptors, test_size, test);
-
-//  for(int i = 0; i < test.rows; ++i)
-//  {
-//    for(int j = 0; j < test.cols; ++j)
-//    {
-//        test.at<uchar>(i,j) = test_descriptors.at(j + i * test.cols);
-//    }
-//  }
 
   std::cout << "src_dsc " << all_descriptors.size() << " dst_dsc "
             << test_descriptors.size() << std::endl;
@@ -355,13 +359,23 @@ int main(int argc, char **argv) {
   err_count = 0;
   for (auto i = 0; i < all_mat.rows; ++i) {
     for (auto j = 0; j < all_mat.cols; ++j) {
-
-       if(std::abs((int)all_mat.at<uchar>(i, j) - (int)test.at<uchar>(i, j)) != 0)
-        err_count ++;
+      if (std::abs((int)all_mat.at<uchar>(i, j) - (int)test.at<uchar>(i, j)) !=
+          0)
+        err_count++;
     }
   }
   std::cout << "Error in mats " << err_count << "\n";
 
+  err_count = 0;
+  for(auto i = 0; i < points.size(); ++i)
+  {
+    if(all_keypoints.at(i) != points.at(i))
+    {
+        err_count ++;
+        std::cout << all_keypoints.at(i) << " " << points.at(i) << std::endl;
+    }
+  }
+  std::cout << "Error in points " << err_count << "\n";
   //  for (int i = 0; i < 1; ++i) {
   //    for (int j = 0; j < test.cols; ++j) {
   //      std::cout << "[" << (int)test.at<uchar>(j, i) << ","
