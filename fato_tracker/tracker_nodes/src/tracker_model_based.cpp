@@ -46,6 +46,7 @@
 #include "../../tracker/include/tracker_model.h"
 #include "../../tracker/include/pose_estimation.h"
 #include "../../utilities/include/draw_functions.h"
+#include "../../io/include/VideoWriter.h"
 
 using namespace cv;
 using namespace std;
@@ -133,6 +134,8 @@ void TrackerModel::run(string model_file) {
 
   util::HDF5File in_file(model_file);
 
+  VideoWriter video_writer("/home/alessandro/Downloads/","pose_estimation.avi", 640,480, 1, 30);
+
   //  std::vector<uchar> model_descriptors;
   //  std::vector<int> descriptors_size;
   //  //int test_feature_size;
@@ -147,6 +150,11 @@ void TrackerModel::run(string model_file) {
   tracker.addModel(model_file);
   ROS_INFO("TrackerMB: starting...");
   ros::Rate r(100);
+
+  Mat prev_rotation, prev_translation;
+
+  bool target_found = false;
+
   while (ros::ok()) {
     if (img_updated_) {
       cv_bridge::CvImage cv_img;
@@ -174,7 +182,6 @@ void TrackerModel::run(string model_file) {
 
       // getPoseRansac(model_points, valid_points, camera_matrix_, )
 
-      Mat rotation, translation;
       vector<int> inliers;
 
       //        for(auto pt : model_points)
@@ -190,10 +197,49 @@ void TrackerModel::run(string model_file) {
           cam.at<double>(i, j) = camera_matrix_.at<double>(i, j);
         }
       }
+
+      Mat rotation, translation;
+      if (model_points.size() > 4) {
+        bool use_previous = false;
+        Mat rotation_vect = prev_rotation.clone();
+        translation = prev_translation.clone();
+        if(target_found)
+        {
+            use_previous = true;
+
+        }
+        solvePnPRansac(model_points, valid_points, cam,
+                       Mat::zeros(1, 8, CV_32F), rotation_vect, translation, use_previous,
+                       100, 5.0, model_points.size(), inliers,
+                       CV_P3P);
+
+        try
+        {
+          Rodrigues(rotation_vect, rotation);
+        }
+        catch(cv::Exception& e)
+        {
+          cout << "Error estimating ransac rotation: " << e.what() << endl;
+        }
+
+      }
+      else
+      {
+         rotation = Mat(3,3,CV_32FC1,0.0f);
+         translation = Mat(1,3,CV_32FC1,0.0f);
+      }
+
       // cout << cam << endl;
-      fato::getPoseRansac(model_points, valid_points, cam, 100, 5.0, inliers,
-                          rotation, translation);
+//      fato::getPoseRansac(model_points, valid_points, cam, 100, 5.0, inliers,
+//                          rotation, translation);
       // cout << "frame " << endl;
+
+      if(inliers.size() > 5)
+      {
+        target_found = true;
+        prev_translation = translation.clone();
+        prev_rotation = rotation.clone();
+      }
 
       vector<bool> is_in(valid_points.size(), false);
       for (int i : inliers) {
@@ -205,7 +251,7 @@ void TrackerModel::run(string model_file) {
         if (is_in.at(i))
         {
           circle(rgb_image_, valid_points.at(i), 3, cv::Scalar(255, 0, 0));
-          center += model_points.at(i);
+          //center += model_points.at(i);
         }
         else
           circle(rgb_image_, valid_points.at(i), 3, cv::Scalar(0, 0, 255));
@@ -229,10 +275,12 @@ void TrackerModel::run(string model_file) {
       cv_img.image = rgb_image_;
       cv_img.encoding = sensor_msgs::image_encodings::BGR8;
       publisher_.publish(cv_img.toImageMsg());
+      video_writer.write(rgb_image_);
       r.sleep();
     }
   }
 
+  video_writer.stopRecording();
   cv::destroyAllWindows();
 }
 

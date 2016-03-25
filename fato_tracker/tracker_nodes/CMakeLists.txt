@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
     image_geometry
     tracker_cpu
     fato_rendering
+    tracker_io
 )
 
 
@@ -27,7 +28,7 @@ catkin_package(
     tf
     image_geometry
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS tracker_cpu fato_rendering utilities
+  CATKIN_DEPENDS tracker_cpu fato_rendering utilities tracker_io
 )
 
 
