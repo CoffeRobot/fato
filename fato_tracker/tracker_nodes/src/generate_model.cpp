@@ -289,7 +289,7 @@ int main(int argc, char **argv) {
                  CV_RGB(0, 255, 0), -1, 8);
 
     cv::imshow(window_name, sift_img_keys);
-    cv::waitKey(0);
+    cv::waitKey(5);
   }
 
   //TODO: some points are NaN, investigate!
@@ -372,7 +372,7 @@ int main(int argc, char **argv) {
     if(all_keypoints.at(i) != points.at(i))
     {
         err_count ++;
-        std::cout << all_keypoints.at(i) << " " << points.at(i) << std::endl;
+        //std::cout << all_keypoints.at(i) << " " << points.at(i) << std::endl;
     }
   }
   std::cout << "Error in points " << err_count << "\n";

@@ -67,6 +67,8 @@ class TrackerMB {
 
   void addModel(const std::string& h5_file);
 
+  void setCameraMatrix(cv::Mat& camera_matrix);
+
   void learnBackground(const cv::Mat& rgb);
 
   void init(const cv::Mat &rgb, const cv::Point2d &fst, const cv::Point2d &scd);
@@ -104,6 +106,9 @@ class TrackerMB {
   std::vector<cv::Point2f> getBoundingBox() { return m_boundingBoxUpdated; }
 
   bool getEstimatedPosition(std::vector<cv::Point2f>& bounding_box);
+
+
+  const Target& getTarget(){return target_object_;}
 
   const std::vector<cv::Point2f>* getVotes() { return &m_votes; }
 
@@ -153,6 +158,10 @@ class TrackerMB {
                       const cv::Mat& next,
                       std::vector<cv::Point2f>& points, std::vector<int>& ids,
                       std::vector<Status>& status);
+
+  void getOpticalFlow(const cv::Mat& prev,
+                      const cv::Mat& next,
+                      Target& target);
 
   float getMedianRotation(const std::vector<cv::Point2f>& initPoints,
                           const std::vector<cv::Point2f>& updPoints,
@@ -245,6 +254,7 @@ class TrackerMB {
   /****************************************************************************/
   /*                       ESTIMATION VARIABLES                               */
   /****************************************************************************/
+  cv::Mat camera_matrix_;
   float m_angle, m_scale;
   bool m_is_object_lost;
   int ransac_iterations_;
@@ -306,7 +316,6 @@ class TrackerMB {
   /****************************************************************************/
   /*                       PNP RANSAC REQUIREMENTS                            */
   /****************************************************************************/
-  cv::Mat camera_matrix_;
   int pnp_iterations_;
   /****************************************************************************/
   /*                       MATCHER PARAMS                                     */

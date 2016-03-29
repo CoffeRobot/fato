@@ -172,6 +172,46 @@ private:
                  cv::Mat& descriptors);
 };
 
+class OrbMatcher : public FeatureMatcher {
+
+
+public:
+
+    OrbMatcher();
+
+    ~OrbMatcher();
+
+    void extractTarget(const cv::Mat& img);
+
+    void setTarget(const cv::Mat& descriptors);
+
+    void match(const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
+                 cv::Mat& query_descriptors,
+                 std::vector<std::vector<cv::DMatch>>& matches);
+
+    std::vector<cv::KeyPoint>& getTargetPoints();
+
+    cv::Mat& getTargetDescriptors();
+
+private:
+
+    CustomMatcher matcher_custom_;
+
+    int feature_id_;
+    std::string feature_name;
+    cv::ORB opencv_detector_;
+
+    cv::Mat train_descriptors_;
+    std::vector<cv::KeyPoint> train_keypoints_;
+
+
+    void initExtractor();
+
+    void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
+                 cv::Mat& descriptors);
+
+};
+
 
 }  // end namespace
 

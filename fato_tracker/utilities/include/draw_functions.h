@@ -79,8 +79,8 @@ void drawObjectPose(const cv::Point3f& centroid, const float focal,
                     const cv::Point2f& img_center, const cv::Mat& rotation,
                     cv::Mat& out);
 
-void drawObjectPose(const cv::Point3f& centroid, cv::Mat& camera_matrix, cv::Mat& rotation,
-                    cv::Mat& translation, cv::Mat& out);
+void drawObjectPose(const cv::Point3f& centroid, cv::Mat& camera_matrix, const cv::Mat& rotation,
+                    const cv::Mat& translation, cv::Mat& out);
 
 void arrowedLine(cv::Mat& img, cv::Point2f pt1, cv::Point2f pt2,
                  const cv::Scalar& color, int thickness = 1, int line_type = 8,

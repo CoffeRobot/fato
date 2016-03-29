@@ -34,6 +34,7 @@
 
 #include <vector>
 #include <opencv2/core/core.hpp>
+#include <constants.h>
 
 namespace fato{
 
@@ -45,8 +46,26 @@ public:
 
     ~Target(){}
 
+
+    void init(std::vector<cv::Point3f>& points, cv::Mat& descriptors);
+
+    void removeInvalidPoints(const std::vector<int>& ids);
+
+    bool isConsistent();
+
     std::vector<cv::Point3f> model_points_;
+    std::vector<cv::Point3f> rel_distances_;
+    std::vector<cv::Point2f> active_points;
+    std::vector<Status> point_status_;
+
     cv::Mat descriptors_;
+
+    cv::Point3f centroid_;
+
+    std::vector<int> active_to_model_;
+
+    cv::Mat rotation;
+    cv::Mat translation;
 
 
 };

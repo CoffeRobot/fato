@@ -136,15 +136,6 @@ void TrackerModel::run(string model_file) {
 
   VideoWriter video_writer("/home/alessandro/Downloads/","pose_estimation.avi", 640,480, 1, 30);
 
-  //  std::vector<uchar> model_descriptors;
-  //  std::vector<int> descriptors_size;
-  //  //int test_feature_size;
-  //  in_file.readArray<uchar>("descriptors", model_descriptors,
-  //  descriptors_size);
-  //  cv::Mat mat_descriptors;
-  //  vectorToMat(model_descriptors, descriptors_size, mat_descriptors);
-  //  derived->setTarget(mat_descriptors);
-
   TrackerMB tracker(params, BRISK, std::move(derived));
   ROS_INFO("TrackerMB: setting model...");
   tracker.addModel(model_file);
@@ -154,22 +145,37 @@ void TrackerModel::run(string model_file) {
   Mat prev_rotation, prev_translation;
 
   bool target_found = false;
+  bool camera_is_set = false;
+  bool background_learned = false;
 
   while (ros::ok()) {
     if (img_updated_) {
       cv_bridge::CvImage cv_img;
 
-      //      std::vector<cv::KeyPoint> query_keypoints;
-      //      cv::Mat query_descriptors;
-      //      std::vector<std::vector<cv::DMatch>> matches;
+      if(!camera_matrix_initialized)
+          continue;
+      else if(camera_matrix_initialized && !camera_is_set)
+      {
+          Mat cam(3, 3, CV_64FC1);
+          for (int i = 0; i < cam.rows; ++i) {
+            for (int j = 0; j < cam.cols; ++j) {
+              cam.at<double>(i, j) = camera_matrix_.at<double>(i, j);
+            }
+          }
+          tracker.setCameraMatrix(cam);
+          camera_is_set = true;
+      }
 
-      //      derived->match(rgb_image_,query_keypoints, query_descriptors,
-      //      matches);
+      if(!background_learned)
+      {
+          tracker.learnBackground(rgb_image_);
+          background_learned = true;
+      }
 
       // cout << "Frame" << endl;
       tracker.computeNextSequential(rgb_image_);
 
-      char c = waitKey(5);
+      char c = waitKey(1);
       if (c == 'b') {
         std::cout << "Learning background" << std::endl;
         tracker.learnBackground(rgb_image_);
@@ -198,69 +204,56 @@ void TrackerModel::run(string model_file) {
         }
       }
 
-      Mat rotation, translation;
-      if (model_points.size() > 4) {
-        bool use_previous = false;
-        Mat rotation_vect = prev_rotation.clone();
-        translation = prev_translation.clone();
-        if(target_found)
-        {
-            use_previous = true;
+      const Target& target = tracker.getTarget();
 
-        }
-        solvePnPRansac(model_points, valid_points, cam,
-                       Mat::zeros(1, 8, CV_32F), rotation_vect, translation, use_previous,
-                       100, 5.0, model_points.size(), inliers,
-                       CV_P3P);
+//      if(inliers.size() > 5)
+//      {
+//        target_found = true;
+//        prev_translation = translation.clone();
+//        prev_rotation = rotation.clone();
+//      }
 
-        try
-        {
-          Rodrigues(rotation_vect, rotation);
-        }
-        catch(cv::Exception& e)
-        {
-          cout << "Error estimating ransac rotation: " << e.what() << endl;
-        }
-
-      }
-      else
-      {
-         rotation = Mat(3,3,CV_32FC1,0.0f);
-         translation = Mat(1,3,CV_32FC1,0.0f);
-      }
-
-      // cout << cam << endl;
-//      fato::getPoseRansac(model_points, valid_points, cam, 100, 5.0, inliers,
-//                          rotation, translation);
-      // cout << "frame " << endl;
-
-      if(inliers.size() > 5)
-      {
-        target_found = true;
-        prev_translation = translation.clone();
-        prev_rotation = rotation.clone();
-      }
-
-      vector<bool> is_in(valid_points.size(), false);
-      for (int i : inliers) {
-        is_in[i] = true;
-      }
+//      vector<bool> is_in(valid_points.size(), false);
+//      for (int i : inliers) {
+//        is_in[i] = true;
+//      }
 
       cv::Point3f center(0,0,0);
-      for (auto i = 0; i < valid_points.size(); ++i) {
-        if (is_in.at(i))
-        {
-          circle(rgb_image_, valid_points.at(i), 3, cv::Scalar(255, 0, 0));
-          //center += model_points.at(i);
-        }
-        else
-          circle(rgb_image_, valid_points.at(i), 3, cv::Scalar(0, 0, 255));
-      }
-      center.x = center.x / static_cast<float>(inliers.size());
-      center.y = center.y / static_cast<float>(inliers.size());
-      center.z = center.z / static_cast<float>(inliers.size());
+      for (auto i = 0; i < target.active_points.size(); ++i) {
 
-      drawObjectPose(center, cam, rotation, translation, rgb_image_);
+          int id = target.active_to_model_.at(i);
+
+          Scalar color;
+          if(target.point_status_.at(id) == Status::MATCH)
+              color = Scalar(255,0,0);
+          else if(target.point_status_.at(id) == Status::TRACK)
+              color = Scalar(0,255,0);
+
+          circle(rgb_image_, target.active_points.at(i), 3, color);
+          //center += model_points.at(i);
+      }
+
+      //center.x = center.x / static_cast<float>(inliers.size());
+      //center.y = center.y / static_cast<float>(inliers.size());
+      //center.z = center.z / static_cast<float>(inliers.size());
+
+      drawObjectPose(target.centroid_, cam, target.rotation, target.translation, rgb_image_);
+
+//      int track_count = 0;
+//      int match_count = 0;
+//      int lost_count = 0;
+
+//      for(auto s : target.point_status_)
+//      {
+//        if(s == Status::MATCH)
+//            match_count++;
+//        if(s == Status::TRACK)
+//            track_count++;
+//        if(s == Status::LOST)
+//            lost_count++;
+//      }
+
+      //cout << "M " << match_count << " T " << track_count << " L " << lost_count << endl;
 
       //      for (auto pt : valid_points)
       //        circle(rgb_image_, pt, 3, cv::Scalar(255, 0, 0));

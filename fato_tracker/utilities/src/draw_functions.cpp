@@ -346,7 +346,6 @@ void drawCentroidVotes(const vector<Point3f*>& points,
 
 void drawObjectPose(const Point3f& centroid, const float focal,
                     const Point2f& img_center, const Mat& rotation, Mat& out) {
-
   auto rotatePoint = [](const Mat& rotation, cv::Point3f& pt) {
     Mat a(1, 3, CV_32FC1);
     a.at<float>(0) = pt.x;
@@ -390,27 +389,30 @@ void drawObjectPose(const Point3f& centroid, const float focal,
   arrowedLine(out, center, za, Scalar(255, 0, 0), 3);
 }
 
-void drawObjectPose(const Point3f &centroid, Mat &camera_matrix, Mat &rotation, Mat &translation, Mat &out)
-{
+void drawObjectPose(const Point3f& centroid, Mat& camera_matrix,
+                    const Mat& rotation, const Mat& translation, Mat& out) {
+  Point3f c = centroid;
+  vector<Point3f> points;
+  Point3f x_axis(0.06, 0, 0);
+  Point3f y_axis(0, 0.06, 0);
+  Point3f z_axis(0, 0, 0.06);
+  points.push_back(c);
+  points.push_back(c + x_axis);
+  points.push_back(c + y_axis);
+  points.push_back(c + z_axis);
 
-    Point3f c = centroid;
-    vector<Point3f> points;
-    Point3f x_axis(0.06, 0, 0);
-    Point3f y_axis(0, 0.06, 0);
-    Point3f z_axis(0, 0, 0.06);
-    points.push_back(c);
-    points.push_back(c+x_axis);
-    points.push_back(c+y_axis);
-    points.push_back(c+z_axis);
+  rotation.convertTo(rotation, CV_64F);
 
-    rotation.convertTo(rotation, CV_64F);
+  vector<Point2f> projected_points;
+  projectPoints(points, rotation, translation, camera_matrix, Mat(),
+                projected_points);
 
-    vector<Point2f> projected_points;
-    projectPoints(points, rotation, translation, camera_matrix, Mat(), projected_points);
-
-    arrowedLine(out, projected_points[0], projected_points[1], Scalar(0, 0, 255), 3);
-    arrowedLine(out, projected_points[0], projected_points[2], Scalar(0, 255, 0), 3);
-    arrowedLine(out, projected_points[0], projected_points[3], Scalar(255, 0, 0), 3);
+  arrowedLine(out, projected_points[0], projected_points[1], Scalar(0, 0, 255),
+              3);
+  arrowedLine(out, projected_points[0], projected_points[2], Scalar(0, 255, 0),
+              3);
+  arrowedLine(out, projected_points[0], projected_points[3], Scalar(255, 0, 0),
+              3);
 }
 
 void arrowedLine(Mat& img, Point2f pt1, Point2f pt2, const Scalar& color,
@@ -429,9 +431,7 @@ void arrowedLine(Mat& img, Point2f pt1, Point2f pt2, const Scalar& color,
 }
 
 void cross(Mat& img, Point2f center, const Scalar& color, int thickness,
-           int line_offset, int line_type, int shift, double tipLength)
-{
-
+           int line_offset, int line_type, int shift, double tipLength) {
   Point2f tp, bp, lp, rp;
   tp = bp = lp = rp = center;
 
