@@ -35,6 +35,8 @@
 #include <opencv2/contrib/contrib.hpp>
 #include "../include/constants.h"
 #include <iostream>
+#include <limits>
+
 
 using namespace std;
 using namespace cv;
@@ -449,6 +451,19 @@ void cross(Mat& img, Point2f center, const Scalar& color, int thickness,
 
   line(img, tp, bp, color, thickness, line_type, shift);
   line(img, lp, rp, color, thickness, line_type, shift);
+}
+
+void drawKeypoints(const std::vector<KeyPoint> &points, Mat &out)
+{
+
+    float max_response = 0;
+    float min_response = numeric_limits<float>::max();
+
+    for(auto pt : points)
+    {
+        cv::circle(out, pt.pt, pt.size, cv::Scalar(0,255,0), 1);
+    }
+
 }
 
 }  // end namespace

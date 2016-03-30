@@ -90,6 +90,8 @@ void cross(cv::Mat& img, cv::Point2f center, const cv::Scalar& color,
            int thickness = 1, int line_offset = 1, int line_type = 8, int shift = 0,
            double tipLength = 0.1);
 
+void drawKeypoints(const std::vector<cv::KeyPoint>& points, cv::Mat& out);
+
 }  // end namespace
 
 #endif  // DRAW_FUNCTIONS_H
