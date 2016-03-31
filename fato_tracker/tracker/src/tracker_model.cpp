@@ -931,17 +931,15 @@ void TrackerMB::trackSequential(Mat& next) {
     model_pts.push_back(target_object_.model_points_.at(id));
   }
 
-  Mat rotation_vect;
   if (model_pts.size() > 4) {
     vector<int> inliers;
-    rotation_vect = target_object_.rotation;
     solvePnPRansac(model_pts, target_object_.active_points, camera_matrix_,
-                   Mat::zeros(1, 8, CV_64F), rotation_vect,
-                   target_object_.translation, true, 100, 3.0,
-                   model_pts.size() / 2, inliers, CV_P3P);
+                   Mat::zeros(1, 8, CV_64F), target_object_.rotation_vec,
+                   target_object_.translation, true, 30, 5.0,
+                   model_pts.size(), inliers, CV_EPNP);
 
     try {
-      Rodrigues(rotation_vect, target_object_.rotation);
+      Rodrigues(target_object_.rotation_vec, target_object_.rotation);
     } catch (cv::Exception& e) {
       cout << "Error estimating ransac rotation: " << e.what() << endl;
     }
@@ -1032,14 +1030,9 @@ void TrackerMB::trackSequential(Mat& next) {
 }
 
 void TrackerMB::detectSequential(Mat& next) {
-  /*************************************************************************************/
-  /*                       FEATURE EXTRACTION */
-  /*************************************************************************************/
   vector<KeyPoint> keypoints;
   Mat gray, descriptors;
   cvtColor(next, gray, CV_BGR2GRAY);
-  // m_featuresDetector->detect(gray, keypoints);
-  // m_featuresDetector->compute(gray, keypoints, descriptors);
   /*************************************************************************************/
   /*                       FEATURE MATCHING */
   /*************************************************************************************/
@@ -1065,33 +1058,22 @@ void TrackerMB::detectSequential(Mat& next) {
   int bg_count = 0;
 
   for (size_t i = 0; i < matches.size(); i++) {
-    // cout << i << endl;
-    // const int& queryId = matches[i][0].queryIdx;
-    // const int& trainId = matches[i][0].trainIdx;
-
     const DMatch& fst_match = matches.at(i).at(0);
     const DMatch& scd_match = matches.at(i).at(1);
 
-    const int& model_idx = fst_match.queryIdx;
-    const int& match_idx = fst_match.trainIdx;
+    const int& model_idx = fst_match.trainIdx;
+    const int& match_idx = fst_match.queryIdx;
 
-    if (fst_match.trainIdx < 0 || fst_match.trainIdx >= keypoints.size())
-      continue;
+    if (match_idx < 0 || match_idx >= keypoints.size()) continue;
     // the descriptor mat includes the objects and the background stacked
     // vertically, therefore
     // the index shoud be less than the target object points
-    if (fst_match.queryIdx < 0 ||
-        fst_match.queryIdx >=
+    if (model_idx < 0 ||
+        model_idx >=
             m_initDescriptors.rows)  // target_object_.model_points_.size())
       continue;
 
-    //    if (fst_match.queryIdx >= target_object_.model_points_.size())
-    //      std::cout << " query idx oob" << std::endl;
-
-    //    if (fst_match.trainIdx >= target_object_.model_points_.size())
-    //      std::cout << " train idx oob" << std::endl;
-
-    if (fst_match.queryIdx >= target_object_.model_points_.size()) {
+    if (model_idx >= target_object_.model_points_.size()) {
       bg_count++;
       continue;
     }
@@ -1099,7 +1081,7 @@ void TrackerMB::detectSequential(Mat& next) {
     float confidence = 1 - (matches[i][0].distance / 512.0);
     auto ratio = (fst_match.distance / scd_match.distance);
 
-    Status& s = m_pointsStatus.at(fst_match.queryIdx);
+    Status& s = m_pointsStatus.at(model_idx);
 
     if (confidence < 0.80f) continue;
 
@@ -1107,9 +1089,8 @@ void TrackerMB::detectSequential(Mat& next) {
 
     if (s == Status::TRACK) continue;
 
-    m_pointsStatus.at(fst_match.queryIdx) = Status::MATCH;
-    m_updatedPoints.at(fst_match.queryIdx) =
-        keypoints.at(fst_match.trainIdx).pt;
+    m_pointsStatus.at(model_idx) = Status::MATCH;
+    m_updatedPoints.at(model_idx) = keypoints.at(match_idx).pt;
 
     // new interface using target class and keeping a list of pointers for speed
     if (point_status.at(model_idx) == Status::LOST) {
@@ -1119,45 +1100,6 @@ void TrackerMB::detectSequential(Mat& next) {
       match_count++;
     }
   }
-
-  // cout << "BG count " << bg_count << std::endl;
-
-  //  int track_count = 0;
-  //  match_count = 0;
-  //  int lost_count = 0;
-
-  //  for(auto s : target_object_.point_status_)
-  //  {
-  //    if(s == Status::MATCH)
-  //        match_count++;
-  //    if(s == Status::TRACK)
-  //        track_count++;
-  //    if(s == Status::LOST)
-  //        lost_count++;
-  //  }
-
-  //  cout << "MATCH: M " << match_count << " T " << track_count << " L " <<
-  //  lost_count << endl;
-
-  //  if(!target_object_.isConsistent())
-  //      cout << "MATCH: ERROR INCONSISTENT!!" << endl;
-
-  //  ofstream file;
-  //  file.open("/home/alessandro/debug/debug_match.txt",
-  //            std::ofstream::out | std::ofstream::app);
-
-  //  for (int i = 0; i < target_object_.point_status_.size(); ++i) {
-  //    file << "[" << i << "," << (int)target_object_.point_status_.at(i) << "]
-  //    ";
-
-  //    if (i % 20 == 0) file << "\n";
-  //  }
-
-  //  for(int i = 0; i < target_object_.active_to_model_.size(); ++i)
-  //  {
-  //    file << target_object_.active_to_model_.at(i) << " ";
-  //    if (i % 20 == 0) file << "\n";
-  //  }
 }
 
 bool TrackerMB::evaluatePose(const float& angle, const float& scale) {

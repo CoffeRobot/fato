@@ -103,7 +103,8 @@ void BriskMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
   }
   //TOFIX: opencv matcher does not work in 2.4
   //matcher_->knnMatch(train_descriptors_, query_descriptors, matches, 1);
-  matcher_custom_.match(train_descriptors_, query_descriptors, 2, matches);
+  //matcher_custom_.match(train_descriptors_, query_descriptors, 2, matches);
+  matcher_custom_.match(query_descriptors, train_descriptors_,  2, matches);
 }
 
 std::vector<cv::KeyPoint> &BriskMatcher::getTargetPoints() {

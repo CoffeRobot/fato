@@ -66,6 +66,7 @@ public:
 
     cv::Mat rotation;
     cv::Mat translation;
+    cv::Mat rotation_vec;
 
 
 };
