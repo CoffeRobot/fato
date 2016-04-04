@@ -40,7 +40,7 @@
 namespace util {
 
 class HDF5File {
-public:
+ public:
   // open for read/write, will create if not exists (existing path required)
   // existing variables with same name cannot be overwritten (hdf5 restriction)
   HDF5File(std::string file_name);
@@ -59,7 +59,8 @@ public:
 
   // read scalar variable, only succeeds if array is of size 1
   // file datatype will be converted to memory datatype
-  template <typename Type> Type readScalar(const std::string &name);
+  template <typename Type>
+  Type readScalar(const std::string &name);
 
   // write array to file as variable name, with dimensionality specified by dims
   template <typename Type>
@@ -73,40 +74,52 @@ public:
   // checks if variable exists in the file
   bool checkVariableExists(const std::string &name);
 
-private:
-  // compilation nullptr error signals that an additional specialization is
-  // needed
-  // below
-  template <typename Type> const H5::PredType typeToH5PredType() {
+ private:
+// compilation nullptr error signals that an additional specialization is
+// needed
+// below
+#ifdef __clang__
+  template <typename Type>
+  const H5::PredType typeToH5PredType();
+#else
+  template <typename Type>
+  const H5::PredType typeToH5PredType() {
     return (nullptr);
   }
+#endif
 
   std::unique_ptr<H5::H5File> file_;
 };
 
 // type conversion specializations
 
-template <> inline const H5::PredType HDF5File::typeToH5PredType<double>() {
+template <>
+inline const H5::PredType HDF5File::typeToH5PredType<double>() {
   return (H5::PredType::NATIVE_DOUBLE);
 }
 
-template <> inline const H5::PredType HDF5File::typeToH5PredType<float>() {
+template <>
+inline const H5::PredType HDF5File::typeToH5PredType<float>() {
   return (H5::PredType::NATIVE_FLOAT);
 }
 
-template <> inline const H5::PredType HDF5File::typeToH5PredType<int>() {
+template <>
+inline const H5::PredType HDF5File::typeToH5PredType<int>() {
   return (H5::PredType::NATIVE_INT);
 }
 
-template <> inline const H5::PredType HDF5File::typeToH5PredType<unsigned int>() {
+template <>
+inline const H5::PredType HDF5File::typeToH5PredType<unsigned int>() {
   return (H5::PredType::NATIVE_UINT);
 }
 
-template <> inline const H5::PredType HDF5File::typeToH5PredType<uint8_t>() {
+template <>
+inline const H5::PredType HDF5File::typeToH5PredType<uint8_t>() {
   return (H5::PredType::NATIVE_UINT8);
 }
 
-template <> inline const H5::PredType HDF5File::typeToH5PredType<uint16_t>() {
+template <>
+inline const H5::PredType HDF5File::typeToH5PredType<uint16_t>() {
   return (H5::PredType::NATIVE_UINT16);
 }
 
@@ -136,21 +149,18 @@ inline HDF5File::HDF5File(std::string file_name) {
     try {
       file_ =
           std::unique_ptr<H5::H5File>(new H5::H5File(file_name, H5F_ACC_TRUNC));
-    }
-    catch (H5::FileIException error) {
+    } catch (H5::FileIException error) {
       error.printError();
       throw std::runtime_error(
           std::string("HDF5File::HDF5File: file create problem"));
     }
 
-  } else // file exists, just open it for read/write
+  } else  // file exists, just open it for read/write
   {
-
     try {
       file_ =
           std::unique_ptr<H5::H5File>(new H5::H5File(file_name, H5F_ACC_RDWR));
-    }
-    catch (H5::FileIException error) {
+    } catch (H5::FileIException error) {
       error.printError();
       throw std::runtime_error(
           std::string("HDF5File::HDF5File: file open problem"));
@@ -162,8 +172,7 @@ inline bool HDF5File::checkVariableExists(const std::string &name) {
   bool dataset_exists = true;
   try {
     H5::DataSet d_set(file_->openDataSet(name));
-  }
-  catch (H5::FileIException error) {
+  } catch (H5::FileIException error) {
     dataset_exists = false;
   }
   return (dataset_exists);
@@ -183,18 +192,17 @@ void HDF5File::readArray(const std::string &name, std::vector<Type> &array,
       dims.push_back(dim);
       n_elements *= dim;
     }
-    if (array.size() != n_elements)
-      array.resize(n_elements);
+    if (array.size() != n_elements) array.resize(n_elements);
     d_set.read(array.data(), typeToH5PredType<Type>());
-  }
-  catch (H5::FileIException error) {
+  } catch (H5::FileIException error) {
     error.printError();
     throw std::runtime_error(std::string("HDF5File::readArray: variable " +
                                          name + " doesn't seem to exist"));
   }
 }
 
-template <typename Type> Type HDF5File::readScalar(const std::string &name) {
+template <typename Type>
+Type HDF5File::readScalar(const std::string &name) {
   std::vector<int> dims;
   std::vector<Type> array;
   readArray(name, array, dims);
@@ -206,8 +214,8 @@ template <typename Type> Type HDF5File::readScalar(const std::string &name) {
 
 template <typename Type>
 void HDF5File::writeScalar(const std::string &name, Type value) {
-  std::vector<Type> array{ value };
-  std::vector<int> dims{ 1 };
+  std::vector<Type> array{value};
+  std::vector<int> dims{1};
   bool compress = false;
   writeArray<Type>(name, array, dims, compress);
 }
@@ -223,8 +231,7 @@ void HDF5File::writeArray(const std::string &name,
 
   // check consistency of dims
   std::size_t n_elements = 1;
-  for (const auto &dim : dims)
-    n_elements *= dim;
+  for (const auto &dim : dims) n_elements *= dim;
 
   if (array.size() != n_elements)
     throw std::runtime_error(
@@ -236,15 +243,15 @@ void HDF5File::writeArray(const std::string &name,
 
   // create dataspace
   std::vector<hsize_t> dims_hsize;
-  for (const auto &dim : dims)
-    dims_hsize.push_back(dim);
+  for (const auto &dim : dims) dims_hsize.push_back(dim);
   H5::DataSpace d_space(dims_hsize.size(), dims_hsize.data());
 
   // create dataset
-  H5::DSetCreatPropList ds_creatplist; // create dataset creation prop list
+  H5::DSetCreatPropList ds_creatplist;  // create dataset creation prop list
   if (compress) {
-    ds_creatplist.setChunk(dims_hsize.size(),
-                           dims_hsize.data()); // then modify it for compression
+    ds_creatplist.setChunk(
+        dims_hsize.size(),
+        dims_hsize.data());  // then modify it for compression
     ds_creatplist.setDeflate(9);
   }
 
@@ -263,8 +270,7 @@ inline void HDF5File::writeArray(const std::string &name,
   std::vector<int> dims_float = dims;
   dims_float.push_back(2);
   std::size_t n_elements = 1;
-  for (auto &it : dims_float)
-    n_elements *= it;
+  for (auto &it : dims_float) n_elements *= it;
   std::vector<float> array_float;
   array_float.reserve(n_elements);
   for (auto &it : array) {
@@ -283,8 +289,7 @@ inline void HDF5File::writeArray(const std::string &name,
   std::vector<int> dims_uchar4 = dims;
   dims_uchar4.push_back(4);
   std::size_t n_elements = 1;
-  for (auto &it : dims_uchar4)
-    n_elements *= it;
+  for (auto &it : dims_uchar4) n_elements *= it;
   std::vector<uint8_t> array_uchar;
   array_uchar.reserve(n_elements);
   for (auto &it : array) {
@@ -319,13 +324,11 @@ inline void HDF5File::writeArray(const std::string &name,
 
   // convert string to const char*
   std::vector<const char *> c_array;
-  for (auto &it : array)
-    c_array.push_back(it.c_str());
+  for (auto &it : array) c_array.push_back(it.c_str());
 
   // create dataspace
   std::vector<hsize_t> dims_hsize;
-  for (const auto &dim : dims)
-    dims_hsize.push_back(dim);
+  for (const auto &dim : dims) dims_hsize.push_back(dim);
   H5::DataSpace d_space(dims_hsize.size(), dims_hsize.data());
 
   // Variable length string
@@ -351,8 +354,7 @@ inline void HDF5File::readArray(const std::string &name,
       dims.push_back(dim);
       n_elements *= dim;
     }
-    if (array.size() != n_elements)
-      array.resize(n_elements);
+    if (array.size() != n_elements) array.resize(n_elements);
     //    if (n_elements == 1)
     //    {
     //      H5::StrType datatype(H5::PredType::C_S1, H5T_VARIABLE);
@@ -373,11 +375,9 @@ inline void HDF5File::readArray(const std::string &name,
       H5::StrType datatype(H5::PredType::C_S1, H5T_VARIABLE);
       char *buffer[n_elements];
       d_set.read((void *)buffer, datatype);
-      for (int i = 0; i < n_elements; i++)
-        array.at(i) = buffer[i];
+      for (int i = 0; i < n_elements; i++) array.at(i) = buffer[i];
     }
-  }
-  catch (H5::FileIException error) {
+  } catch (H5::FileIException error) {
     error.printError();
     throw std::runtime_error(std::string("HDF5File::readArray: variable " +
                                          name + " doesn't seem to exist"));

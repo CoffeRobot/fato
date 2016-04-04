@@ -77,10 +77,13 @@ TranslationRotation3D::TranslationRotation3D(const Type TR_in[6])
   setT(T_in);
   setR(R_in);
 }
+
+#ifndef __clang__
 template TranslationRotation3D::TranslationRotation3D<float>(
-    const float TR_in[6]);
+        const float TR_in[6]){};
 template TranslationRotation3D::TranslationRotation3D<double>(
-    const double TR_in[6]);
+        const double TR_in[6]){};
+#endif
 
 TranslationRotation3D::TranslationRotation3D(
     const Ogre::Vector3 &ogre_translation,
