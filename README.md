@@ -159,6 +159,11 @@ roslaunch fato_tracker_nodes tracker_offline.launch
 ### Model Tracking
 
 The model-based tracker currently works only with monocular cameras and requires a model.h5. There are a couple of models included in the package but please refer to the model generation section to generate your own model.
+The path to the target object h5 should be changed in the launch file. Then run the following:
+
+```
+roslaunch fato_tracker_nodes tracker_model.launch
+```
 
 ## Model Generation
 
