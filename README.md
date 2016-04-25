@@ -10,10 +10,12 @@ ROS-package for detecting and tracking unknown objects in 2D and 3D. For more in
 - [Installation](#markdown-header-installation)
 - [Cameras](#markdown-header-cameras)
 - [Dependencies](#markdown-header-dependencies)
-- [Tracker](#markdown-header-pr2)
+- [Tracker](#markdown-header-tracker)
     - [Tracking 2D](#markdown-header-traking-2D)
     - [Tracking 3D](#markdown-header-tracking=3D)
     - [Offline Mode](#markdown-header-offline-mode)
+    - [Model Tracking]
+- [Model Generation](#markdown-header-model-generation)
 
 ## Installation
 
@@ -154,7 +156,23 @@ To run the tracker in this modality please write the following command in the te
 roslaunch fato_tracker_nodes tracker_offline.launch
 
 ```
+### Model Tracking
 
+The model-based tracker currently works only with monocular cameras and requires a model.h5. There are a couple of models included in the package but please refer to the model generation section to generate your own model.
+
+## Model Generation
+
+This tool is a modification of the model generation implemented in [Simtrack](https://github.com/karlpauwels/simtrack.git). There are two big differences, first SIFT is not the exclusive feature descriptor used to generate the model but
+it is possible to use other descriptors such as ORB, BRISK, AKAZE. Second the feature descriptors are included in the model only if the descriptor are above a manually defined response. This allows to create smaller models and to make the
+detection less noisy. The model generation requires to have a 3D model of the object to track in the .obj format. To run the model generation please run:
+
+
+```
+roslaunch fato_tracker_nodes generate_model.launch
+
+```
+
+Please modify the parameters in the launch file to setup the generation.
 
 
 

@@ -180,6 +180,9 @@ void downloadRenderedImg(pose::MultipleRigidModelsOgre &model_ogre,
 }
 
 int main(int argc, char **argv) {
+
+  ros::init(argc, argv, "fato_generate_model");
+
   // Create dummy GL context before cudaGL init
   render::WindowLessGLContext dummy(10, 10);
 
@@ -205,7 +208,25 @@ int main(int argc, char **argv) {
       0.5236,  0.5236,  0.5236,  0.5236,  0.5236,  0.5236,  0.5236,  1.0472,
       1.0472,  1.0472,  1.0472,  1.0472,  1.0472,  1.5708};
 
-  if (argc < 2) throw std::runtime_error("Usage: ./generate_model model.obj");
+  std::string obj_file_name;
+  float response_thresh;
+  if (true)
+  {
+      ros::param::get("fato/model/object_path", obj_file_name);
+    std::cout << "Reading parameters from config file" << std::endl;
+    std::cout << obj_file_name << std::endl;
+    ros::param::get("fato/model/response", response_thresh);
+    std::stringstream ss;
+    ss << "file path: " << obj_file_name << " threshold " << response_thresh << "\n";
+
+    ROS_INFO(ss.str().c_str());
+  }
+  else
+  {
+      throw std::runtime_error("Cannot read the parameters required");
+  }
+
+
 
   // storage
   std::vector<float> all_keypoints;
@@ -213,7 +234,6 @@ int main(int argc, char **argv) {
   int all_num_features = 0;
 
   // setup the engines
-  std::string obj_file_name(argv[1]);
   pose::MultipleRigidModelsOgre model_ogre(width, height, fx, fy, cx, cy,
                                            near_plane, far_plane);
   model_ogre.addModel(obj_file_name);
@@ -363,7 +383,6 @@ int main(int argc, char **argv) {
 
   int valid_point_count = 0;
   int invalid_points = 0;
-  float response_thresh = 200;
 
   std::vector<float> all_filtered_keypoints;
   std::vector<uchar> all_filtered_descriptors;

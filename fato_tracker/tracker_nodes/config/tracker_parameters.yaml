@@ -30,8 +30,12 @@ pinot/cuboid/estimate_size: true
 
 # debug and testing
 pinot/results/save_output: true
-pinot/results/output_path: /home/alessandro/Debug/
+pinot/results/output_path: /home
 
+# model generation parameters
+fato/model/response: 200
+fato/model/object_path: ($ROS_ROOT)/src/pinot_tracker/fato_tracker/data/ros_fuerte/ros_fuerte.obj
+fato/model/feature_type: 0
 
 
 
