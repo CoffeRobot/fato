@@ -180,7 +180,6 @@ void downloadRenderedImg(pose::MultipleRigidModelsOgre &model_ogre,
 }
 
 int main(int argc, char **argv) {
-
   ros::init(argc, argv, "fato_generate_model");
 
   // Create dummy GL context before cudaGL init
@@ -210,23 +209,11 @@ int main(int argc, char **argv) {
 
   std::string obj_file_name;
   float response_thresh;
-  if (true)
-  {
-      ros::param::get("fato/model/object_path", obj_file_name);
-    std::cout << "Reading parameters from config file" << std::endl;
-    std::cout << obj_file_name << std::endl;
+  if (ros::param::get("fato/model/object_path", obj_file_name)) {
     ros::param::get("fato/model/response", response_thresh);
-    std::stringstream ss;
-    ss << "file path: " << obj_file_name << " threshold " << response_thresh << "\n";
-
-    ROS_INFO(ss.str().c_str());
+  } else {
+    throw std::runtime_error("Cannot read the parameters required");
   }
-  else
-  {
-      throw std::runtime_error("Cannot read the parameters required");
-  }
-
-
 
   // storage
   std::vector<float> all_keypoints;
@@ -302,7 +289,6 @@ int main(int argc, char **argv) {
   std::vector<cv::Mat> img_descriptors;
 
   for (int view_ind = 0; view_ind < rot_x.size(); ++view_ind) {
-
     // compose render transform (tra_center -> rot_view -> tra_z_shift)
     Eigen::Transform<double, 3, Eigen::Affine> t_render;
     getPose(rot_x.at(view_ind), rot_y.at(view_ind), tra_center, t_render);
@@ -326,14 +312,10 @@ int main(int argc, char **argv) {
     int num_features = points.size();
 
     // calculating min and max response
-    for(auto kp : points)
-    {
-        if(kp.response < min_response)
-            min_response = kp.response;
-        if(kp.response > max_response)
-            max_response = kp.response;
+    for (auto kp : points) {
+      if (kp.response < min_response) min_response = kp.response;
+      if (kp.response > max_response) max_response = kp.response;
     }
-
 
     if (!is_init && num_features > 0) {
       all_mat = dscs.clone();
@@ -369,17 +351,17 @@ int main(int argc, char **argv) {
     rendered_imgs.push_back(img_keys);
     img_keypoints.push_back(points);
 
-//    for (auto &it : points) {
-//      cv::circle(img_keys, cv::Point2d(it.pt.x, it.pt.y), 2,
-//                 CV_RGB(0, 255, 0), -1, 8);
+    //    for (auto &it : points) {
+    //      cv::circle(img_keys, cv::Point2d(it.pt.x, it.pt.y), 2,
+    //                 CV_RGB(0, 255, 0), -1, 8);
 
-//      std::cout << it.response << std::endl;
-//    }
-//    std::cout << "\n";
+    //      std::cout << it.response << std::endl;
+    //    }
+    //    std::cout << "\n";
   }
 
-  std::cout << "min response " << min_response << " max reponse " << max_response << std::endl;
-
+  std::cout << "min response " << min_response << " max reponse "
+            << max_response << std::endl;
 
   int valid_point_count = 0;
   int invalid_points = 0;
@@ -387,132 +369,134 @@ int main(int argc, char **argv) {
   std::vector<float> all_filtered_keypoints;
   std::vector<uchar> all_filtered_descriptors;
 
-  for(auto i = 0; i < rendered_imgs.size(); ++i)
-  {
+  for (auto i = 0; i < rendered_imgs.size(); ++i) {
+    cv::Mat img = rendered_imgs.at(i);
+    std::vector<cv::KeyPoint> &key_points = img_keypoints.at(i);
+    cv::Mat &descriptors = img_descriptors.at(i);
+    std::vector<float> &points = projected_points.at(i);
 
-     cv::Mat img = rendered_imgs.at(i);
-     std::vector<cv::KeyPoint>& key_points = img_keypoints.at(i);
-     cv::Mat& descriptors = img_descriptors.at(i);
-     std::vector<float>& points = projected_points.at(i);
+    for (auto j = 0; j < key_points.size(); ++j) {
+      cv::KeyPoint &kp = key_points.at(j);
 
-     for(auto j = 0; j < key_points.size(); ++j)
-     {
-        cv::KeyPoint& kp = key_points.at(j);
+      bool is_valid = true;
 
-        bool is_valid = true;
+      if (kp.response > response_thresh) is_valid = false;
 
-        if(kp.response > response_thresh)
-            is_valid = false;
+      int id = 3 * j;
 
-        int id = 3*j;
+      if (fato::is_nan(points.at(id)) || fato::is_nan(points.at(id + 1)) ||
+          fato::is_nan(points.at(id + 2))) {
+        invalid_points++;
+        is_valid = false;
+      }
 
-        if(fato::is_nan(points.at(id)) || fato::is_nan(points.at(id+1)) || fato::is_nan(points.at(id+2)) )
-        {
-            invalid_points++;
-            is_valid = false;
-        }
+      if (is_valid) {
+        all_filtered_descriptors.insert(
+            all_filtered_descriptors.end(), descriptors.ptr<uchar>(j),
+            descriptors.ptr<uchar>(j) + descriptors.cols);
+        all_filtered_keypoints.insert(all_filtered_keypoints.end(),
+                                      points.begin() + id,
+                                      points.begin() + id + 3);
+        valid_point_count++;
+      }
 
+      // drawing stuff kept separated from saving stuff
+      if (is_valid) {
+        float scaled_response = (kp.response - min_response) /
+                                static_cast<float>(max_response - min_response);
+        uchar b = 255 * (scaled_response);
+        uchar r = 255 * (1 - scaled_response);
+        cv::Scalar color(b, 0, r);
+        cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), kp.size, color, 1, 8);
+        cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 1, color, -1, 8);
+      } else {
+        cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 3, cv::Scalar(0, 255, 0),
+                   -1, 8);
+      }
+    }
 
-        if(is_valid)
-        {
-            all_filtered_descriptors.insert(all_filtered_descriptors.end(), descriptors.ptr<uchar>(j),
-                               descriptors.ptr<uchar>(j) + descriptors.cols);
-            all_filtered_keypoints.insert(all_filtered_keypoints.end(), points.begin() + id,
-                                          points.begin() + id + 3 );
-            valid_point_count++;
-        }
-
-        // drawing stuff kept separated from saving stuff
-        if(is_valid)
-        {
-            float scaled_response = (kp.response - min_response)/static_cast<float>(max_response - min_response);
-            uchar b = 255 * (scaled_response);
-            uchar r = 255 * (1 - scaled_response);
-            cv::Scalar color(b, 0, r);
-            cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), kp.size, color, 1, 8);
-            cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 1, color, -1, 8);
-        }
-        else
-        {
-            cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 3, cv::Scalar(0,255,0), -1, 8);
-        }
-     }
-
-
-     cv::imshow(window_name, img);
-     writer.write(img);
-     cv::waitKey(30);
+    cv::imshow(window_name, img);
+    writer.write(img);
+    cv::waitKey(30);
   }
 
-  std::cout << "Keypoints after response filtering: " << valid_point_count << std::endl;
-  std::cout << "Invalid keypoints after response filtering: " << invalid_points << std::endl;
-  std::cout << "Size of filtered descriptors " << all_filtered_descriptors.size() << std::endl;
-  std::cout << "Size of filtered points " << all_filtered_keypoints.size() << std::endl;
+  std::cout << "Keypoints after response filtering: " << valid_point_count
+            << std::endl;
+  std::cout << "Invalid keypoints after response filtering: " << invalid_points
+            << std::endl;
+  std::cout << "Size of filtered descriptors "
+            << all_filtered_descriptors.size() << std::endl;
+  std::cout << "Size of filtered points " << all_filtered_keypoints.size()
+            << std::endl;
 
   // save
   util::HDF5File out_file(h5_file_name);
   std::vector<int> descriptors_size{valid_point_count, dsc_size};
   std::vector<int> positions_size{valid_point_count, 3};
-  out_file.writeArray("descriptors", all_filtered_descriptors, descriptors_size, true);
-  out_file.writeArray("positions", all_filtered_keypoints, positions_size, true);
+  out_file.writeArray("descriptors", all_filtered_descriptors, descriptors_size,
+                      true);
+  out_file.writeArray("positions", all_filtered_keypoints, positions_size,
+                      true);
 
-//  std::vector<uchar> test_descriptors;
-//  std::vector<int> test_size, point_size;
-//  std::vector<float> points;
-//  // int test_feature_size;
-//  out_file.readArray<uchar>("descriptors", test_descriptors, test_size);
-//  out_file.readArray<float>("positions", points, point_size);
+  //  std::vector<uchar> test_descriptors;
+  //  std::vector<int> test_size, point_size;
+  //  std::vector<float> points;
+  //  // int test_feature_size;
+  //  out_file.readArray<uchar>("descriptors", test_descriptors, test_size);
+  //  out_file.readArray<float>("positions", points, point_size);
 
-//  std::cout << "feature size in: " << test_size[0] << " " << test_size[1]
-//            << std::endl;
-//  std::cout << "points size in: " << point_size[0] << " " << point_size[1]
-//            << std::endl;
+  //  std::cout << "feature size in: " << test_size[0] << " " << test_size[1]
+  //            << std::endl;
+  //  std::cout << "points size in: " << point_size[0] << " " << point_size[1]
+  //            << std::endl;
 
-//  cv::Mat1b test;  //(test_size[0], test_size[1]);
+  //  cv::Mat1b test;  //(test_size[0], test_size[1]);
 
-//  fato::vectorToMat(test_descriptors, test_size, test);
+  //  fato::vectorToMat(test_descriptors, test_size, test);
 
-//  std::cout << "src_dsc " << all_descriptors.size() << " dst_dsc "
-//            << test_descriptors.size() << std::endl;
+  //  std::cout << "src_dsc " << all_descriptors.size() << " dst_dsc "
+  //            << test_descriptors.size() << std::endl;
 
-//  std::cout << "Mat size " << test.cols << "  " << test.rows << std::endl;
+  //  std::cout << "Mat size " << test.cols << "  " << test.rows << std::endl;
 
-//  std::cout << "ALL_Mat size " << all_mat.cols << "  " << all_mat.rows
-//            << std::endl;
+  //  std::cout << "ALL_Mat size " << all_mat.cols << "  " << all_mat.rows
+  //            << std::endl;
 
-//  int err_count = 0;
-//  for (int i = 0; i < all_descriptors.size(); ++i) {
-//    if (all_descriptors.at(i) != test_descriptors.at(i)) err_count++;
-//  }
-//  std::cout << "Errors in the arrays " << err_count << std::endl;
+  //  int err_count = 0;
+  //  for (int i = 0; i < all_descriptors.size(); ++i) {
+  //    if (all_descriptors.at(i) != test_descriptors.at(i)) err_count++;
+  //  }
+  //  std::cout << "Errors in the arrays " << err_count << std::endl;
 
-//  err_count = 0;
-//  for (auto i = 0; i < all_mat.rows; ++i) {
-//    for (auto j = 0; j < all_mat.cols; ++j) {
-//      if (std::abs((int)all_mat.at<uchar>(i, j) - (int)test.at<uchar>(i, j)) !=
-//          0)
-//        err_count++;
-//    }
-//  }
-//  std::cout << "Error in mats " << err_count << "\n";
+  //  err_count = 0;
+  //  for (auto i = 0; i < all_mat.rows; ++i) {
+  //    for (auto j = 0; j < all_mat.cols; ++j) {
+  //      if (std::abs((int)all_mat.at<uchar>(i, j) - (int)test.at<uchar>(i, j))
+  //      !=
+  //          0)
+  //        err_count++;
+  //    }
+  //  }
+  //  std::cout << "Error in mats " << err_count << "\n";
 
-//  err_count = 0;
-//  for (auto i = 0; i < points.size(); ++i) {
-//    if (all_keypoints.at(i) != points.at(i)) {
-//      err_count++;
-//      //std::cout << all_keypoints.at(i) << " " << points.at(i) << std::endl;
-//    }
-//  }
-//  std::cout << "Error in points " << err_count << "\n";
-//  //  for (int i = 0; i < 1; ++i) {
-//  //    for (int j = 0; j < test.cols; ++j) {
-//  //      std::cout << "[" << (int)test.at<uchar>(j, i) << ","
-//  //                << (int)all_mat.at<uchar>(j, i) << "]" <<
-//  //                (int)test1.at<uchar>(i,j)
-//  //                << "," << (int)test_descriptors.at(j) << " ";
-//  //    }
-//  //    std::cout << "\n";
-//  //  }
+  //  err_count = 0;
+  //  for (auto i = 0; i < points.size(); ++i) {
+  //    if (all_keypoints.at(i) != points.at(i)) {
+  //      err_count++;
+  //      //std::cout << all_keypoints.at(i) << " " << points.at(i) <<
+  //      std::endl;
+  //    }
+  //  }
+  //  std::cout << "Error in points " << err_count << "\n";
+  //  //  for (int i = 0; i < 1; ++i) {
+  //  //    for (int j = 0; j < test.cols; ++j) {
+  //  //      std::cout << "[" << (int)test.at<uchar>(j, i) << ","
+  //  //                << (int)all_mat.at<uchar>(j, i) << "]" <<
+  //  //                (int)test1.at<uchar>(i,j)
+  //  //                << "," << (int)test_descriptors.at(j) << " ";
+  //  //    }
+  //  //    std::cout << "\n";
+  //  //  }
 
   return EXIT_SUCCESS;
 }

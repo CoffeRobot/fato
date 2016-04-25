@@ -67,7 +67,6 @@ TrackerModel::TrackerModel(string model_file)
       spinner_(0),
       camera_matrix_initialized(false) {
   cvStartWindowThread();
-  namedWindow("Image Viewer");
 
   publisher_ = nh_.advertise<sensor_msgs::Image>("fato_tracker/output", 1);
 
@@ -134,7 +133,8 @@ void TrackerModel::run(string model_file) {
 
   util::HDF5File in_file(model_file);
 
-  VideoWriter video_writer("/home/alessandro/Downloads/","pose_estimation.avi", 640,480, 1, 30);
+  VideoWriter video_writer("/home/alessandro/Downloads/", "pose_estimation.avi",
+                           640, 480, 1, 30);
 
   TrackerMB tracker(params, BRISK, std::move(derived));
   ROS_INFO("TrackerMB: setting model...");
@@ -152,24 +152,22 @@ void TrackerModel::run(string model_file) {
     if (img_updated_) {
       cv_bridge::CvImage cv_img;
 
-      if(!camera_matrix_initialized)
-          continue;
-      else if(camera_matrix_initialized && !camera_is_set)
-      {
-          Mat cam(3, 3, CV_64FC1);
-          for (int i = 0; i < cam.rows; ++i) {
-            for (int j = 0; j < cam.cols; ++j) {
-              cam.at<double>(i, j) = camera_matrix_.at<double>(i, j);
-            }
+      if (!camera_matrix_initialized)
+        continue;
+      else if (camera_matrix_initialized && !camera_is_set) {
+        Mat cam(3, 3, CV_64FC1);
+        for (int i = 0; i < cam.rows; ++i) {
+          for (int j = 0; j < cam.cols; ++j) {
+            cam.at<double>(i, j) = camera_matrix_.at<double>(i, j);
           }
-          tracker.setCameraMatrix(cam);
-          camera_is_set = true;
+        }
+        tracker.setCameraMatrix(cam);
+        camera_is_set = true;
       }
 
-      if(!background_learned)
-      {
-          tracker.learnBackground(rgb_image_);
-          background_learned = true;
+      if (!background_learned) {
+        tracker.learnBackground(rgb_image_);
+        background_learned = true;
       }
 
       // cout << "Frame" << endl;
@@ -204,66 +202,36 @@ void TrackerModel::run(string model_file) {
         }
       }
 
-      const Target& target = tracker.getTarget();
+      const Target &target = tracker.getTarget();
 
-//      if(inliers.size() > 5)
-//      {
-//        target_found = true;
-//        prev_translation = translation.clone();
-//        prev_rotation = rotation.clone();
-//      }
+      //      if(inliers.size() > 5)
+      //      {
+      //        target_found = true;
+      //        prev_translation = translation.clone();
+      //        prev_rotation = rotation.clone();
+      //      }
 
-//      vector<bool> is_in(valid_points.size(), false);
-//      for (int i : inliers) {
-//        is_in[i] = true;
-//      }
+      //      vector<bool> is_in(valid_points.size(), false);
+      //      for (int i : inliers) {
+      //        is_in[i] = true;
+      //      }
 
-      cv::Point3f center(0,0,0);
+      cv::Point3f center(0, 0, 0);
       for (auto i = 0; i < target.active_points.size(); ++i) {
+        int id = target.active_to_model_.at(i);
 
-          int id = target.active_to_model_.at(i);
+        Scalar color;
+        if (target.point_status_.at(id) == Status::MATCH)
+          color = Scalar(255, 0, 0);
+        else if (target.point_status_.at(id) == Status::TRACK)
+          color = Scalar(0, 255, 0);
 
-          Scalar color;
-          if(target.point_status_.at(id) == Status::MATCH)
-              color = Scalar(255,0,0);
-          else if(target.point_status_.at(id) == Status::TRACK)
-              color = Scalar(0,255,0);
-
-          circle(rgb_image_, target.active_points.at(i), 3, color);
-          //center += model_points.at(i);
+        circle(rgb_image_, target.active_points.at(i), 3, color);
+        // center += model_points.at(i);
       }
 
-      //center.x = center.x / static_cast<float>(inliers.size());
-      //center.y = center.y / static_cast<float>(inliers.size());
-      //center.z = center.z / static_cast<float>(inliers.size());
-
-      drawObjectPose(target.centroid_, cam, target.rotation, target.translation, rgb_image_);
-
-//      int track_count = 0;
-//      int match_count = 0;
-//      int lost_count = 0;
-
-//      for(auto s : target.point_status_)
-//      {
-//        if(s == Status::MATCH)
-//            match_count++;
-//        if(s == Status::TRACK)
-//            track_count++;
-//        if(s == Status::LOST)
-//            lost_count++;
-//      }
-
-      //cout << "M " << match_count << " T " << track_count << " L " << lost_count << endl;
-
-      //      for (auto pt : valid_points)
-      //        circle(rgb_image_, pt, 3, cv::Scalar(255, 0, 0));
-
-      //      for(int i = 0; i < matches.size(); ++i)
-      //      {
-      //        cv::DMatch& d = matches.at(i)[0];
-      //        circle(rgb_image_, query_keypoints.at(d.trainIdx).pt, 3,
-      //        cv::Scalar(255,0,0));
-      //      }
+      drawObjectPose(target.centroid_, cam, target.rotation, target.translation,
+                     rgb_image_);
 
       cv_img.image = rgb_image_;
       cv_img.encoding = sensor_msgs::image_encodings::BGR8;
@@ -281,11 +249,13 @@ void TrackerModel::run(string model_file) {
 
 int main(int argc, char *argv[]) {
   ROS_INFO("Starting tracker input");
-  ros::init(argc, argv, "fato_tracker_node");
+  ros::init(argc, argv, "fato_tracker_model_node");
 
-  if (argc < 2) throw std::runtime_error("Usage: ./track_model model.h5");
+  string model_name;
 
-  string model_name(argv[1]);
+  if (!ros::param::get("fato/model/h5_file", model_name)) {
+    throw std::runtime_error("cannot read file ros param");
+  }
 
   fato::TrackerModel manager(model_name);
 
