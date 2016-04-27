@@ -34,7 +34,8 @@
 
 #include <vector>
 #include <opencv2/core/core.hpp>
-#include <constants.h>
+
+#include "constants.h"
 
 namespace fato{
 
@@ -56,7 +57,7 @@ public:
     std::vector<cv::Point3f> model_points_;
     std::vector<cv::Point3f> rel_distances_;
     std::vector<cv::Point2f> active_points;
-    std::vector<Status> point_status_;
+    std::vector<KpStatus> point_status_;
 
     cv::Mat descriptors_;
 
@@ -64,8 +65,8 @@ public:
 
     std::vector<int> active_to_model_;
 
-    cv::Mat rotation;
-    cv::Mat translation;
+    cv::Mat rotation, rotation_custom;
+    cv::Mat translation, translation_custom;
     cv::Mat rotation_vec;
 
 

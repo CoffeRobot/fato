@@ -49,21 +49,9 @@
 #include "matcher.h"
 #include "config.h"
 #include "feature_matcher.hpp"
+#include "constants.h"
 
 namespace fato {
-
-enum struct Status {
-  INIT = 0,
-  MATCH,
-  NOMATCH,
-  TRACK,
-  BOTH,
-  BACKGROUND,
-  LOST,
-  NOCLUSTER,
-  LEARN
-};
-
 
 class Tracker {
  public:
@@ -89,7 +77,7 @@ class Tracker {
 
   const std::vector<cv::Point2f>* getPoints() { return &m_updatedPoints; }
 
-  const std::vector<Status>* getPointsStatus() { return &m_pointsStatus; }
+  const std::vector<KpStatus>* getPointsStatus() { return &m_pointsStatus; }
 
   const std::vector<int>* getPointsIds() { return &m_upd_to_init_ids; }
 
@@ -129,7 +117,7 @@ class Tracker {
   std::atomic_int m_flow_counter;
   std::atomic_int m_match_counter;
   int m_original_model_size;
-  std::vector<Status> m_points_status_debug;
+  std::vector<KpStatus> m_points_status_debug;
 
  private:
   int runTracker();
@@ -150,7 +138,7 @@ class Tracker {
   void getOpticalFlow(const cv::Mat& prev,
                       const cv::Mat& next,
                       std::vector<cv::Point2f>& points, std::vector<int>& ids,
-                      std::vector<Status>& status);
+                      std::vector<KpStatus>& status);
 
   float getMedianRotation(const std::vector<cv::Point2f>& initPoints,
                           const std::vector<cv::Point2f>& updPoints,
@@ -170,27 +158,27 @@ class Tracker {
                           std::vector<cv::Point2f>& votes,
                           std::vector<cv::Point2f>& relDistances,
                           std::vector<int>& ids,
-                          std::vector<Status>& pointsStatus);
+                          std::vector<KpStatus>& pointsStatus);
 
   void labelNotClusteredPts(const std::vector<bool>& isClustered,
                             std::vector<cv::Point2f>& points,
                             std::vector<cv::Point2f>& votes,
                             std::vector<cv::Point2f>& relDistances,
                             std::vector<int>& ids,
-                            std::vector<Status>& pointsStatus);
+                            std::vector<KpStatus>& pointsStatus);
 
   void discardNotClustered(std::vector<cv::Point2f>& upd_points,
                            std::vector<cv::Point2f>& init_pts,
                            cv::Point2f& upd_centroid,
                            cv::Point2f& init_centroid, std::vector<int>& ids,
-                           std::vector<Status>& pointsStatus);
+                           std::vector<KpStatus>& pointsStatus);
 
   void removeLostPoints(const std::vector<bool>& isClustered,
                         std::vector<cv::Point2f>& points,
                         std::vector<cv::Point2f>& votes,
                         std::vector<cv::Point2f>& relDistances,
                         std::vector<int>& ids,
-                        std::vector<Status>& pointsStatus);
+                        std::vector<KpStatus>& pointsStatus);
 
   void updateCentroid(const float& angle, const float& scale,
                       const std::vector<cv::Point2f>& votes,
@@ -258,7 +246,7 @@ class Tracker {
   cv::Mat m_initDescriptors;
   std::vector<cv::KeyPoint> m_initKeypoints;
   std::vector<cv::Point2f> m_points;
-  std::vector<Status> m_pointsStatus;
+  std::vector<KpStatus> m_pointsStatus;
   std::unique_ptr<FeatureMatcher> feature_detector_;
 
   /****************************************************************************/

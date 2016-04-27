@@ -31,10 +31,11 @@
 /*****************************************************************************/
 
 #include <OgreRoot.h>
-#include <ogre_multi_render_target.h>
 #include <RenderSystems/GL/OgreGLTexture.h>
 #include <cuda_gl_interop.h>
 #include <GL/glx.h>
+
+#include "../include/ogre_multi_render_target.h"
 
 namespace render {
 

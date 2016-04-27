@@ -20,7 +20,7 @@
   <build_depend>tf</build_depend>
   <build_depend>image_geometry</build_depend>
   <build_depend>tracker_gpu</build_depend>
-  <build_depend>tracker_cpu</build_depend>
+  <build_depend>tracker</build_depend>
   <build_depend>utilities</build_depend>
   <build_depend>fato_rendering</build_depend>
   <build_depend>cuda</build_depend>
@@ -34,7 +34,7 @@
   <run_depend>tf</run_depend>
   <run_depend>image_geometry</run_depend>
   <run_depend>tracker_gpu</run_depend>
-  <run_depend>tracker_cpu</run_depend>
+  <run_depend>tracker</run_depend>
   <run_depend>utilities</run_depend>
   <run_depend>fato_rendering</run_depend>
   <run_depend>cuda</run_depend>

@@ -30,8 +30,8 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-#ifndef CONSTANTS_H
-#define CONSTANTS_H
+#ifndef UT_CONSTANTS_H
+#define UT_CONSTANTS_H
 
 //FIXME: fix error related to namespace here
 //TODO: move this inside the tracker
@@ -56,6 +56,7 @@ enum FACE : int {
   FRONT,
   BACK
 };
+
 
 #endif
 

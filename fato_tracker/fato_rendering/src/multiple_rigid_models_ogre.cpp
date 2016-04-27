@@ -36,7 +36,7 @@
 #include <chrono>
 #include <stdexcept>
 #include <Eigen/Dense>
-#include <multiple_rigid_models_ogre.h>
+#include "../include/multiple_rigid_models_ogre.h"
 
 namespace pose {
 

@@ -31,7 +31,7 @@ set(TRACKER_MODULES
       tf
       image_geometry
       utilities
-      tracker_cpu
+      tracker
       tracker_io
 )
 
@@ -112,3 +112,12 @@ target_link_libraries(test_projection
     ${catkin_LIBRARIES}
     ${OPENCV_LIBS}
     ${Boost_LIBRARIES})
+
+  add_executable(epnp_test
+    src/epnp_test.cpp
+   )
+
+ target_link_libraries(epnp_test
+   ${catkin_LIBRARIES}
+   ${OPENCV_LIBS}
+   ${Boost_LIBRARIES})

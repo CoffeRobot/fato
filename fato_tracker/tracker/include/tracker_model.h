@@ -71,10 +71,6 @@ class TrackerMB {
 
   void learnBackground(const cv::Mat& rgb);
 
-  void init(const cv::Mat &rgb, const cv::Point2d &fst, const cv::Point2d &scd);
-
-  void init(const cv::Mat& rgb, const cv::Mat& mask);
-
   void initSequential(const cv::Mat& rgb, const cv::Mat& mask);
 
   void setFeatureExtractionParameters(int num_features, float scale_factor,
@@ -89,7 +85,7 @@ class TrackerMB {
 
   const std::vector<cv::Point2f>* getPoints() { return &m_updatedPoints; }
 
-  const std::vector<Status>* getPointsStatus() { return &m_pointsStatus; }
+  const std::vector<KpStatus>* getPointsStatus() { return &m_pointsStatus; }
 
   std::vector<cv::Point2f> getActivePoints();
 
@@ -98,14 +94,6 @@ class TrackerMB {
   const std::vector<int>* getPointsIds() { return &m_upd_to_init_ids; }
 
   const std::vector<cv::Point2f>* getInitPoints() { return &m_points; }
-
-  cv::Point2f getCentroid() { return m_updatedCentroid; }
-
-  cv::Point2f getInitCentroid() { return m_initCentroid; }
-
-  std::vector<cv::Point2f> getBoundingBox() { return m_boundingBoxUpdated; }
-
-  bool getEstimatedPosition(std::vector<cv::Point2f>& bounding_box);
 
 
   const Target& getTarget(){return target_object_;}
@@ -136,7 +124,7 @@ class TrackerMB {
   std::atomic_int m_flow_counter;
   std::atomic_int m_match_counter;
   int m_original_model_size;
-  std::vector<Status> m_points_status_debug;
+  std::vector<KpStatus> m_points_status_debug;
 
  private:
   int runTracker();
@@ -145,78 +133,14 @@ class TrackerMB {
 
   cv::Point2f initCentroid(const std::vector<cv::Point2f>& points);
 
-  void initRelativeDistance(const std::vector<cv::Point2f>& points,
-                            const cv::Point2f& centroid,
-                            std::vector<cv::Point2f>& relDistances);
-
-  void initBoundingBox(const cv::Mat& mask, const cv::Point2f& centroid,
-                       std::vector<cv::Point2f>& initBox,
-                       std::vector<cv::Point2f>& relativeBox,
-                       std::vector<cv::Point2f>& updBox);
-
   void getOpticalFlow(const cv::Mat& prev,
                       const cv::Mat& next,
                       std::vector<cv::Point2f>& points, std::vector<int>& ids,
-                      std::vector<Status>& status);
+                      std::vector<KpStatus>& status);
 
   void getOpticalFlow(const cv::Mat& prev,
                       const cv::Mat& next,
                       Target& target);
-
-  float getMedianRotation(const std::vector<cv::Point2f>& initPoints,
-                          const std::vector<cv::Point2f>& updPoints,
-                          const std::vector<int>& ids);
-
-  float getMedianScale(const std::vector<cv::Point2f>& initPoints,
-                       const std::vector<cv::Point2f>& updPoints,
-                       const std::vector<int>& ids);
-
-  void voteForCentroid(const std::vector<cv::Point2f>& relativeDistances,
-                       const std::vector<cv::Point2f>& updPoints,
-                       const float& angle, const float& scale,
-                       std::vector<cv::Point2f>& votes);
-
-  void updatePointsStatus(const std::vector<bool>& isClustered,
-                          std::vector<cv::Point2f>& points,
-                          std::vector<cv::Point2f>& votes,
-                          std::vector<cv::Point2f>& relDistances,
-                          std::vector<int>& ids,
-                          std::vector<Status>& pointsStatus);
-
-  void labelNotClusteredPts(const std::vector<bool>& isClustered,
-                            std::vector<cv::Point2f>& points,
-                            std::vector<cv::Point2f>& votes,
-                            std::vector<cv::Point2f>& relDistances,
-                            std::vector<int>& ids,
-                            std::vector<Status>& pointsStatus);
-
-  void discardNotClustered(std::vector<cv::Point2f>& upd_points,
-                           std::vector<cv::Point2f>& init_pts,
-                           cv::Point2f& upd_centroid,
-                           cv::Point2f& init_centroid, std::vector<int>& ids,
-                           std::vector<Status>& pointsStatus);
-
-  void removeLostPoints(const std::vector<bool>& isClustered,
-                        std::vector<cv::Point2f>& points,
-                        std::vector<cv::Point2f>& votes,
-                        std::vector<cv::Point2f>& relDistances,
-                        std::vector<int>& ids,
-                        std::vector<Status>& pointsStatus);
-
-  void updateCentroid(const float& angle, const float& scale,
-                      const std::vector<cv::Point2f>& votes,
-                      const std::vector<bool>& isClustered,
-                      cv::Point2f& updCentroid);
-
-  void updateBoundingBox(const float& angle, const float& scale,
-                         const std::vector<cv::Point2f>& boundingBoxRelative,
-                         const cv::Point2f& updCentroid,
-                         std::vector<cv::Point2f>& updBox);
-
-  void clusterVotes(std::vector<cv::Point2f>& centroidVotes,
-                    std::vector<bool>& isClustered);
-
-  bool evaluatePose(const float& angle, const float& scale);
 
   void projectPointsToModel(const cv::Point2f& model_centroid,
                             const cv::Point2f& upd_centroid, const float angle,
@@ -237,10 +161,6 @@ class TrackerMB {
                         std::vector<cv::Point2f>& current_valid_pts);
 
   bool isPointValid(const int& id);
-
-  void trackNext(cv::Mat next);
-
-  void detectNext(cv::Mat next);
 
   void trackSequential(cv::Mat& next);
 
@@ -274,7 +194,7 @@ class TrackerMB {
   cv::Mat m_initDescriptors;
   std::vector<cv::KeyPoint> m_initKeypoints;
   std::vector<cv::Point2f> m_points;
-  std::vector<Status> m_pointsStatus;
+  std::vector<KpStatus> m_pointsStatus;
   std::unique_ptr<FeatureMatcher> feature_detector_;
 
   /****************************************************************************/
@@ -285,16 +205,7 @@ class TrackerMB {
   std::vector<cv::Point2f> m_votes;
   std::vector<int> m_upd_to_init_ids;
   std::vector<int> m_init_to_upd_ids;
-//  cv::gpu::PyrLKOpticalFlow m_dPyrLK;
-//  cv::gpu::GpuMat dm_prev, dm_prevGray;
-  /****************************************************************************/
-  /*                       TRACKED MODEL                                      */
-  /****************************************************************************/
-  cv::Point2f m_initCentroid;
-  cv::Point2f m_updatedCentroid;
-  std::vector<cv::Point2f> m_boundingBoxRelative;
-  std::vector<cv::Point2f> m_boundingBox;
-  std::vector<cv::Point2f> m_boundingBoxUpdated;
+
   /****************************************************************************/
   /*                       LEARN MODEL                                        */
   /****************************************************************************/
