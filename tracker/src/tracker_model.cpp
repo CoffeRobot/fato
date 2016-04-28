@@ -306,7 +306,7 @@ void TrackerMB::trackSequential(Mat& next) {
     vector<int> inliers;
     solvePnPRansac(model_pts, target_object_.active_points, camera_matrix_,
                    Mat::zeros(1, 8, CV_64F), target_object_.rotation_vec,
-                   target_object_.translation, false, num_iters, ransac_error,
+                   target_object_.translation, true, num_iters, ransac_error,
                    model_pts.size(), inliers, CV_EPNP);
 
     try {
@@ -327,7 +327,6 @@ void TrackerMB::trackSequential(Mat& next) {
     custom_pnp.getPose(target_object_.rotation_custom, target_object_.translation_custom);
 
     cout << "inliers: " << inliers.size() << " custom " << custom_inliers.size() << endl;
-
 
     vector<int> to_remove;
     if (inliers.size() > 0) {

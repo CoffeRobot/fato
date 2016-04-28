@@ -287,6 +287,30 @@ void TrackerModel::run(string model_file) {
       drawObjectPose(target.centroid_, cam, target.rotation, target.translation,
                      rgb_image_);
 
+      if (target.active_to_model_.size()) {
+        std::vector<Point3f> model_pts;
+        std::vector<Point3f> rel_pts;
+
+        for (auto i = 0; i < target.active_to_model_.size(); ++i) {
+          model_pts.push_back(
+              target.model_points_.at(target.active_to_model_.at(i)));
+          rel_pts.push_back(
+              target.rel_distances_.at(target.active_to_model_.at(i)));
+        }
+
+        std::vector<Point2f> model_2d, rel_2d;
+
+        projectPoints(model_pts, target.rotation, target.translation, cam,
+                      Mat(), model_2d);
+        projectPoints(rel_pts, target.rotation, target.translation, cam, Mat(),
+                      rel_2d);
+
+        for (auto i = 0; i < model_2d.size(); ++i) {
+          line(rgb_image_, model_2d.at(i), rel_2d.at(i), Scalar(255, 0, 0), 1);
+          //cout << model_2d.at(i) << " " << rel_2d.at(i) << "\n";
+        }
+      }
+
       const Mat &tvec = target.translation;
       const Mat &rvec = target.rotation_vec;
 
@@ -301,30 +325,26 @@ void TrackerModel::run(string model_file) {
 
       double determinant = a.determinant();
 
-      cout << "determint cv " << determinant << " cus " << b.determinant() << endl;
+      cout << "determint cv " << determinant << " cus " << b.determinant()
+           << endl;
 
       double err = 0;
 
-      for(auto i = 0; i < 3; ++i)
-      {
-          for(auto j = 0; j < 3; ++j)
-          {
-              double dt = a(i,j) - b(i,j);
-              err +=  sqrt(err * err);
-          }
+      for (auto i = 0; i < 3; ++i) {
+        for (auto j = 0; j < 3; ++j) {
+          double dt = a(i, j) - b(i, j);
+          err += sqrt(err * err);
+        }
       }
 
-      if(err > 1)
-      {
-          for(auto i = 0; i < 3; ++i)
-          {
-              for(auto j = 0; j < 3; ++j)
-              {
-                  cout << std::setprecision(2) << a(i,j) << "|" << b(i,j) << " ";
-              }
-              cout << "\n";
+      if (err > 1) {
+        for (auto i = 0; i < 3; ++i) {
+          for (auto j = 0; j < 3; ++j) {
+            cout << std::setprecision(2) << a(i, j) << "|" << b(i, j) << " ";
           }
           cout << "\n";
+        }
+        cout << "\n";
       }
 
       double T[] = {tvec.at<double>(0, 0), tvec.at<double>(0, 1),
@@ -336,20 +356,13 @@ void TrackerModel::run(string model_file) {
       TR.at(0) = pose::TranslationRotation3D(T, R);
       rendering_engine->render(TR);
 
-      //      Eigen::Transform<double, 3, Eigen::Affine> t_render;
-      //      getPose(target.rotation, target.translation, t_render);
-      //      renderObject(t_render, *rendering_engine);
       std::vector<uchar4> h_texture(480 * 640);
       downloadRenderedImg(*rendering_engine, h_texture);
 
       cv::Mat img_rgba(480, 640, CV_8UC4, h_texture.data());
       cv::Mat img_rgb;
       cv::cvtColor(img_rgba, img_rgb, CV_RGBA2BGR);
-      //      cout << "t rot" << target.rotation.rows << " " <<
-      //      target.rotation.cols
-      //           << "\n";
-      //      cout << "t tra" << target.translation.rows << " "
-      //           << target.translation.cols << "\n";
+
       cv_bridge::CvImage cv_img, cv_rend;
       cv_img.image = rgb_image_;
       cv_img.encoding = sensor_msgs::image_encodings::BGR8;

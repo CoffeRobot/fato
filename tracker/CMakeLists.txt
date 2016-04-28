@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 2.8.7)
-
 project(tracker)
 
 find_package(catkin REQUIRED COMPONENTS
@@ -19,13 +18,15 @@ find_package(OpenCV REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native")
+
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS image_geometry utilities clustering
 )
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native")
+message("Project source dir: " ${PROJECT_SOURCE_DIR})
 
 # show additional files in qtcreator
 execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f
@@ -33,7 +34,7 @@ execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f
 string(REPLACE "\n" ";" FILES_LIST ${FILES_STRING})
 add_custom_target(additional_files_${PROJECT_NAME} SOURCES
   ${FILES_LIST}
-  ${PROJECT_SOURCE_DIR}/../../README.md
+  ${PROJECT_SOURCE_DIR}/../README.md
 )
 
 include_directories(

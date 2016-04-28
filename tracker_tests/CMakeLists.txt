@@ -67,8 +67,7 @@ execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f
 string(REPLACE "\n" ";" FILES_LIST ${FILES_STRING})
 add_custom_target(additional_files_${PROJECT_NAME} SOURCES
   ${FILES_LIST}
-  ${PROJECT_SOURCE_DIR}/../../README.md
-  ${PROJECT_SOURCE_DIR}/CMakeLists.txt
+  ${PROJECT_SOURCE_DIR}/../README.md
 )
 
 

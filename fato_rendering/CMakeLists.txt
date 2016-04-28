@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.7)
-project(fato_cuda)
+project(fato_rendering)
 
 find_package(catkin REQUIRED COMPONENTS
   cmake_modules
@@ -7,9 +7,9 @@ find_package(catkin REQUIRED COMPONENTS
   resource_retriever
 )
 
-if(TRACKER_VERBOSE_LOGGING)
-  add_definitions(-DVERBOSE_LOGGING)
-endif()
+#if(TRACKER_VERBOSE_LOGGING)
+#  add_definitions(-DVERBOSE_LOGGING)
+#endif()
 
 find_package(OpenCV REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -17,21 +17,6 @@ find_package(CUDA 6.5 REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 find_package(urdfdom REQUIRED)
-
-set(GENCODE_SM20 -gencode=arch=compute_20,code=sm_20)
-set(GENCODE_SM30 -gencode=arch=compute_30,code=sm_30)
-set(GENCODE_SM35 -gencode=arch=compute_35,code=sm_35)
-set(GENCODE_SM50 -gencode=arch=compute_50,code=sm_50)
-set(GENCODE_SM52 -gencode=arch=compute_52,code=sm_52)
-set(CUDA_NVCC_FLAGS -O3;--compiler-options;-fPIC;-ftz=true;-prec-sqrt=false;-prec-div=false)
-set(CUDA_PROPAGATE_HOST_FLAGS OFF) # don't propagate c++11 options to nvcc
-if (${CUDA_VERSION_MAJOR} LESS 7)
-    set(CUDA_OPTIONS ${GENCODE_SM20} ${GENCODE_SM30} ${GENCODE_SM35} ${VERBOSE_PTXAS})
-else()
-    set(CUDA_OPTIONS ${GENCODE_SM20} ${GENCODE_SM30} ${GENCODE_SM35} ${GENCODE_SM50} ${GENCODE_SM52} ${VERBOSE_PTXAS})
-endif()
-
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 pkg_check_modules(GLEW REQUIRED glew)
 
@@ -59,6 +44,7 @@ set(ENV_CONFIG_FILE ${CMAKE_CURRENT_BINARY_DIR}/env_config.cpp)
 #message("making version ${RVIZ_VERSION}.")
 set(ROS_DISTRO $ENV{ROS_DISTRO})
 
+configure_file(src/env_config.cpp.in ${ENV_CONFIG_FILE} @ONLY)
 
 # find absolute path of ogre libraries.
 # This is stored in the cache to save time on cmake re-run.
@@ -129,10 +115,14 @@ catkin_package(
   LIBRARIES
     ${PROJECT_NAME}
     ${OGRE_OV_LIBRARIES_ABS}
+    ${urdfdom_LIBRARIES}
   CATKIN_DEPENDS
+    fato_cuda
+    utilities
 )
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native")
+#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -march=native")
 
 # show additional files in qtcreator
 execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f
@@ -140,7 +130,7 @@ execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f
 string(REPLACE "\n" ";" FILES_LIST ${FILES_STRING})
 add_custom_target(additional_files_${PROJECT_NAME} SOURCES
   ${FILES_LIST}
-  ${PROJECT_SOURCE_DIR}/../../README.md
+  ${PROJECT_SOURCE_DIR}/../README.md
 )
 
 include_directories(include
@@ -149,12 +139,19 @@ include_directories(include
   ${EIGEN_INCLUDE_DIR}
   ${OGRE_OV_INCLUDE_DIRS}
   ${urdfdom_INCLUDE_DIRS}
+  ${CUDA_INCLUDE_DIRS}
 )
 
-cuda_add_library(${PROJECT_NAME}
-  src/utility_kernels_pose.cu
-  src/utility_kernels.cu
-  OPTIONS ${CUDA_OPTIONS}
+add_library(${PROJECT_NAME}
+  src/multiple_rigid_models_ogre.cpp
+  src/ogre_context.cpp
+  src/ogre_multi_render_target.cpp
+  src/translation_rotation_3d.cpp
+  src/windowless_gl_context
+  src/rigid_object.cpp
+  src/mesh_loader.cpp
+  src/stl_loader.cpp
+  ${ENV_CONFIG_FILE}
 )
 
 target_link_libraries(${PROJECT_NAME}

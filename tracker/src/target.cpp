@@ -30,9 +30,11 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-#include "../include/target.hpp"
+//#include "../include/target.hpp"
 #include <iostream>
 #include <fstream>
+#include <opencv2/calib3d/calib3d.hpp>
+#include <target.hpp>
 
 using namespace cv;
 
@@ -48,7 +50,7 @@ void Target::init(std::vector<cv::Point3f> &points, cv::Mat &descriptors) {
   point_status_.resize(model_points_.size(), KpStatus::LOST);
 
   for (auto pt : model_points_) {
-    rel_distances_.push_back(pt - centroid_);
+    rel_distances_.push_back(centroid_ - pt);
   }
 
   int reserved_memory = model_points_.size() / 10;
@@ -64,15 +66,8 @@ void Target::init(std::vector<cv::Point3f> &points, cv::Mat &descriptors) {
 }
 
 void Target::removeInvalidPoints(const std::vector<int> &ids) {
-  //  std::ofstream file;
-  //  file.open("/home/alessandro/debug/debug_match.txt",
-  //            std::ofstream::out | std::ofstream::app);
-
-  //  std::stringstream ss;
 
   int last_valid = active_points.size() - 1;
-
-  // vector<int> ids_old = active_to_model_;
 
   for (auto id : ids) {
     int mid = active_to_model_.at(id);
@@ -95,84 +90,9 @@ void Target::removeInvalidPoints(const std::vector<int> &ids) {
   active_points.resize(resized);
   active_to_model_.resize(resized);
 
-  //  ss << "Status after removing: " << std::endl;
-  //  for (int i = 0; i < point_status_.size(); ++i) {
-  //      auto s = point_status_.at(i);
-
-  //      if (s == Status::MATCH || s == Status::TRACK)
-  //          ss << "[" << i << "," << (int)s << "] ";
-  //  }
-  //  ss << "\n\n";
-
   if (!isConsistent()) {
     std::cout << "ERROR!" << std::endl;
-
-    //    ss << "Input List\n";
-    //    for(auto id : ids_old)
-    //    {
-    //        auto s = point_status_.at(id);
-    //        ss << "[" << id << "," << (int)s << "] ";
-    //    }
-    //    ss << "\n\n";
-    //    ss << "Updated List\n";
-    //    for(auto id : active_to_model_)
-    //    {
-    //        auto s = point_status_.at(id);
-    //        ss << "[" << id << "," << (int)s << "] ";
-    //    }
-    //    ss << "\n\n";
-    //    ss << "Status List\n";
-    //    for(auto i = 0; i < point_status_.size(); ++i)
-    //    {
-    //        bool in_remove = false;
-    //        bool in_active = false;
-
-    //        for(auto j : ids)
-    //        {
-    //            if(i == ids_old.at(j))
-    //            {
-    //                in_remove = true;
-    //                break;
-    //            }
-    //        }
-
-    //        for(auto j : active_to_model_)
-    //        {
-    //            if(i == j)
-    //            {
-    //                in_active = true;
-    //                break;
-    //            }
-    //        }
-
-    //        auto s = point_status_.at(i);
-    //        if(s == Status::MATCH || s == Status::TRACK)
-    //            ss << i << "," << (int)s << "," << in_active << "," <<
-    //            in_remove << "\n";
-    //    }
-    //    ss << "\n";
-    //    ss << "To remove: \n";
-    //    for(auto id : ids)
-    //    {
-    //        ss << old_active_to_model.at(id) << " ";
-    //    }
-    //    ss << "\n";
-    //    ss << "Resizing to: " << resized << "\n";
-    //    for(int i =0; i < old_active_to_model.size(); ++i)
-    //    {
-    //        if(i >= resized)
-    //          ss << "-";
-    //        else
-    //          ss << " ";
-
-    //        ss << old_active_to_model.at(i) << " " <<
-    //        (int)point_status_.at(old_active_to_model.at(i)) <<  "\n";
-    //    }
-    //    ss << "\n\n";
-
-    //    file << ss.str();
   }
-  // file.close();
 }
 
 bool Target::isConsistent() {
@@ -183,4 +103,28 @@ bool Target::isConsistent() {
   }
   return true;
 }
+
+void Target::projectVectors(Mat &camera, Mat &out)
+{
+
+    std::vector<Point3f*> model_pts;
+    std::vector<Point3f*> rel_pts;
+
+    for(auto i = 0; i < active_to_model_.size(); ++i)
+    {
+        model_pts.push_back(&model_points_.at(active_to_model_.at(i)));
+        rel_pts.push_back(&rel_distances_.at(active_to_model_.at(i)));
+    }
+
+    std::vector<Point2f> model_2d, rel_2d;
+    projectPoints(model_pts, rotation, translation, camera, Mat(), model_2d);
+    projectPoints(rel_pts, rotation, translation, camera, Mat(), rel_2d);
+
+    for(auto i = 0; i < model_2d.size(); ++i)
+    {
+        line(out, model_2d.at(i), rel_2d.at(i), Scalar(0,255,0));
+    }
+}
+
+
 }

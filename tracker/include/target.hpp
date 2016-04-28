@@ -54,6 +54,8 @@ public:
 
     bool isConsistent();
 
+    void projectVectors(cv::Mat &camera, cv::Mat& out);
+
     std::vector<cv::Point3f> model_points_;
     std::vector<cv::Point3f> rel_distances_;
     std::vector<cv::Point2f> active_points;
