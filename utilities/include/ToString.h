@@ -52,7 +52,7 @@ namespace fato{
 
 std::string toString(const cv::Point2f& p);
 
-std::string toString(const Status& s);
+std::string toString(const FatoStatus& s);
 
 std::string toString(const cv::Point3f& point);
 

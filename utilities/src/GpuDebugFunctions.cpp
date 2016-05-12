@@ -40,7 +40,7 @@ using namespace cv;
 
 namespace fato{
 
-void DrawFlowPoints(const vector<Point2f>* points, const vector<Status>* pointsStatus,
+void DrawFlowPoints(const vector<Point2f>* points, const vector<FatoStatus>* pointsStatus,
 	const vector<int>* pointsIds, Mat& out)
 {
   //cout << "P " << points->size() << " S " << pointsStatus->size() << " I "
@@ -48,11 +48,11 @@ void DrawFlowPoints(const vector<Point2f>* points, const vector<Status>* pointsS
 	for (int i = 0; i < points->size(); ++i)
 	{
 		const int id = pointsIds->at(i);
-    if (pointsStatus->at(id) == Status::TRACK)
+    if (pointsStatus->at(id) == FatoStatus::TRACK)
 		{
 			circle(out, points->at(i), 3, Scalar(255, 0, 0), 1);
 		}
-    else if(pointsStatus->at(id) == Status::MATCH)
+    else if(pointsStatus->at(id) == FatoStatus::MATCH)
     {
       circle(out, points->at(i), 3, Scalar(0, 255, 0), 1);
     }
@@ -68,7 +68,7 @@ void DrawFlowPoints(const vector<Point2f>* points, const vector<Status>* pointsS
 }
 
 void DrawDetectedPoints(const vector<Point2f>* initPts, const vector<Point2f>* updPts,
-	const vector<Status>* ptsStatus, const vector<int>* ptsIds, Mat&out)
+	const vector<FatoStatus>* ptsStatus, const vector<int>* ptsIds, Mat&out)
 {
 	int imgOffset = out.cols / 2;
 	
@@ -79,7 +79,7 @@ void DrawDetectedPoints(const vector<Point2f>* initPts, const vector<Point2f>* u
 	for (size_t i = 0; i < updPts->size(); i++)
 	{
 		const int id = ptsIds->at(i);
-		if (ptsStatus->at(i) == Status::MATCH)
+		if (ptsStatus->at(i) == FatoStatus::MATCH)
 		{
 			Scalar color(uniform_dist(dre), uniform_dist(dre), uniform_dist(dre));
 
@@ -95,14 +95,14 @@ void DrawDetectedPoints(const vector<Point2f>* initPts, const vector<Point2f>* u
 	}
 }
 
-void drawVotesGPU(const vector<Point2f>* points, const vector<Status>* pointsStatus,
+void drawVotesGPU(const vector<Point2f>* points, const vector<FatoStatus>* pointsStatus,
 	const vector<Point2f>* votes, const vector<int>* pointsIds, Mat& out)
 {
 	for (int i = 0; i < points->size(); ++i)
 	{
 		const int id = pointsIds->at(i);
 		
-		if (pointsStatus->at(id) == Status::TRACK)
+		if (pointsStatus->at(id) == FatoStatus::TRACK)
 		{
 			const Point2f& point = points->at(i);
 			const Point2f& vote = votes->at(i);
@@ -133,7 +133,7 @@ void drawVotesGPU(const vector<Point2f>* points, const vector<Status>* pointsSta
 	}
 }
 
-void printPointsStatus(const vector<Point2f>* points, const vector<Status>* pointsStatus,
+void printPointsStatus(const vector<Point2f>* points, const vector<FatoStatus>* pointsStatus,
 	const vector<Point2f>* votes, const vector<int>* pointsIds, ofstream& file)
 {
 	for (int i = 0; i < points->size(); ++i)

@@ -68,7 +68,7 @@ bool Tracker::isPointValid(const int& id) {
 
   // std::cout << tmp_id << " "  << id << std::endl;
 
-  return m_pointsStatus[id] == Status::TRACK;
+  return m_pointsStatus[id] == FatoStatus::TRACK;
 }
 
 void Tracker::init(const cv::Mat& rgb, const cv::Point2d& fst,
@@ -124,9 +124,9 @@ void Tracker::init(const Mat& rgb, const Mat& mask) {
     Point2f& pt = m_points[i];
 
     if (mask.at<uchar>(pt) == 255) {
-      m_pointsStatus.push_back(Status::INIT);
+      m_pointsStatus.push_back(FatoStatus::INIT);
     } else {
-      m_pointsStatus.push_back(Status::BACKGROUND);
+      m_pointsStatus.push_back(FatoStatus::BACKGROUND);
     }
     m_updatedPoints.push_back(m_points[i]);
     m_votes.push_back(Point2f(0, 0));
@@ -200,7 +200,7 @@ Point2f Tracker::initCentroid(const vector<Point2f>& points) {
   int validPoints = 0;
 
   for (size_t i = 0; i < points.size(); i++) {
-    if (m_pointsStatus[i] == Status::INIT) {
+    if (m_pointsStatus[i] == FatoStatus::INIT) {
       centroid += points[i];
       validPoints++;
     }
@@ -271,7 +271,7 @@ void Tracker::initBoundingBox(const Mat& mask, const Point2f& centroid,
 
 void Tracker::getOpticalFlow(const GpuMat& d_prev, const GpuMat& d_next,
                              vector<Point2f>& points, vector<int>& ids,
-                             vector<Status>& status) {
+                             vector<FatoStatus>& status) {
   // uploading points to the gpu
   cv::gpu::GpuMat d_nextStatus, d_prevStatus, d_prevCalcPts, d_prevPts,
       d_nextPts;
@@ -295,28 +295,28 @@ void Tracker::getOpticalFlow(const GpuMat& d_prev, const GpuMat& d_next,
   for (int i = 0; i < nextPoints.size(); ++i) {
     float error = pinot_tracker::getDistance(prevCalcPoints[i], prevPoints[i]);
 
-    Status& s = status[ids[i]];
+    FatoStatus& s = status[ids[i]];
 
     if (ofStatus[i] == 1 && error < 20) {
       // const int& id = ids[i];
       auto id = i;
 
-      if (s == Status::MATCH) {
-        status[id] = Status::TRACK;
+      if (s == FatoStatus::MATCH) {
+        status[id] = FatoStatus::TRACK;
         m_flow_counter++;
-      } else if (s == Status::LOST)
-        status[id] = Status::LOST;
-      else if (s == Status::NOCLUSTER) {
-        status[id] = Status::LOST;
-      } else if (s == Status::TRACK || s == Status::INIT) {
-        status[id] = Status::TRACK;
+      } else if (s == FatoStatus::LOST)
+        status[id] = FatoStatus::LOST;
+      else if (s == FatoStatus::NOCLUSTER) {
+        status[id] = FatoStatus::LOST;
+      } else if (s == FatoStatus::TRACK || s == FatoStatus::INIT) {
+        status[id] = FatoStatus::TRACK;
         m_flow_counter++;
       }
 
       points[i] = nextPoints[i];
     } else {
       // status[ids[i]] = Status::LOST;
-      if (status[i] != Status::BACKGROUND) status[i] = Status::LOST;
+      if (status[i] != FatoStatus::BACKGROUND) status[i] = FatoStatus::LOST;
       // TODO: remove pointer and ids if lost, it will still be in the detector
       // list
     }
@@ -498,13 +498,13 @@ void Tracker::updatePointsStatus(const vector<bool>& isClustered,
                                  vector<Point2f>& votes,
                                  vector<Point2f>& relDistances,
                                  vector<int>& ids,
-                                 vector<Status>& pointsStatus) {
+                                 vector<FatoStatus>& pointsStatus) {
   vector<int> toBeRemoved;
 
   for (int i = 0; i < isClustered.size(); ++i) {
     if (!isClustered[i]) {
       toBeRemoved.push_back(i);
-      pointsStatus[ids[i]] = Status::LOST;
+      pointsStatus[ids[i]] = FatoStatus::LOST;
     }
   }
 
@@ -531,10 +531,10 @@ void Tracker::labelNotClusteredPts(const vector<bool>& isClustered,
                                    vector<Point2f>& votes,
                                    vector<Point2f>& relDistances,
                                    vector<int>& ids,
-                                   vector<Status>& pointsStatus) {
+                                   vector<FatoStatus>& pointsStatus) {
   for (int i = 0; i < isClustered.size(); ++i) {
-    if (!isClustered[i] && m_pointsStatus[ids[i]] != Status::BACKGROUND) {
-      pointsStatus[ids[i]] = Status::LOST;
+    if (!isClustered[i] && m_pointsStatus[ids[i]] != FatoStatus::BACKGROUND) {
+      pointsStatus[ids[i]] = FatoStatus::LOST;
     }
     // else if (isClustered[i] && pointsStatus[ids[i]] == Status::NOCLUSTER)
     //  pointsStatus[ids[i]] = Status::TRACK;
@@ -546,18 +546,18 @@ void Tracker::discardNotClustered(std::vector<Point2f>& upd_points,
                                   cv::Point2f& upd_centroid,
                                   cv::Point2f& init_centroid,
                                   std::vector<int>& ids,
-                                  std::vector<Status>& pointsStatus) {
+                                  std::vector<FatoStatus>& pointsStatus) {
   for (auto i = 0; i < upd_points.size(); ++i) {
     auto id = ids[i];
 
-    if (pointsStatus[id] == Status::NOCLUSTER) {
+    if (pointsStatus[id] == FatoStatus::NOCLUSTER) {
       float init_dist = pinot_tracker::getDistance(init_pts[id], init_centroid);
       float upd_dist =
           pinot_tracker::getDistance(upd_points[i], upd_centroid) * m_scale;
 
       float ratio = min(init_dist, upd_dist) / max(init_dist, upd_dist);
 
-      if (ratio < 0.85) pointsStatus[id] = Status::LOST;
+      if (ratio < 0.85) pointsStatus[id] = FatoStatus::LOST;
     }
   }
 }
@@ -567,12 +567,12 @@ void Tracker::removeLostPoints(const std::vector<bool>& isClustered,
                                std::vector<Point2f>& votes,
                                std::vector<Point2f>& relDistances,
                                std::vector<int>& ids,
-                               std::vector<Status>& pointsStatus) {
+                               std::vector<FatoStatus>& pointsStatus) {
   vector<int> toBeRemoved;
 
   for (int i = 0; i < points.size(); ++i) {
     const int& id = ids[i];
-    if (pointsStatus[i] == Status::LOST) {
+    if (pointsStatus[i] == FatoStatus::LOST) {
       toBeRemoved.push_back(i);
     }
   }
@@ -867,17 +867,17 @@ void Tracker::detectNext(Mat next) {
     float confidence = 1 - (matches[i][0].distance / 256.0);
     float ratio = matches[i][0].distance / matches[i][1].distance;
 
-    Status& s = m_pointsStatus[trainId];
+    FatoStatus& s = m_pointsStatus[trainId];
 
     if (confidence < 0.80f) continue;
 
     if (ratio > 0.8f) continue;
 
-    if (s == Status::BACKGROUND) continue;
+    if (s == FatoStatus::BACKGROUND) continue;
 
     // if (s == Status::TRACK) continue;
 
-    m_pointsStatus[trainId] = Status::MATCH;
+    m_pointsStatus[trainId] = FatoStatus::MATCH;
     // m_updatedPoints.push_back(keypoints[queryId].pt);
     // m_votes.push_back(Point2f(0, 0));
     // m_pointsIds.push_back(trainId);
@@ -991,7 +991,7 @@ bool Tracker::evaluatePose(const float& angle, const float& scale) {
 void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
                         const GpuMat& d_gray, std::vector<Point2f>& init_pts,
                         std::vector<Point2f>& upd_pts,
-                        std::vector<Status>& pts_status,
+                        std::vector<FatoStatus>& pts_status,
                         std::vector<int>& pts_id) {
   // extract features
   cv::gpu::GpuMat d_keypoints;
@@ -1042,7 +1042,7 @@ void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
     auto id = i + pts_size;
     auto pt = points_to_add[i];
     auto pt_prj = projected_pts[i];
-    m_pointsStatus.push_back(Status::MATCH);
+    m_pointsStatus.push_back(FatoStatus::MATCH);
     m_updatedPoints.push_back(pt);
     m_votes.push_back(Point2f(0, 0));
     m_upd_to_init_ids.push_back(id);
@@ -1050,7 +1050,7 @@ void Tracker::learnPose(const std::vector<cv::Point2f>& bbox,
     m_relativeDistances.push_back(pt_prj - m_initCentroid);
     m_initDescriptors.push_back(descriptors_to_add.row(i));
     // TODO: remove this after experiments are done
-    m_points_status_debug.push_back(Status::LEARN);
+    m_points_status_debug.push_back(FatoStatus::LEARN);
     circle(init_debug, pt_prj, 3, Scalar(255, 0, 0), 1);
   }
 

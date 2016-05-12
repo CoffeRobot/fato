@@ -36,7 +36,9 @@
 //FIXME: fix error related to namespace here
 //TODO: move this inside the tracker
 
-enum struct Status {
+namespace fato{
+
+enum struct FatoStatus  {
   INIT = 0,
   MATCH,
   NOMATCH,
@@ -57,6 +59,7 @@ enum FACE : int {
   BACK
 };
 
+}
 
 #endif
 

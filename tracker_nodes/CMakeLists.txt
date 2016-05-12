@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 2.8.7)
-
 project(fato_tracker_nodes)
+
 find_package(catkin REQUIRED COMPONENTS
     roscpp
+    rospy
     cmake_modules
     cv_bridge
     image_transport
@@ -25,6 +26,7 @@ catkin_package(
     cv_bridge
     image_transport
     roscpp
+    rospy
     tf
     image_geometry
   LIBRARIES ${PROJECT_NAME}
@@ -106,6 +108,15 @@ add_executable(track_model
 
 
 target_link_libraries(track_model
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+)
+
+add_executable(render_synthetic_sequence
+    src/render_synthetic_sequence.cpp)
+
+
+target_link_libraries(render_synthetic_sequence
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
 )

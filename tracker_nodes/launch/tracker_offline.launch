@@ -1,6 +1,6 @@
 <launch>
 
-<rosparam command="load" file="$(find pinot_tracker_nodes)/config/tracker_parameters.yaml"/>
+<rosparam command="load" file="$(find fato_tracker_nodes)/config/tracker_parameters.yaml"/>
 <param name="pinot/offline/default_path" value="$(find pinot_tracker_tests)/data/"/>
 
 <!-- uncomment to use the medium version-->

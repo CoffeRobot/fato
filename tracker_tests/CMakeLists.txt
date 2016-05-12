@@ -33,6 +33,7 @@ set(TRACKER_MODULES
       utilities
       tracker
       tracker_io
+      fato_rendering
 )
 
 if(TRACKER_WITH_GPU)
@@ -48,6 +49,15 @@ find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 find_package(Boost COMPONENTS filesystem system REQUIRED)
 
+add_service_files(
+  DIRECTORY srv
+  FILES RenderService.srv
+)
+
+generate_messages(
+  DEPENDENCIES std_msgs sensor_msgs# Or other packages containing msgs
+)
+
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
@@ -56,10 +66,12 @@ catkin_package(
           roscpp
           tf
           image_geometry
+          message_generation
 )
 
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+
 
 # show additional files in qtcreator
 execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f
@@ -112,6 +124,10 @@ target_link_libraries(test_projection
     ${OPENCV_LIBS}
     ${Boost_LIBRARIES})
 
+
+  set(EXECUTABLE_OUTPUT_PATH ${ROS_ROOT}/bin)
+  MESSAGE("Executable output path " ${EXECUTABLE_OUTPUT_PATH})
+
   add_executable(epnp_test
     src/epnp_test.cpp
    )
@@ -120,3 +136,20 @@ target_link_libraries(test_projection
    ${catkin_LIBRARIES}
    ${OPENCV_LIBS}
    ${Boost_LIBRARIES})
+
+ add_executable(synthetic_track
+   src/render_and_track.cpp
+  )
+
+target_link_libraries(synthetic_track
+  ${catkin_LIBRARIES}
+  ${OPENCV_LIBS}
+  ${Boost_LIBRARIES})
+
+add_dependencies(
+ synthetic_track
+  ${PROJECT_NAME}_generate_messages_cpp
+)
+
+
+

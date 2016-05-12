@@ -9,10 +9,6 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
 )
 
-if(TRACKER_VERBOSE_LOGGING)
-  add_definitions(-DVERBOSE_LOGGING)
-endif()
-
 find_package(OpenCV REQUIRED)
 
 find_package(Eigen REQUIRED)
@@ -37,8 +33,8 @@ add_custom_target(additional_files_${PROJECT_NAME} SOURCES
   ${PROJECT_SOURCE_DIR}/../README.md
 )
 
-include_directories(
-  include
+include_directories(include
+  ${PROJECT_SOURCE_DIR}
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR}
@@ -61,6 +57,6 @@ add_library(${PROJECT_NAME}
 )
 
 target_link_libraries(${PROJECT_NAME}
-  ${OpenCV_LIBS}
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
 )

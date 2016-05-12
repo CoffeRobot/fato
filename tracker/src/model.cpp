@@ -54,7 +54,7 @@ ObjectModel::ObjectModel() :
 
 	m_cloudPoints = vector< vector<Point3f> >(6, vector<Point3f>());
 
-	m_pointStatus = vector< vector<Status> >(6,vector<Status>());
+	m_pointStatus = vector< vector<FatoStatus> >(6,vector<FatoStatus>());
 
 	m_faceDescriptors = vector<Mat>(6, Mat());
 
@@ -74,7 +74,7 @@ void ObjectModel::restCube()
 
     m_cloudPoints = vector< vector<Point3f> >(6, vector<Point3f>());
 
-    m_pointStatus = vector< vector<Status> >(6,vector<Status>());
+    m_pointStatus = vector< vector<FatoStatus> >(6,vector<FatoStatus>());
 
     m_faceDescriptors = vector<Mat>(6, Mat());
 

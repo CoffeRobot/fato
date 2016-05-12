@@ -49,21 +49,21 @@
 namespace fato {
 
 void DrawFlowPoints(const std::vector<cv::Point2f>* points,
-                    const std::vector<Status>* pointsStatus,
+                    const std::vector<FatoStatus>* pointsStatus,
                     const std::vector<int>* pointsIds, cv::Mat& out);
 
 void DrawDetectedPoints(const std::vector<cv::Point2f>* initPts,
                         const std::vector<cv::Point2f>* updPts,
-                        const std::vector<Status>* ptsStatus,
+                        const std::vector<FatoStatus>* ptsStatus,
                         const std::vector<int>* ptsIds, cv::Mat& out);
 
 void drawVotesGPU(const std::vector<cv::Point2f>* points,
-                  const std::vector<Status>* pointsStatus,
+                  const std::vector<FatoStatus>* pointsStatus,
                   const std::vector<cv::Point2f>* votes,
                   const std::vector<int>* pointsIds, cv::Mat& out);
 
 void printPointsStatus(const std::vector<cv::Point2f>* points,
-                       const std::vector<Status>* pointsStatus,
+                       const std::vector<FatoStatus>* pointsStatus,
                        const std::vector<cv::Point2f>* votes,
                        const std::vector<int>* pointsIds, std::ofstream& file);
 

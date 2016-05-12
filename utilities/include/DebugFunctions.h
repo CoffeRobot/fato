@@ -59,14 +59,14 @@ void drawCentroidVotes(const std::vector<cv::KeyPoint>& keypoints,
                        std::vector<cv::Point2f>& points,
                        const std::vector<bool>& clustered,
                        const std::vector<bool>& border,
-                       const std::vector<Status>& status, bool drawLines,
+                       const std::vector<FatoStatus>& status, bool drawLines,
                        bool drawFalse, cv::Mat& out);
 
 void drawCentroidVotes(const std::vector<cv::Point3f>& keypoints,
                        std::vector<cv::Point3f>& points,
                        const std::vector<bool>& clustered,
                        const std::vector<bool>& border,
-                       const std::vector<Status>& status, bool drawLines,
+                       const std::vector<FatoStatus>& status, bool drawLines,
                        bool drawFalse, const float focal,
                        const cv::Point2f& center, std::ofstream& file,
                        cv::Mat& out);
@@ -77,7 +77,7 @@ void drawCentroidVotes(const std::vector<cv::Point3f*>& keypoints,
                        const std::vector<cv::Point3f>& votes,
                        const std::vector<bool>& clustered,
                        const std::vector<bool>& border,
-                       const std::vector<Status*>& status, bool drawLines,
+                       const std::vector<FatoStatus*>& status, bool drawLines,
                        bool drawFalse, const float focal,
                        const cv::Point2f& center, cv::Mat& out);
 
@@ -85,7 +85,7 @@ void drawCentroidVotes(const std::vector<cv::Point3f*>& keypoints,
                        const std::vector<cv::Point3f>& votes,
                        const std::vector<bool>& clustered,
                        const std::vector<bool>& border,
-                       const std::vector<Status*>& status, bool drawLines,
+                       const std::vector<FatoStatus*>& status, bool drawLines,
                        bool drawFalse, const float focal,
                        const cv::Point2f& center, std::ofstream& file,
                        cv::Mat& out);
@@ -115,14 +115,14 @@ void drawObjectLocation(const BorgCube& updCube,
 
 void drawKeypointsMatching(const std::vector<cv::KeyPoint>& fstPoint,
                            const std::vector<cv::KeyPoint>& scdPoints,
-                           const std::vector<Status>& pointStatus,
+                           const std::vector<FatoStatus>& pointStatus,
                            const std::vector<cv::Scalar>& colors, int& numMatch,
                            int& numTrack, int& numBoth, bool drawLines,
                            cv::Mat& out);
 
 void drawPointsMatching(const std::vector<cv::Point3f>& fstPoints,
                         const std::vector<cv::Point3f>& scdPoints,
-                        const std::vector<Status>& pointStatus,
+                        const std::vector<FatoStatus>& pointStatus,
                         const std::vector<cv::Scalar>& colors, int& numMatch,
                         int& numTrack, int& numBoth, bool drawLines,
                         const float focal, const cv::Point2f& center,
@@ -130,7 +130,7 @@ void drawPointsMatching(const std::vector<cv::Point3f>& fstPoints,
 
 void drawPointsMatching(const std::vector<cv::Point3f*>& fstPoints,
                         const std::vector<cv::Point3f*>& scdPoints,
-                        const std::vector<Status*>& pointStatus,
+                        const std::vector<FatoStatus*>& pointStatus,
                         const std::vector<cv::Scalar*>& colors, int& numMatch,
                         int& numTrack, int& numBoth, bool drawLines,
                         const float focal, const cv::Point2f& center,
@@ -138,7 +138,7 @@ void drawPointsMatching(const std::vector<cv::Point3f*>& fstPoints,
 
 void drawPointsMatchingICRA(const std::vector<cv::Point3f*>& fstPoints,
                             const std::vector<cv::Point3f*>& scdPoints,
-                            const std::vector<Status*>& pointStatus,
+                            const std::vector<FatoStatus*>& pointStatus,
                             const std::vector<cv::Scalar*>& colors,
                             int& numMatch, int& numTrack, int& numBoth,
                             bool drawLines, const float focal,
@@ -146,10 +146,10 @@ void drawPointsMatchingICRA(const std::vector<cv::Point3f*>& fstPoints,
 
 void countKeypointsMatching(const std::vector<cv::KeyPoint>& fstPoint,
                             const std::vector<cv::KeyPoint>& scdPoints,
-                            const std::vector<Status>& pointStatus,
+                            const std::vector<FatoStatus>& pointStatus,
                             int& numMatch, int& numTrack, int& numBoth);
 
-void countKeypointsMatching(const std::vector<Status*>& pointStatus,
+void countKeypointsMatching(const std::vector<FatoStatus*>& pointStatus,
                             int& numMatch, int& numTrack, int& numBoth);
 
 void drawKeipointsStats(const int init, const int matched, const int tracked,

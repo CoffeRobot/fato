@@ -119,7 +119,7 @@ class Tracker3D {
  private:
 
   void getCurrentPoints(const std::vector<int>& currentFaces,
-                        std::vector<Status*>& pointsStatus,
+                        std::vector<FatoStatus*>& pointsStatus,
                         std::vector<cv::Point3f*>& fstPoints,
                         std::vector<cv::Point3f*>& updPoints,
                         std::vector<cv::KeyPoint*>& fstKeypoints,
@@ -135,10 +135,10 @@ class Tracker3D {
                           const cv::Mat& nextDescriptors,
                           const std::vector<cv::KeyPoint>& extractedKeypoints,
                           std::vector<cv::KeyPoint*>& updKeypoints,
-                          std::vector<Status*>& pointsStatus);
+                          std::vector<FatoStatus*>& pointsStatus);
   // uses lucas kanade to track keypoints, faster implemetation
   int trackFeatures(const cv::Mat& grayImg, const cv::Mat& cloud,
-                    std::vector<Status*>& keypointStatus,
+                    std::vector<FatoStatus*>& keypointStatus,
                     std::vector<cv::Point3f*>& fstPoints,
                     std::vector<cv::Point3f*>& updPoints,
                     std::vector<cv::KeyPoint*>& updKeypoints, int& trackedCount,
@@ -148,22 +148,22 @@ class Tracker3D {
   // get rotation matrix using mean of points
   cv::Mat getRotationMatrix(const std::vector<cv::Point3f*>& fstPoints,
                             const std::vector<cv::Point3f*>& updPoints,
-                            const std::vector<Status*>& pointsStatus);
+                            const std::vector<FatoStatus*>& pointsStatus);
 
   cv::Mat getRotationMatrixDebug(const cv::Mat& rgbImg,
                                  const std::vector<cv::Point3f*>& fstPoints,
                                  const std::vector<cv::Point3f*>& updPoints,
-                                 const std::vector<Status*>& pointsStatus);
+                                 const std::vector<FatoStatus*>& pointsStatus);
   // given rotation and scale cast votes for the new centroid
-  void getVotes(const cv::Mat& cloud, std::vector<Status*> pointsStatus,
+  void getVotes(const cv::Mat& cloud, std::vector<FatoStatus*> pointsStatus,
                 std::vector<cv::KeyPoint*>& fstKeypoints,
                 std::vector<cv::KeyPoint*>& updKeypoints,
                 std::vector<cv::Point3f*>& relPointPos,
                 const cv::Mat& rotation);
   // cluster the votes
-  void clusterVotes(std::vector<Status>& keypointStatus);
+  void clusterVotes(std::vector<FatoStatus>& keypointStatus);
 
-  void clusterVotesBorder(std::vector<Status*>& keypointStatus,
+  void clusterVotesBorder(std::vector<FatoStatus*>& keypointStatus,
                           std::vector<cv::Point3f>& centroidVotes,
                           std::vector<int>& indices,
                           std::vector<std::vector<int>>& clusters);
@@ -173,10 +173,10 @@ class Tracker3D {
   // calculate the relative position of the initial keypoints
   void initRelativePosition(ObjectModel& cube);
 
-  void updateCentroid(const std::vector<Status*>& keypointStatus,
+  void updateCentroid(const std::vector<FatoStatus*>& keypointStatus,
                       const cv::Mat& rotation);
 
-  void updatePointsStatus(std::vector<Status*>& pointsStatus,
+  void updatePointsStatus(std::vector<FatoStatus*>& pointsStatus,
                           std::vector<bool>& isClustered);
 
   void initBBox(const cv::Mat& cloud);
@@ -221,13 +221,13 @@ class Tracker3D {
     return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2));
   }
 
-  inline bool isKeypointValid(const Status& s) {
-    return (s == Status::MATCH || s == Status::TRACK || s == Status::INIT ||
-            s == Status::BOTH);
+  inline bool isKeypointValid(const FatoStatus& s) {
+    return (s == FatoStatus::MATCH || s == FatoStatus::TRACK || s == FatoStatus::INIT ||
+            s == FatoStatus::BOTH);
   }
 
-  inline bool isKeypointTracked(const Status& s) {
-    return (s == Status::MATCH || s == Status::TRACK || s == Status::BOTH);
+  inline bool isKeypointTracked(const FatoStatus& s) {
+    return (s == FatoStatus::MATCH || s == FatoStatus::TRACK || s == FatoStatus::BOTH);
   }
 
   inline cv::Point2f mult(cv::Mat2f& rot, cv::Point2f& p) {
@@ -403,7 +403,7 @@ class Tracker3D {
 
   std::string toPythonString2(const std::vector<cv::Point3f>& firstFrameCloud,
                               const std::vector<cv::Point3f>& updatedFrameCloud,
-                              const std::vector<Status>& keypointStatus);
+                              const std::vector<FatoStatus>& keypointStatus);
 
   std::string log_header;
 };

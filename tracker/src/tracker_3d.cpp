@@ -107,11 +107,11 @@ int Tracker3D::init(TrackerParams params, cv::Mat& rgb, cv::Mat& points,
     keypoints[kp].class_id = kp;
     Vec3f& tmp = points.at<Vec3f>(keypoints.at(kp).pt);
     if (mask.at<uchar>(keypoints.at(kp).pt) != 0 && tmp[2] != 0) {
-      m_fstCube.m_pointStatus.at(FACE::FRONT).push_back(Status::INIT);
+      m_fstCube.m_pointStatus.at(FACE::FRONT).push_back(FatoStatus::INIT);
       m_isPointClustered.at(FACE::FRONT).push_back(true);
       init_model_point_count_++;
     } else {
-      m_fstCube.m_pointStatus.at(FACE::FRONT).push_back(Status::BACKGROUND);
+      m_fstCube.m_pointStatus.at(FACE::FRONT).push_back(FatoStatus::BACKGROUND);
       m_isPointClustered.at(FACE::FRONT).push_back(false);
     }
     m_pointsColor.at(FACE::FRONT)
@@ -241,7 +241,7 @@ void Tracker3D::getActivePoints(std::vector<Point3f*>& points,
 }
 
 void Tracker3D::getCurrentPoints(
-    const vector<int>& currentFaces, vector<Status*>& pointsStatus,
+    const vector<int>& currentFaces, vector<FatoStatus*>& pointsStatus,
     vector<Point3f*>& fstPoints, vector<Point3f*>& updPoints,
     vector<KeyPoint*>& fstKeypoints, vector<KeyPoint*>& updKeypoints,
     vector<Point3f*>& relPointPos, Mat& fstDescriptors, vector<Scalar*>& colors,
@@ -306,7 +306,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   vector<KeyPoint> nextKeypoints;
   Mat nextDescriptors;
 
-  vector<Status*> pointsStatus;
+  vector<FatoStatus*> pointsStatus;
   vector<Point3f*> updPoints;
   vector<KeyPoint*> updKeypoint;
   vector<Point3f*> fstPoints;
@@ -362,7 +362,7 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   vector<Point3f> model_points;
 
   for (size_t i = 0; i < pointsStatus.size(); i++) {
-    if (*pointsStatus.at(i) == Status::TRACK) {
+    if (*pointsStatus.at(i) == FatoStatus::TRACK) {
       tracked_points.push_back(updKeypoint.at(i)->pt);
       model_points.push_back(*fstPoints.at(i));
     }
@@ -503,8 +503,8 @@ void Tracker3D::next(const Mat& rgb, const Mat& points) {
   m_votedPoints.clear();
   int counter = 0;
   for (auto i = 0; i < m_centroidVotes.size(); ++i) {
-    Status s = *pointsStatus.at(i);
-    if (s == Status::BOTH || s == Status::TRACK || s == Status::MATCH) {
+    FatoStatus s = *pointsStatus.at(i);
+    if (s == FatoStatus::BOTH || s == FatoStatus::TRACK || s == FatoStatus::MATCH) {
       m_votingPoints.push_back(*updPoints.at(i));
       m_votedPoints.push_back(m_centroidVotes.at(i));
       counter++;
@@ -744,7 +744,7 @@ int Tracker3D::matchFeaturesCustom(const Mat& fstDescriptors,
                                    const Mat& nextDescriptors,
                                    const vector<KeyPoint>& extractedKeypoints,
                                    vector<KeyPoint*>& updKeypoints,
-                                   vector<Status*>& pointsStatus) {
+                                   vector<FatoStatus*>& pointsStatus) {
   vector<vector<DMatch>> matches;
 
   Mat currDescriptors;
@@ -765,16 +765,16 @@ int Tracker3D::matchFeaturesCustom(const Mat& fstDescriptors,
     float confidence = 1 - (matches[i][0].distance / 512.0);
     float ratio = matches[i][0].distance / matches[i][1].distance;
 
-    Status* s = pointsStatus[trainId];
+    FatoStatus* s = pointsStatus[trainId];
 
-    if (*s == Status::BACKGROUND)
+    if (*s == FatoStatus::BACKGROUND)
       continue;
     else if (confidence >= 0.80f && ratio <= 0.8) {
-      if (*s == Status::TRACK) {
-        *pointsStatus.at(trainId) = Status::BOTH;
+      if (*s == FatoStatus::TRACK) {
+        *pointsStatus.at(trainId) = FatoStatus::BOTH;
         // updKeypoints[trainId]->pt = extractedKeypoints[queryId].pt;
-      } else if (*s == Status::LOST || *s == Status::NOCLUSTER) {
-        *pointsStatus.at(trainId) = Status::MATCH;
+      } else if (*s == FatoStatus::LOST || *s == FatoStatus::NOCLUSTER) {
+        *pointsStatus.at(trainId) = FatoStatus::MATCH;
         updKeypoints[trainId]->pt = extractedKeypoints[queryId].pt;
       }
 
@@ -785,7 +785,7 @@ int Tracker3D::matchFeaturesCustom(const Mat& fstDescriptors,
 }
 
 int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
-                             vector<Status*>& keypointStatus,
+                             vector<FatoStatus*>& keypointStatus,
                              std::vector<Point3f*>& fstPoints,
                              vector<Point3f*>& updPoints,
                              vector<KeyPoint*>& updKeypoints, int& trackedCount,
@@ -799,11 +799,11 @@ int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
   vector<float> prevErrors;
 
   for (size_t i = 0; i < updKeypoints.size(); i++) {
-    if (*keypointStatus[i] == Status::TRACK ||
-        *keypointStatus[i] == Status::BOTH ||
-        *keypointStatus[i] == Status::MATCH ||
-        *keypointStatus[i] == Status::INIT ||
-        *keypointStatus[i] == Status::NOCLUSTER) {
+    if (*keypointStatus[i] == FatoStatus::TRACK ||
+        *keypointStatus[i] == FatoStatus::BOTH ||
+        *keypointStatus[i] == FatoStatus::MATCH ||
+        *keypointStatus[i] == FatoStatus::INIT ||
+        *keypointStatus[i] == FatoStatus::NOCLUSTER) {
       currPoints.push_back(updKeypoints[i]->pt);
       ids.push_back(i);
     }
@@ -825,7 +825,7 @@ int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
   for (int i = 0; i < nextPoints.size(); ++i) {
     float error = getDistance(currPoints.at(i), prevPoints.at(i));
 
-    Status* s = keypointStatus[ids[i]];
+    FatoStatus* s = keypointStatus[ids[i]];
 
     if (m_status[i] == 1 && error < 20) {
       int& id = ids[i];
@@ -838,19 +838,19 @@ int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
 
       if (tmp[2] == 0 || fstPoints[id]->z == 0) {
         // FIXME: ugly fix to manage the error in kinect sensor
-        *keypointStatus[id] = Status::LOST;
-      } else if (*s == Status::MATCH) {
-        *keypointStatus[id] = Status::TRACK;
+        *keypointStatus[id] = FatoStatus::LOST;
+      } else if (*s == FatoStatus::MATCH) {
+        *keypointStatus[id] = FatoStatus::TRACK;
         bothCount++;
         activeKeypoints++;
-      } else if (*s == Status::LOST)
-        *keypointStatus[id] = Status::LOST;
-      else if (*s == Status::NOCLUSTER) {
-        *keypointStatus[id] = Status::NOCLUSTER;
+      } else if (*s == FatoStatus::LOST)
+        *keypointStatus[id] = FatoStatus::LOST;
+      else if (*s == FatoStatus::NOCLUSTER) {
+        *keypointStatus[id] = FatoStatus::NOCLUSTER;
         trackedCount++;
         activeKeypoints++;
       } else {
-        *keypointStatus[id] = Status::TRACK;
+        *keypointStatus[id] = FatoStatus::TRACK;
         trackedCount++;
         activeKeypoints++;
       }
@@ -872,7 +872,7 @@ int Tracker3D::trackFeatures(const Mat& grayImg, const Mat& cloud,
       // *updPoints[id]
       //            << "\n";
     } else {
-      *keypointStatus[ids[i]] = Status::LOST;
+      *keypointStatus[ids[i]] = FatoStatus::LOST;
     }
   }
 
@@ -890,7 +890,7 @@ void Tracker3D::checkImage(const Mat& src, Mat& gray) {
 
 cv::Mat Tracker3D::getRotationMatrix(const vector<Point3f*>& initPoints,
                                      const vector<Point3f*>& updPoints,
-                                     const vector<Status*>& pointsStatus) {
+                                     const vector<FatoStatus*>& pointsStatus) {
   Point3f fstMean(0, 0, 0);
   Point3f scdMean(0, 0, 0);
   int validCount = 0;
@@ -942,7 +942,7 @@ cv::Mat Tracker3D::getRotationMatrix(const vector<Point3f*>& initPoints,
 cv::Mat Tracker3D::getRotationMatrixDebug(const Mat& rgbImg,
                                           const vector<Point3f*>& initPoints,
                                           const vector<Point3f*>& updPoints,
-                                          const vector<Status*>& pointsStatus) {
+                                          const vector<FatoStatus*>& pointsStatus) {
   // m_debugFile << "Computing rotation matrix for frame: " << m_numFrames <<
   // "\n\n";
   Mat debugImg;
@@ -1005,7 +1005,7 @@ cv::Mat Tracker3D::getRotationMatrixDebug(const Mat& rgbImg,
   }
 }
 
-void Tracker3D::getVotes(const cv::Mat& cloud, vector<Status*> pointsStatus,
+void Tracker3D::getVotes(const cv::Mat& cloud, vector<FatoStatus*> pointsStatus,
                          vector<KeyPoint*>& fstKeypoints,
                          vector<KeyPoint*>& updKeypoints,
                          vector<Point3f*>& relPointPos, const Mat& rotation) {
@@ -1023,7 +1023,7 @@ void Tracker3D::getVotes(const cv::Mat& cloud, vector<Status*> pointsStatus,
   }
 }
 
-void Tracker3D::clusterVotes(vector<Status>& keypointStatus) {
+void Tracker3D::clusterVotes(vector<FatoStatus>& keypointStatus) {
   DBScanClustering<Point3f*> clusterer;
 
   vector<Point3f*> votes;
@@ -1075,7 +1075,7 @@ void Tracker3D::clusterVotes(vector<Status>& keypointStatus) {
   m_clusteredCentroidVotes.swap(clustered);
 }
 
-void Tracker3D::clusterVotesBorder(vector<Status*>& keypointStatus,
+void Tracker3D::clusterVotesBorder(vector<FatoStatus*>& keypointStatus,
                                    vector<Point3f>& centroidVotes,
                                    vector<int>& indices,
                                    vector<vector<int>>& clusters) {
@@ -1131,7 +1131,7 @@ void Tracker3D::clusterVotesBorder(vector<Status*>& keypointStatus,
 }
 
 bool Tracker3D::initCentroid(const vector<Point3f>& points, ObjectModel& cube) {
-  const vector<Status>& status = cube.m_pointStatus.at(FACE::FRONT);
+  const vector<FatoStatus>& status = cube.m_pointStatus.at(FACE::FRONT);
 
   Point3f& centroid = cube.m_center;
   centroid.x = 0;
@@ -1158,7 +1158,7 @@ bool Tracker3D::initCentroid(const vector<Point3f>& points, ObjectModel& cube) {
 }
 
 void Tracker3D::initRelativePosition(ObjectModel& cube) {
-  const vector<Status>& status = cube.m_pointStatus[FACE::FRONT];
+  const vector<FatoStatus>& status = cube.m_pointStatus[FACE::FRONT];
   const vector<Point3f>& points = cube.m_cloudPoints[FACE::FRONT];
   vector<Point3f>& relativePointsPos = cube.m_relativePointsPos[FACE::FRONT];
 
@@ -1172,7 +1172,7 @@ void Tracker3D::initRelativePosition(ObjectModel& cube) {
   }
 }
 
-void Tracker3D::updateCentroid(const vector<Status*>& keypointStatus,
+void Tracker3D::updateCentroid(const vector<FatoStatus*>& keypointStatus,
                                const Mat& rotation) {
   m_updatedCentroid.x = 0;
   m_updatedCentroid.y = 0;
@@ -1209,14 +1209,14 @@ void Tracker3D::updateCentroid(const vector<Status*>& keypointStatus,
   }
 }
 
-void Tracker3D::updatePointsStatus(vector<Status*>& pointsStatus,
+void Tracker3D::updatePointsStatus(vector<FatoStatus*>& pointsStatus,
                                    vector<bool>& isClustered) {
   for (int i = 0; i < pointsStatus.size(); i++) {
-    Status* s = pointsStatus[i];
-    if ((*s == Status::INIT || *s == Status::TRACK || *s == Status::MATCH ||
-         *s == Status::BOTH) &&
+    FatoStatus* s = pointsStatus[i];
+    if ((*s == FatoStatus::INIT || *s == FatoStatus::TRACK || *s == FatoStatus::MATCH ||
+         *s == FatoStatus::BOTH) &&
         !isClustered[i]) {
-      *s = Status::LOST;
+      *s = FatoStatus::LOST;
     }
   }
 }
@@ -1575,7 +1575,7 @@ void Tracker3D::learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
   vector<Point3f>& fstPoints3d = fstCube.m_cloudPoints[face];
   vector<Point3f>& updatedPoint3d = updatedCube.m_cloudPoints[face];
 
-  vector<Status>& pointStatus = fstCube.m_pointStatus[face];
+  vector<FatoStatus>& pointStatus = fstCube.m_pointStatus[face];
   Mat& faceDescriptor = fstCube.m_faceDescriptors[face];
   vector<KeyPoint>& keypoints = fstCube.m_faceKeypoints[face];
   vector<Point3f>& pointRelPos = fstCube.m_relativePointsPos[face];
@@ -1595,7 +1595,7 @@ void Tracker3D::learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
     const Vec3f& point = cloud.at<Vec3f>(keypoints[kp].pt);
 
     if (mask.at<uchar>(keypoints[kp].pt) != 0 && point[2] != 0) {
-      pointStatus.push_back(Status::MATCH);
+      pointStatus.push_back(FatoStatus::MATCH);
 
       init_model_point_count_++;
       updatedPoint3d[kp] = Point3f(point[0], point[1], point[2]);
@@ -1611,7 +1611,7 @@ void Tracker3D::learnFace(const Mat1b& mask, const Mat& rgb, const Mat& cloud,
 
       m_isPointClustered[face].push_back(true);
     } else {
-      pointStatus.push_back(Status::BACKGROUND);
+      pointStatus.push_back(FatoStatus::BACKGROUND);
       m_isPointClustered[face].push_back(false);
     }
 
@@ -1639,7 +1639,7 @@ int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
   vector<Point3f>& fstPoints3d = fstCube.m_cloudPoints.at(face);
   vector<Point3f>& updatedPoint3d = updatedCube.m_cloudPoints.at(face);
 
-  vector<Status>& pointStatus = fstCube.m_pointStatus.at(face);
+  vector<FatoStatus>& pointStatus = fstCube.m_pointStatus.at(face);
   Mat& faceDescriptor = fstCube.m_faceDescriptors.at(face);
   vector<KeyPoint>& keypoints = fstCube.m_faceKeypoints.at(face);
   vector<Point3f>& pointRelPos = fstCube.m_relativePointsPos.at(face);
@@ -1668,7 +1668,7 @@ int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
     const Vec3f& point = cloud.at<Vec3f>(keypoints.at(kp).pt);
 
     if (mask.at<uchar>(keypoints.at(kp).pt) != 0 && point[2] != 0) {
-      pointStatus.push_back(Status::MATCH);
+      pointStatus.push_back(FatoStatus::MATCH);
 
       updatedPoint3d.at(kp) = Point3f(point[0], point[1], point[2]);
       Point3f projPoint(0, 0, 0);
@@ -1692,7 +1692,7 @@ int Tracker3D::learnFaceDebug(const Mat1b& mask, const Mat& rgb,
       kpCount++;
 
     } else {
-      pointStatus.push_back(Status::BACKGROUND);
+      pointStatus.push_back(FatoStatus::BACKGROUND);
       m_isPointClustered[face].push_back(false);
 
       circle(out, keypoints[kp].pt, 3, Scalar(0, 0, 255), -1);
@@ -1775,7 +1775,7 @@ string Tracker3D::getResultName(string path) {
 
 string Tracker3D::toPythonString2(const vector<Point3f>& firstFrameCloud,
                                   const vector<Point3f>& updatedFrameCloud,
-                                  const vector<Status>& keypointStatus) {
+                                  const vector<FatoStatus>& keypointStatus) {
   stringstream ss;
   ss << "[";
   for (size_t j = 0; j < firstFrameCloud.size(); j++) {
@@ -1877,7 +1877,7 @@ bool Tracker3D::findObject(ObjectModel& fst, ObjectModel& upd,
       const Mat& fstDescriptors = fst.m_faceDescriptors[i];
       vector<KeyPoint*> fstKeypoints;
       vector<KeyPoint*> updKeypoints;
-      vector<Status*> pointsStatus;
+      vector<FatoStatus*> pointsStatus;
 
       for (int j = 0; j < fst.m_faceKeypoints[i].size(); j++) {
         fstKeypoints.push_back(&fst.m_faceKeypoints[i][j]);

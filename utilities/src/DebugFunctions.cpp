@@ -48,7 +48,7 @@ void cross(const cv::Point2f& p, const Scalar& c, int width, cv::Mat& out) {
 
 void drawCentroidVotes(const vector<KeyPoint>& keypoints,
                        vector<Point2f>& points, const vector<bool>& clustered,
-                       const vector<bool>& border, const vector<Status>& status,
+                       const vector<bool>& border, const vector<FatoStatus>& status,
                        bool drawLines, bool drawFalse, Mat& out) {
   // std::cout << "\n";
   // draw each cluster with a separate color but the good one in green color
@@ -59,8 +59,8 @@ void drawCentroidVotes(const vector<KeyPoint>& keypoints,
   for (size_t i = 0; i < clustered.size(); i++) {
     Scalar color;
 
-    bool valid = (status[i] == Status::BOTH || status[i] == Status::TRACK ||
-                  status[i] == Status::MATCH);
+    bool valid = (status[i] == FatoStatus::BOTH || status[i] == FatoStatus::TRACK ||
+                  status[i] == FatoStatus::MATCH);
 
     if (clustered[i] && valid) {
       if (border[i])
@@ -75,7 +75,7 @@ void drawCentroidVotes(const vector<KeyPoint>& keypoints,
       }
     }
 
-    if (drawFalse && status[i] == Status::LOST) {
+    if (drawFalse && status[i] == FatoStatus::LOST) {
       if (clustered[i] && !valid) {
         color = Scalar(255, 0, 255);
         circle(out, points[i], 3, color, 1);
@@ -97,14 +97,14 @@ void drawCentroidVotes(const vector<KeyPoint>& keypoints,
 
 void drawCentroidVotes(const vector<Point3f>& keypoints,
                        vector<Point3f>& points, const vector<bool>& clustered,
-                       const vector<bool>& border, const vector<Status>& status,
+                       const vector<bool>& border, const vector<FatoStatus>& status,
                        bool drawLines, bool drawFalse, const float focal,
                        const Point2f& center, ofstream& file, Mat& out) {
   for (int i = 0; i < clustered.size(); i++) {
     Scalar color;
 
-    bool valid = (status[i] == Status::BOTH || status[i] == Status::TRACK ||
-                  status[i] == Status::MATCH);
+    bool valid = (status[i] == FatoStatus::BOTH || status[i] == FatoStatus::TRACK ||
+                  status[i] == FatoStatus::MATCH);
 
     if (clustered[i] && valid) {
       Point2f tmp = reprojectPoint(focal, center, points[i]);
@@ -145,14 +145,14 @@ void drawCentroidVotes(const vector<Point3f>& keypoints,
 
 void drawCentroidVotes(const vector<Point3f>& keypoints,
                        vector<Point3f>& points, const vector<bool>& clustered,
-                       const vector<bool>& border, const vector<Status>& status,
+                       const vector<bool>& border, const vector<FatoStatus>& status,
                        bool drawLines, bool drawFalse, const float focal,
                        const Point2f& center, Mat& out) {
   for (int i = 0; i < clustered.size(); i++) {
     Scalar color;
 
-    bool valid = (status[i] == Status::BOTH || status[i] == Status::TRACK ||
-                  status[i] == Status::MATCH);
+    bool valid = (status[i] == FatoStatus::BOTH || status[i] == FatoStatus::TRACK ||
+                  status[i] == FatoStatus::MATCH);
 
     if (clustered[i] && valid) {
       Point2f tmp = reprojectPoint(focal, center, points[i]);
@@ -189,14 +189,14 @@ void drawCentroidVotes(const vector<Point3f*>& keypoints,
                        const vector<Point3f>& votes,
                        const vector<bool>& clustered,
                        const vector<bool>& border,
-                       const vector<Status*>& status, bool drawLines,
+                       const vector<FatoStatus*>& status, bool drawLines,
                        bool drawFalse, const float focal, const Point2f& center,
                        ofstream& file, Mat& out) {
   for (size_t i = 0; i < clustered.size(); i++) {
     Scalar color;
 
-    bool valid = (*status[i] == Status::BOTH || *status[i] == Status::TRACK ||
-                  *status[i] == Status::MATCH);
+    bool valid = (*status[i] == FatoStatus::BOTH || *status[i] == FatoStatus::TRACK ||
+                  *status[i] == FatoStatus::MATCH);
 
     if (clustered[i] && valid && keypoints[i]->z != 0) {
       Point2f tmp = reprojectPoint(focal, center, votes[i]);
@@ -233,7 +233,7 @@ void drawCentroidVotes(const vector<Point3f*>& keypoints,
            << toString(votes[i]) << " " << toString(kp) << " " << toString(tmp)
            << "\n";
     }
-    if (*status[i] == Status::NOCLUSTER && keypoints[i]->z != 0) {
+    if (*status[i] == FatoStatus::NOCLUSTER && keypoints[i]->z != 0) {
       Point2f tmp = reprojectPoint(focal, center, votes[i]);
       Point2f kp = reprojectPoint(focal, center, *keypoints[i]);
 
@@ -302,7 +302,7 @@ void drawObjectLocation(const Point2f& fstC, const vector<Point2f>& fstBBox,
 
 void drawKeypointsMatching(const vector<KeyPoint>& fstPoint,
                            const vector<KeyPoint>& scdPoints,
-                           const vector<Status>& pointStatus,
+                           const vector<FatoStatus>& pointStatus,
                            const vector<Scalar>& colors, int& numMatch,
                            int& numTrack, int& numBoth, bool drawLines,
                            Mat& out) {
@@ -311,7 +311,7 @@ void drawKeypointsMatching(const vector<KeyPoint>& fstPoint,
   for (size_t i = 0; i < scdPoints.size(); i++) {
     const Scalar& color = colors[i];
 
-    const Status& s = pointStatus[i];
+    const FatoStatus& s = pointStatus[i];
 
     const Point2f& fst = fstPoint[i].pt;
     const Point2f& scd = scdPoints[i].pt;
@@ -319,12 +319,12 @@ void drawKeypointsMatching(const vector<KeyPoint>& fstPoint,
     Point2f fstOffset = fst;
     fstOffset.x += cols;
 
-    if (s == Status::MATCH) {
+    if (s == FatoStatus::MATCH) {
       circle(out, fstOffset, 3, color, 1);
       circle(out, scd, 3, color, 1);
       if (drawLines) line(out, scd, fstOffset, color, 1);
       numMatch++;
-    } else if (s == Status::TRACK) {
+    } else if (s == FatoStatus::TRACK) {
       Rect prev(fst.x - 2 + cols, fst.y - 2, 5, 5);
       Rect next(scd.x - 2, scd.y - 2, 5, 5);
 
@@ -332,10 +332,10 @@ void drawKeypointsMatching(const vector<KeyPoint>& fstPoint,
       rectangle(out, next, color, 1);
       if (drawLines) line(out, scd, fstOffset, color, 1);
       numTrack++;
-    } else if (s == Status::BACKGROUND) {
+    } else if (s == FatoStatus::BACKGROUND) {
       // circle(out, fstOffset, 3, color, 1);
       // circle(out, scd, 3, color, 1);
-    } else if (s == Status::BOTH) {
+    } else if (s == FatoStatus::BOTH) {
       cross(fstOffset, color, 1, out);
       cross(scd, color, 1, out);
       if (drawLines) line(out, scd, fstOffset, color, 1);
@@ -346,7 +346,7 @@ void drawKeypointsMatching(const vector<KeyPoint>& fstPoint,
 
 void drawPointsMatching(const vector<Point3f>& fstPoints,
                         const vector<Point3f>& scdPoints,
-                        const vector<Status>& pointStatus,
+                        const vector<FatoStatus>& pointStatus,
                         const vector<Scalar>& colors, int& numMatch,
                         int& numTrack, int& numBoth, bool drawLines,
                         const float focal, const Point2f& center, Mat& out) {
@@ -355,7 +355,7 @@ void drawPointsMatching(const vector<Point3f>& fstPoints,
   for (size_t i = 0; i < scdPoints.size(); i++) {
     const Scalar& color = colors[i];
 
-    const Status& s = pointStatus[i];
+    const FatoStatus& s = pointStatus[i];
 
     const Point2f& fst = reprojectPoint(focal, center, fstPoints[i]);
     const Point2f& scd = reprojectPoint(focal, center, scdPoints[i]);
@@ -363,12 +363,12 @@ void drawPointsMatching(const vector<Point3f>& fstPoints,
     Point2f fstOffset = fst;
     fstOffset.x += cols;
 
-    if (s == Status::MATCH) {
+    if (s == FatoStatus::MATCH) {
       circle(out, fstOffset, 3, color, 1);
       circle(out, scd, 3, color, 1);
       if (drawLines) line(out, scd, fstOffset, color, 1);
       numMatch++;
-    } else if (s == Status::TRACK) {
+    } else if (s == FatoStatus::TRACK) {
       Rect prev(fst.x - 2 + cols, fst.y - 2, 5, 5);
       Rect next(scd.x - 2, scd.y - 2, 5, 5);
 
@@ -376,10 +376,10 @@ void drawPointsMatching(const vector<Point3f>& fstPoints,
       rectangle(out, next, color, 1);
       if (drawLines) line(out, scd, fstOffset, color, 1);
       numTrack++;
-    } else if (s == Status::BACKGROUND) {
+    } else if (s == FatoStatus::BACKGROUND) {
       // circle(out, fstOffset, 3, color, 1);
       // circle(out, scd, 3, color, 1);
-    } else if (s == Status::BOTH) {
+    } else if (s == FatoStatus::BOTH) {
       cross(fstOffset, color, 1, out);
       cross(scd, color, 1, out);
       if (drawLines) line(out, scd, fstOffset, color, 1);
@@ -390,7 +390,7 @@ void drawPointsMatching(const vector<Point3f>& fstPoints,
 
 void drawPointsMatching(const vector<Point3f*>& fstPoints,
                         const vector<Point3f*>& scdPoints,
-                        const vector<Status*>& pointStatus,
+                        const vector<FatoStatus*>& pointStatus,
                         const vector<Scalar*>& colors, int& numMatch,
                         int& numTrack, int& numBoth, bool drawLines,
                         const float focal, const Point2f& center, Mat& out) {
@@ -398,7 +398,7 @@ void drawPointsMatching(const vector<Point3f*>& fstPoints,
   for (size_t i = 0; i < scdPoints.size(); i++) {
     const Scalar& color = *colors[i];
 
-    const Status& s = *pointStatus[i];
+    const FatoStatus& s = *pointStatus[i];
 
     Point2f fst(0, 0);
     Point2f scd(0, 0);
@@ -411,12 +411,12 @@ void drawPointsMatching(const vector<Point3f*>& fstPoints,
     Point2f fstOffset = fst;
     fstOffset.x += cols;
 
-    if (s == Status::MATCH) {
+    if (s == FatoStatus::MATCH) {
       circle(out, fstOffset, 3, color, 1);
       circle(out, scd, 3, color, 1);
       if (drawLines) line(out, scd, fstOffset, color, 1);
       numMatch++;
-    } else if (s == Status::TRACK) {
+    } else if (s == FatoStatus::TRACK) {
       // cout << "Track crash!";
       Rect prev(fst.x - 2 + cols, fst.y - 2, 5, 5);
       Rect next(scd.x - 2, scd.y - 2, 5, 5);
@@ -426,7 +426,7 @@ void drawPointsMatching(const vector<Point3f*>& fstPoints,
       if (drawLines) line(out, scd, fstOffset, color, 1);
       numTrack++;
       // cout << "Track crash!";
-    } else if (s == Status::BOTH) {
+    } else if (s == FatoStatus::BOTH) {
       // cout << "Both crash!";
       cross(fstOffset, color, 1, out);
       cross(scd, color, 1, out);
@@ -440,7 +440,7 @@ void drawPointsMatching(const vector<Point3f*>& fstPoints,
 
 void drawPointsMatchingICRA(const vector<Point3f*>& fstPoints,
                             const vector<Point3f*>& scdPoints,
-                            const vector<Status*>& pointStatus,
+                            const vector<FatoStatus*>& pointStatus,
                             const vector<Scalar*>& colors, int& numMatch,
                             int& numTrack, int& numBoth, bool drawLines,
                             const float focal, const Point2f& center,
@@ -449,7 +449,7 @@ void drawPointsMatchingICRA(const vector<Point3f*>& fstPoints,
   for (size_t i = 0; i < scdPoints.size(); i++) {
     const Scalar& color = *colors[i];
 
-    const Status& s = *pointStatus[i];
+    const FatoStatus& s = *pointStatus[i];
 
     Point2f fst(0, 0);
     Point2f scd(0, 0);
@@ -459,10 +459,10 @@ void drawPointsMatchingICRA(const vector<Point3f*>& fstPoints,
     bool fstVal = reprojectPoint(focal, center, *fstPoints[i], fst);
     bool scdVal = reprojectPoint(focal, center, *scdPoints[i], scd);
 
-    if (s == Status::MATCH) {
+    if (s == FatoStatus::MATCH) {
       circle(out, scd, 3, color, 1);
       numMatch++;
-    } else if (s == Status::TRACK) {
+    } else if (s == FatoStatus::TRACK) {
       // cout << "Track crash!";
 
       Rect next(scd.x - 2, scd.y - 2, 5, 5);
@@ -471,7 +471,7 @@ void drawPointsMatchingICRA(const vector<Point3f*>& fstPoints,
 
       numTrack++;
       // cout << "Track crash!";
-    } else if (s == Status::BOTH) {
+    } else if (s == FatoStatus::BOTH) {
       // cout << "Both crash!";
       cross(scd, color, 1, out);
       numBoth++;
@@ -483,35 +483,35 @@ void drawPointsMatchingICRA(const vector<Point3f*>& fstPoints,
 
 void countKeypointsMatching(const vector<KeyPoint>& fstPoint,
                             const vector<KeyPoint>& scdPoints,
-                            const vector<Status>& pointStatus, int& numMatch,
+                            const vector<FatoStatus>& pointStatus, int& numMatch,
                             int& numTrack, int& numBoth) {
   for (size_t i = 0; i < scdPoints.size(); i++) {
-    const Status& s = pointStatus[i];
+    const FatoStatus& s = pointStatus[i];
 
     const Point2f& fst = fstPoint[i].pt;
     const Point2f& scd = scdPoints[i].pt;
 
     Point2f fstOffset = fst;
 
-    if (s == Status::MATCH)
+    if (s == FatoStatus::MATCH)
       numMatch++;
-    else if (s == Status::TRACK)
+    else if (s == FatoStatus::TRACK)
       numTrack++;
-    else if (s == Status::BOTH)
+    else if (s == FatoStatus::BOTH)
       numBoth++;
   }
 }
 
-void countKeypointsMatching(const vector<Status*>& pointStatus, int& numMatch,
+void countKeypointsMatching(const vector<FatoStatus*>& pointStatus, int& numMatch,
                             int& numTrack, int& numBoth) {
   for (size_t i = 0; i < pointStatus.size(); i++) {
-    const Status* s = pointStatus[i];
+    const FatoStatus* s = pointStatus[i];
 
-    if (*s == Status::MATCH)
+    if (*s == FatoStatus::MATCH)
       numMatch++;
-    else if (*s == Status::TRACK)
+    else if (*s == FatoStatus::TRACK)
       numTrack++;
-    else if (*s == Status::BOTH)
+    else if (*s == FatoStatus::BOTH)
       numBoth++;
   }
 }

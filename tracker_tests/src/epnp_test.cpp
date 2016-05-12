@@ -32,7 +32,6 @@
 #include <vector>
 
 using namespace std;
-
 #include "epnp.h"
 
 const double uc = 320;

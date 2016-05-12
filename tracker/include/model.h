@@ -87,7 +87,7 @@ class ObjectModel {
   /*                           INFORMATIONS FOR EACH FACE */
   /*********************************************************************************************/
   std::vector<std::vector<cv::Point3f> > m_cloudPoints;
-  std::vector<std::vector<Status> > m_pointStatus;
+  std::vector<std::vector<FatoStatus> > m_pointStatus;
   std::vector<cv::Mat> m_faceDescriptors;
   std::vector<std::vector<cv::KeyPoint> > m_faceKeypoints;
   std::vector<std::vector<cv::Point3f> > m_relativePointsPos;

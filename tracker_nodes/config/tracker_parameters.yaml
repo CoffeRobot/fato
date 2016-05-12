@@ -37,6 +37,10 @@ fato/model/response: 200
 fato/model/object_path: ($ROS_ROOT)/src/pinot_tracker/fato_tracker/data/ros_fuerte/ros_fuerte.obj
 fato/model/feature_type: 0
 
+# camera topics for synthetic rendering
+fato/camera/image_topic: /image_raw
+fato_camera/info_topic: /camera_info
+
 
 
 

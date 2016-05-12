@@ -48,22 +48,22 @@ string toString(const Point2f& p)
 }
 
 
-string toString(const Status& s)
+string toString(const FatoStatus& s)
 {
 	switch (s)
 	{
 
-	case Status::BACKGROUND:
+	case FatoStatus::BACKGROUND:
 		return "BACKGROUND";
-	case Status::INIT:
+	case FatoStatus::INIT:
 		return "INIT";
-	case Status::MATCH:
+	case FatoStatus::MATCH:
 		return "MATCH";
-	case Status::NOMATCH:
+	case FatoStatus::NOMATCH:
 		return "NOMATCH";
-	case Status::NOCLUSTER:
+	case FatoStatus::NOCLUSTER:
 		return "NOCLUSTER";
-	case Status::TRACK:
+	case FatoStatus::TRACK:
 		return "TRACK";
 	default:
 		return "LOST";
