@@ -37,44 +37,42 @@
 
 #include "constants.h"
 
-namespace fato{
+namespace fato {
 
 class Target {
+ public:
+  Target() {}
 
-public:
+  ~Target() {}
 
-    Target(){}
+  void init(std::vector<cv::Point3f>& points, cv::Mat& descriptors);
 
-    ~Target(){}
+  void removeInvalidPoints(const std::vector<int>& ids);
 
+  bool isConsistent();
 
-    void init(std::vector<cv::Point3f>& points, cv::Mat& descriptors);
+  void projectVectors(cv::Mat& camera, cv::Mat& out);
 
-    void removeInvalidPoints(const std::vector<int>& ids);
+  std::vector<cv::Point3f> model_points_;
+  std::vector<cv::Point3f> rel_distances_;
+  std::vector<cv::Point2f> active_points;
+  std::vector<KpStatus> point_status_;
 
-    bool isConsistent();
+  cv::Mat descriptors_;
 
-    void projectVectors(cv::Mat &camera, cv::Mat& out);
+  cv::Point3f centroid_;
 
-    std::vector<cv::Point3f> model_points_;
-    std::vector<cv::Point3f> rel_distances_;
-    std::vector<cv::Point2f> active_points;
-    std::vector<KpStatus> point_status_;
+  std::vector<int> active_to_model_;
 
-    cv::Mat descriptors_;
+  cv::Mat rotation, rotation_custom;
+  cv::Mat translation, translation_custom;
+  cv::Mat rotation_vec;
 
-    cv::Point3f centroid_;
-
-    std::vector<int> active_to_model_;
-
-    cv::Mat rotation, rotation_custom;
-    cv::Mat translation, translation_custom;
-    cv::Mat rotation_vec;
-
+  // position of points in previous frame, used for structure from motion pose
+  // estimation
+  std::vector<cv::Point3f> last_frame_points_;
 
 };
-
-
 }
 
-#endif // TARGET_HPP
+#endif  // TARGET_HPP

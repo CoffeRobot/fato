@@ -48,24 +48,28 @@
 #include <message_filters/subscriber.h>
 #include <math.h>
 #include <atomic>
+#include <opencv2/contrib/contrib.hpp>
+#include <opencv2/features2d/features2d.hpp>
+#include <opencv2/video/tracking.hpp>
 
 #include "fato_tracker_tests/RenderService.h"
 
 #include <device_1d.h>
 #include <hdf5_file.h>
 #include <utilities.h>
+#include <tracker_model.h>
+#include <feature_matcher.hpp>
+#include <constants.h>
+
 #include "../../fato_rendering/include/multiple_rigid_models_ogre.h"
 #include "../../fato_rendering/include/windowless_gl_context.h"
-#include "../../tracker/include/tracker_model.h"
-#include "../../tracker/include/feature_matcher.hpp"
-#include "../../tracker/include/constants.h"
+
 #include <utility_kernels.h>
 #include <utility_kernels_pose.h>
 
-
 using namespace std;
 
-ros::Publisher pose_publisher, rendering_publisher;
+ros::Publisher pose_publisher, rendering_publisher, disparity_publisher;
 
 cv::Mat camera_image;
 string img_topic, info_topic, model_name, obj_file;
@@ -111,6 +115,9 @@ class SyntheticRenderer {
 
       rendering_engine->addModel(obj_file);
 
+      width_ = camera_image.cols;
+      height_ = camera_image.rows;
+
       initialized_ = true;
     }
 
@@ -139,9 +146,52 @@ class SyntheticRenderer {
 
     next_frame_requested_ = true;
 
+    t_req_[0] = req.x;
+    t_req_[1] = req.y;
+    t_req_[2] = req.z;
+
+    q_req_.x() = req.qx;
+    q_req_.y() = req.qy;
+    q_req_.z() = req.qz;
+    q_req_.w() = req.qw;
+
     ROS_INFO("received a rendering request");
 
     return true;
+  }
+
+  void zbuffer2Z(vector<float> &depth) {
+    util::Device1D<float> d_z(height_ * width_);
+    pose::convertZbufferToZ(d_z.data(), rendering_engine->getZBuffer(), width_,
+                            height_, camera_matrix_.at<double>(0, 2),
+                            camera_matrix_.at<double>(1, 2), 0.01, 10.0);
+    depth.resize(height_ * width_, 0);
+    d_z.copyTo(depth);
+  }
+
+  void depth2Disparity(vector<float> &depth, cv::Mat &disparity) {
+    cv::Mat temp(height_, width_, CV_32FC1, 0.0f);
+
+    for (auto j = 0; j < height_; ++j) {
+      for (auto i = 0; i < width_; ++i) {
+        int id = i + j * width_;
+        if (depth.at(id) == depth.at(id)) temp.at<float>(id) = depth.at(id);
+      }
+    }
+
+    double min = 0;
+    double max = 8.0;
+    // cv::minMaxIdx(temp, &min, &max);
+
+    cv::Mat adjMap;
+    // expand your range to 0..255. Similar to histEq();
+    temp.convertTo(disparity, CV_8UC1, 255 / (max - min), -min);
+
+    // this is great. It converts your grayscale image into a tone-mapped one,
+    // much more pleasing for the eye
+    // function is found in contrib module, so include contrib.hpp
+    // and link accordingly
+    // cv::applyColorMap(adjMap, disparity, cv::COLORMAP_JET);
   }
 
   void run() {
@@ -164,12 +214,16 @@ class SyntheticRenderer {
     tracker.addModel(model_name);
 
     bool tracker_initialized = false;
+    bool keypoints_extracted = false;
+
+    std::vector<cv::Point2f> keypoints, prev_kps, next_kps;
+    std::vector<cv::Point3f> points;
+    cv::Mat prev, prev_gray;
 
     while (ros::ok()) {
       Eigen::Vector3f t_inc;
 
-      if(!tracker_initialized && initialized_)
-      {
+      if (!tracker_initialized && initialized_) {
         tracker.setCameraMatrix(camera_matrix_);
         tracker_initialized = true;
       }
@@ -197,8 +251,46 @@ class SyntheticRenderer {
         cv::Mat img_rgba(camera_image.rows, camera_image.cols, CV_8UC4,
                          h_texture.data());
 
+        cv::Mat disparity;
+        vector<float> depth_buffer;
+        zbuffer2Z(depth_buffer);
+        depth2Disparity(depth_buffer, disparity);
+
         cv::Mat res;
         cv::cvtColor(img_rgba, res, CV_RGBA2BGR);
+
+        if (!keypoints_extracted) {
+          cv::Mat grey;
+          cv::cvtColor(res, grey, CV_BGR2GRAY);
+          std::vector<cv::KeyPoint> kps;
+          cv::ORB orbExtractor;
+          orbExtractor.detect(grey, kps);
+
+          for (auto kp : kps) {
+            cv::Point2f pt = kp.pt;
+            keypoints.push_back(pt);
+            float depth = depth_buffer.at(pt.x + pt.y * width_);
+            points.push_back(cv::Point3f(pt.x, pt.y, depth));
+          }
+
+          prev_kps = keypoints;
+
+          keypoints_extracted = true;
+
+          prev_gray = grey.clone();
+        } else {
+          cv::Mat gray;
+          cv::cvtColor(res, gray, CV_BGR2GRAY);
+          vector<uchar> next_status, prev_status;
+          vector<float> next_errors, prev_errors;
+
+          cv::calcOpticalFlowPyrLK(prev_gray, gray, prev_kps, next_kps,
+                                   next_status, next_errors);
+
+          prev_gray = gray.clone();
+        }
+
+        prev = res.clone();
 
         for (auto i = 0; i < camera_image.rows; ++i) {
           for (auto j = 0; j < camera_image.cols; ++j) {
@@ -212,9 +304,25 @@ class SyntheticRenderer {
           }
         }
 
+        for (auto pt : next_kps) {
+          cv::circle(res, pt, 3, cv::Scalar(255, 0, 0), 2);
+        }
+
         if (next_frame_requested_) {
           tracker.computeNextSequential(res);
 
+          //          // dump the information to file
+          //          util::HDF5File out_file(h5_file_name);
+          //          std::vector<int> descriptors_size{valid_point_count,
+          //          dsc_size};
+          //          std::vector<int> positions_size{valid_point_count, 3};
+          //          out_file.writeArray("descriptors",
+          //          all_filtered_descriptors,
+          //                              descriptors_size, true);
+          //          out_file.writeArray("positions", all_filtered_keypoints,
+          //                              positions_size, true);
+
+          prev_kps = next_kps;
           next_frame_requested_ = false;
         }
 
@@ -238,7 +346,11 @@ class SyntheticRenderer {
         cv_bridge::CvImage cv_img, cv_rend;
         cv_img.image = res;
         cv_img.encoding = sensor_msgs::image_encodings::BGR8;
+        cv_rend.image = disparity;
+        cv_rend.encoding = sensor_msgs::image_encodings::MONO8;
+
         rendering_publisher.publish(cv_img.toImageMsg());
+        disparity_publisher.publish(cv_rend.toImageMsg());
 
         image_updated = false;
       }
@@ -265,8 +377,11 @@ class SyntheticRenderer {
   ros::ServiceServer service_server_;
 
   atomic_bool next_frame_requested_;
+  Eigen::Vector3d t_req_;
+  Eigen::Quaterniond q_req_;
 
   cv::Mat camera_matrix_;
+  int width_, height_;
 };
 
 void simpleMovement() {
@@ -315,6 +430,8 @@ int main(int argc, char **argv) {
 
   rendering_publisher =
       nh.advertise<sensor_msgs::Image>("fato_tracker/synthetic", 1);
+  disparity_publisher =
+      nh.advertise<sensor_msgs::Image>("fato_tracker/synthetic_disparity", 1);
 
   SyntheticRenderer sr;
 

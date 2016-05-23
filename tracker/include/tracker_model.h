@@ -135,11 +135,6 @@ class TrackerMB {
 
   void getOpticalFlow(const cv::Mat& prev,
                       const cv::Mat& next,
-                      std::vector<cv::Point2f>& points, std::vector<int>& ids,
-                      std::vector<KpStatus>& status);
-
-  void getOpticalFlow(const cv::Mat& prev,
-                      const cv::Mat& next,
                       Target& target);
 
   void projectPointsToModel(const cv::Point2f& model_centroid,

@@ -36,13 +36,14 @@
 #include <H5Cpp.h>
 #include <boost/filesystem.hpp>
 #include <vector_types.h>
+#include <opencv2/core/core.hpp>
 
 namespace util {
 
 class HDF5File {
  public:
   // open for read/write, will create if not exists (existing path required)
-  // existing variables with same name cannot be overwritten (hdf5 restriction)
+  // existing variables with same name cannot be overwritten (hdf5 restriction)  
   HDF5File(std::string file_name);
 
   // remove the rest (rule of five)
@@ -62,7 +63,7 @@ class HDF5File {
   template <typename Type>
   Type readScalar(const std::string &name);
 
-  // write array to file as variable name, with dimensionality specified by dims
+
   template <typename Type>
   void writeArray(const std::string &name, const std::vector<Type> &array,
                   const std::vector<int> &dims, bool compress = false);
@@ -300,6 +301,46 @@ inline void HDF5File::writeArray(const std::string &name,
   }
 
   writeArray(name, array_uchar, dims_uchar4, compress);
+}
+
+
+template<>
+inline void HDF5File::writeArray(const std::string& name,
+                                 const std::vector<cv::Point2f>& array,
+                                 const std::vector<int> &dims, bool compress)
+{
+    std::vector<int> dims_float = dims;
+    dims_float.push_back(2);
+    std::size_t n_elements = 1;
+    for (auto &it : dims_float) n_elements *= it;
+    std::vector<float> array_float;
+    array_float.reserve(n_elements);
+    for (auto &it : array) {
+      array_float.push_back(it.x);
+      array_float.push_back(it.y);
+    }
+
+    writeArray(name, array_float, dims_float, compress);
+}
+
+template<>
+inline void HDF5File::writeArray(const std::string& name,
+                                 const std::vector<cv::Point3f>& array,
+                                 const std::vector<int> &dims, bool compress)
+{
+    std::vector<int> dims_float = dims;
+    dims_float.push_back(3);
+    std::size_t n_elements = 1;
+    for (auto &it : dims_float) n_elements *= it;
+    std::vector<float> array_float;
+    array_float.reserve(n_elements);
+    for (auto &it : array) {
+      array_float.push_back(it.x);
+      array_float.push_back(it.y);
+      array_float.push_back(it.z);
+    }
+
+    writeArray(name, array_float, dims_float, compress);
 }
 
 // variable length strings are a special case and need specialization

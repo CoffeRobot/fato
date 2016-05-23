@@ -351,13 +351,6 @@ int main(int argc, char **argv) {
     rendered_imgs.push_back(img_keys);
     img_keypoints.push_back(points);
 
-    //    for (auto &it : points) {
-    //      cv::circle(img_keys, cv::Point2d(it.pt.x, it.pt.y), 2,
-    //                 CV_RGB(0, 255, 0), -1, 8);
-
-    //      std::cout << it.response << std::endl;
-    //    }
-    //    std::cout << "\n";
   }
 
   std::cout << "min response " << min_response << " max reponse "
@@ -438,65 +431,6 @@ int main(int argc, char **argv) {
   out_file.writeArray("positions", all_filtered_keypoints, positions_size,
                       true);
 
-  //  std::vector<uchar> test_descriptors;
-  //  std::vector<int> test_size, point_size;
-  //  std::vector<float> points;
-  //  // int test_feature_size;
-  //  out_file.readArray<uchar>("descriptors", test_descriptors, test_size);
-  //  out_file.readArray<float>("positions", points, point_size);
-
-  //  std::cout << "feature size in: " << test_size[0] << " " << test_size[1]
-  //            << std::endl;
-  //  std::cout << "points size in: " << point_size[0] << " " << point_size[1]
-  //            << std::endl;
-
-  //  cv::Mat1b test;  //(test_size[0], test_size[1]);
-
-  //  fato::vectorToMat(test_descriptors, test_size, test);
-
-  //  std::cout << "src_dsc " << all_descriptors.size() << " dst_dsc "
-  //            << test_descriptors.size() << std::endl;
-
-  //  std::cout << "Mat size " << test.cols << "  " << test.rows << std::endl;
-
-  //  std::cout << "ALL_Mat size " << all_mat.cols << "  " << all_mat.rows
-  //            << std::endl;
-
-  //  int err_count = 0;
-  //  for (int i = 0; i < all_descriptors.size(); ++i) {
-  //    if (all_descriptors.at(i) != test_descriptors.at(i)) err_count++;
-  //  }
-  //  std::cout << "Errors in the arrays " << err_count << std::endl;
-
-  //  err_count = 0;
-  //  for (auto i = 0; i < all_mat.rows; ++i) {
-  //    for (auto j = 0; j < all_mat.cols; ++j) {
-  //      if (std::abs((int)all_mat.at<uchar>(i, j) - (int)test.at<uchar>(i, j))
-  //      !=
-  //          0)
-  //        err_count++;
-  //    }
-  //  }
-  //  std::cout << "Error in mats " << err_count << "\n";
-
-  //  err_count = 0;
-  //  for (auto i = 0; i < points.size(); ++i) {
-  //    if (all_keypoints.at(i) != points.at(i)) {
-  //      err_count++;
-  //      //std::cout << all_keypoints.at(i) << " " << points.at(i) <<
-  //      std::endl;
-  //    }
-  //  }
-  //  std::cout << "Error in points " << err_count << "\n";
-  //  //  for (int i = 0; i < 1; ++i) {
-  //  //    for (int j = 0; j < test.cols; ++j) {
-  //  //      std::cout << "[" << (int)test.at<uchar>(j, i) << ","
-  //  //                << (int)all_mat.at<uchar>(j, i) << "]" <<
-  //  //                (int)test1.at<uchar>(i,j)
-  //  //                << "," << (int)test_descriptors.at(j) << " ";
-  //  //    }
-  //  //    std::cout << "\n";
-  //  //  }
 
   return EXIT_SUCCESS;
 }

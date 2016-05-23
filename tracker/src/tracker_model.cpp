@@ -139,7 +139,6 @@ void TrackerMB::learnBackground(const Mat& rgb) {
   feature_detector_->setTarget(m_initDescriptors);
 }
 
-
 void TrackerMB::setMatcerParameters(float confidence, float second_ratio) {
   matcher_confidence_ = confidence;
   matcher_ratio_ = second_ratio;
@@ -163,57 +162,6 @@ Point2f TrackerMB::initCentroid(const vector<Point2f>& points) {
 }
 
 void TrackerMB::getOpticalFlow(const Mat& prev, const Mat& next,
-                               vector<Point2f>& points, vector<int>& ids,
-                               vector<KpStatus>& status) {
-  vector<Point2f> next_points, prev_points;
-  vector<uchar> next_status, prev_status;
-  vector<float> next_errors, prev_errors;
-
-  cout << "OF 1" << endl;
-  cout << "Points size: " << points.size() << endl;
-  // computing forward flow
-  calcOpticalFlowPyrLK(prev, next, points, next_points, next_status,
-                       next_errors);
-  cout << "OF 2" << endl;
-  // computing backward reprojection flow
-  calcOpticalFlowPyrLK(next, prev, next_points, prev_points, prev_status,
-                       prev_errors);
-
-  cout << "OF 3" << endl;
-  m_flow_counter = 0;
-  for (int i = 0; i < next_points.size(); ++i) {
-    float error = fato::getDistance(points[i], prev_points[i]);
-
-    KpStatus& s = status[ids[i]];
-
-    if (prev_status[i] == 1 && error < 20) {
-      // const int& id = ids[i];
-      auto id = i;
-
-      if (s == KpStatus::MATCH) {
-        status[id] = KpStatus::TRACK;
-        m_flow_counter++;
-      } else if (s == KpStatus::LOST)
-        status[id] = KpStatus::LOST;
-      else if (s == KpStatus::NOCLUSTER) {
-        status[id] = KpStatus::LOST;
-      } else if (s == KpStatus::TRACK || s == KpStatus::INIT) {
-        status[id] = KpStatus::TRACK;
-        m_flow_counter++;
-      }
-
-      points[i] = next_points[i];
-    } else {
-      // status[ids[i]] = Status::LOST;
-      if (status[i] != KpStatus::BACKGROUND) status[i] = KpStatus::LOST;
-      // TODO: remove pointer and ids if lost, it will still be in the detector
-      // list
-    }
-  }
-  cout << "OF 4" << endl;
-}
-
-void TrackerMB::getOpticalFlow(const Mat& prev, const Mat& next,
                                Target& target) {
   if (target_object_.active_points.size() <= 0) return;
 
@@ -221,17 +169,10 @@ void TrackerMB::getOpticalFlow(const Mat& prev, const Mat& next,
   vector<uchar> next_status, prev_status;
   vector<float> next_errors, prev_errors;
 
-  // cout << "OF 1" << endl;
-  // cout << "Points size: " << target.active_points.size() << endl;
-  // computing forward flow
   calcOpticalFlowPyrLK(prev, next, target.active_points, next_points,
                        next_status, next_errors);
-  // cout << "OF 2" << endl;
-  // computing backward reprojection flow
   calcOpticalFlowPyrLK(next, prev, next_points, prev_points, prev_status,
                        prev_errors);
-
-  // cout << "OF 3" << endl
 
   vector<int> to_remove;
 
@@ -317,16 +258,18 @@ void TrackerMB::trackSequential(Mat& next) {
 
     vector<int> custom_inliers;
     PNPSolver custom_pnp;
-    custom_pnp.set_internal_parameters(camera_matrix_.at<double>(0,2),
-                                       camera_matrix_.at<double>(1,2),
-                                       camera_matrix_.at<double>(0,0),
-                                       camera_matrix_.at<double>(1,1));
+    custom_pnp.set_internal_parameters(
+        camera_matrix_.at<double>(0, 2), camera_matrix_.at<double>(1, 2),
+        camera_matrix_.at<double>(0, 0), camera_matrix_.at<double>(1, 1));
     custom_pnp.set_maximum_number_of_correspondences(model_pts.size());
     custom_pnp.setCorrespondences(model_pts, target_object_.active_points);
-    custom_pnp.solvePnP(num_iters, model_pts.size(), ransac_error , custom_inliers);
-    custom_pnp.getPose(target_object_.rotation_custom, target_object_.translation_custom);
+    custom_pnp.solvePnP(num_iters, model_pts.size(), ransac_error,
+                        custom_inliers);
+    custom_pnp.getPose(target_object_.rotation_custom,
+                       target_object_.translation_custom);
 
-    cout << "inliers: " << inliers.size() << " custom " << custom_inliers.size() << endl;
+    cout << "inliers: " << inliers.size() << " custom " << custom_inliers.size()
+         << endl;
 
     vector<int> to_remove;
     if (inliers.size() > 0) {
@@ -393,7 +336,6 @@ void TrackerMB::detectSequential(Mat& next) {
   vector<cv::Point2f>& active_points = target_object_.active_points;
   vector<KpStatus>& point_status = target_object_.point_status_;
 
-  int match_count = 0;
   int bg_count = 0;
 
   for (size_t i = 0; i < matches.size(); i++) {
@@ -436,7 +378,6 @@ void TrackerMB::detectSequential(Mat& next) {
       active_points.push_back(keypoints.at(match_idx).pt);
       target_object_.active_to_model_.push_back(model_idx);
       point_status.at(model_idx) = KpStatus::MATCH;
-      match_count++;
     }
   }
 }

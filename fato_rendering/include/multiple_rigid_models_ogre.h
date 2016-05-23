@@ -35,10 +35,10 @@
 #include <vector>
 #include <memory>
 
-#include <ogre_context.h>
-#include <ogre_multi_render_target.h>
-#include <rigid_object.h>
-#include <translation_rotation_3d.h>
+#include "ogre_context.h"
+#include "ogre_multi_render_target.h"
+#include "rigid_object.h"
+#include "translation_rotation_3d.h"
 
 namespace pose {
 

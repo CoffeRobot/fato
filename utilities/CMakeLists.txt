@@ -53,7 +53,6 @@ add_library(${PROJECT_NAME}
   src/draw_functions.cpp
   src/profiler.cpp
   src/visualization_ros.cpp
-  src/data_structures.cpp
   src/logger.cpp
 )
 

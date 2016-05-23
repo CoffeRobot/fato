@@ -32,7 +32,7 @@
 
 //#define UNROLL_INNER
 //#define IMUL(a, b) __mul24(a, b)
-#include <utility_kernels.h>
+#include "utility_kernels.h"
 
 namespace vision {
 
