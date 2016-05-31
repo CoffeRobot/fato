@@ -40,6 +40,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
 #include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/image_transport.h>
@@ -60,6 +61,7 @@
 #include <tracker_model.h>
 #include <feature_matcher.hpp>
 #include <constants.h>
+#include <fstream>
 
 #include "../../fato_rendering/include/multiple_rigid_models_ogre.h"
 #include "../../fato_rendering/include/windowless_gl_context.h"
@@ -88,7 +90,11 @@ auto downloadRenderedImg = [](pose::MultipleRigidModelsOgre &model_ogre,
 
 class SyntheticRenderer {
  public:
-  SyntheticRenderer() : initialized_(false), next_frame_requested_(false) {}
+  SyntheticRenderer() : initialized_(false), next_frame_requested_(false)
+  {
+      t_req_ = Eigen::Vector3d(0,0,0.5);
+      r_req_ = Eigen::Vector3d(M_PI,0,0);
+  }
 
   void rgbCallback(const sensor_msgs::ImageConstPtr &rgb_msg,
                    const sensor_msgs::CameraInfoConstPtr &camera_info_msg) {
@@ -140,22 +146,186 @@ class SyntheticRenderer {
         "render_next", &SyntheticRenderer::serviceCallback, this);
   }
 
+  void renderObject()
+  {
+      double T[] = {t_req_[0], t_req_[1], t_req_[2]};
+      double R[] = {r_req_[0], r_req_[1], r_req_[2]};
+      std::vector<pose::TranslationRotation3D> TR(1);
+      TR.at(0) = pose::TranslationRotation3D(T, R);
+
+      Eigen::Matrix3d rot = TR.at(0).eigenRotation();
+
+//      cout << "Eigen rotation " << endl;
+//      cout << rot << endl;
+
+      rendering_engine->render(TR);
+  }
+
+  void downloadTexture(cv::Mat& img)
+  {
+      std::vector<uchar4> h_texture(camera_image.rows * camera_image.cols);
+      downloadRenderedImg(*rendering_engine, h_texture);
+
+      cv::Mat img_rgba(camera_image.rows, camera_image.cols, CV_8UC4,
+                       h_texture.data());
+
+      cv::cvtColor(img_rgba, img, CV_RGBA2BGR);
+  }
+
+  void blendWithCamera(cv::Mat& img)
+  {
+      for (auto i = 0; i < camera_image.rows; ++i) {
+        for (auto j = 0; j < camera_image.cols; ++j) {
+          cv::Vec3b &pixel = img.at<cv::Vec3b>(i, j);
+          if (pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0) {
+            cv::Vec3b &cp = camera_image.at<cv::Vec3b>(i, j);
+            pixel[0] = cp[2];
+            pixel[1] = cp[1];
+            pixel[2] = cp[0];
+          }
+        }
+      }
+  }
+
+  void calculateFlow(cv::Mat& next, std::vector<cv::Point2f>& next_pts)
+  {
+
+      if(prev_points_.size() == 0)
+          return;
+
+      vector<uchar> next_status, proj_status;
+      vector<float> next_errors, proj_errors;
+
+      vector<cv::Point2f> proj_pts, tmp_next_pts;
+
+      cv::calcOpticalFlowPyrLK(prev_gray_, next, prev_points_, tmp_next_pts,
+                               next_status, next_errors);
+      cv::calcOpticalFlowPyrLK(next, prev_gray_, tmp_next_pts, proj_pts, proj_status,
+                               proj_errors);
+
+
+      std::vector<cv::Point2f> tmp_prev;
+      std::vector<float> tmp_depth;
+
+      for(int i = 0; i < tmp_next_pts.size(); ++i)
+      {
+        float error = fato::getDistance(prev_points_.at(i), proj_pts.at(i));
+
+        if(proj_status.at(i) == 1 && error < 20)
+        {
+            tmp_prev.push_back(prev_points_.at(i));
+            tmp_depth.push_back(prev_depth_.at(i));
+            next_pts.push_back(tmp_next_pts.at(i));
+        }
+      }
+
+      std::swap(prev_points_,tmp_prev);
+      std::swap(prev_depth_,tmp_depth);
+  }
+
+  void saveResults(std::vector<cv::Point2f>& prev_pts, std::vector<float>& prev_depth,
+                   std::vector<cv::Point2f>& next_pts, std::vector<float>& next_depth)
+  {
+    if(prev_pts.size() == 0 || next_pts.size() == 0)
+            return;
+
+    string filename = "/home/alessandro/debug/flow.hdf5";
+
+
+    if (boost::filesystem::exists(boost::filesystem::path(filename))) {
+        boost::filesystem::remove(boost::filesystem::path(filename));
+    }
+
+
+    util::HDF5File out_file(filename);
+    ofstream file("/home/alessandro/debug/flow.txt");
+
+    vector<float> prev, next;
+    for(auto i = 0; i < prev_pts.size(); ++i)
+    {
+        prev.push_back(prev_pts.at(i).x);
+        prev.push_back(prev_pts.at(i).y);
+        prev.push_back(prev_depth.at(i));
+        next.push_back(next_pts.at(i).x);
+        next.push_back(next_pts.at(i).y);
+        next.push_back(next_depth.at(i));
+        file << "[" << prev_pts.at(i).x  << "," << prev_pts.at(i).y << "," << prev_depth.at(i) << "] "
+             << "[" << next_pts.at(i).x  << "," << next_pts.at(i).y << "," << next_depth.at(i) << "]\n";
+    }
+
+    std::vector<int> size{prev_pts.size(), 3};
+
+    out_file.writeArray("prev_points", prev, size);
+    out_file.writeArray("next_points", next, size);
+    out_file.writeScalar<double>("fx", camera_matrix_.at<double>(0, 0));
+    out_file.writeScalar<double>("fy", camera_matrix_.at<double>(1, 1));
+    out_file.writeScalar<double>("cx", camera_matrix_.at<double>(0, 2));
+    out_file.writeScalar<double>("cy", camera_matrix_.at<double>(1, 2));
+
+  }
+
   bool serviceCallback(fato_tracker_tests::RenderService::Request &req,
                        fato_tracker_tests::RenderService::Response &res) {
-    res.result = true;
 
-    next_frame_requested_ = true;
+    ROS_INFO("received a rendering request");
 
     t_req_[0] = req.x;
     t_req_[1] = req.y;
     t_req_[2] = req.z;
 
-    q_req_.x() = req.qx;
-    q_req_.y() = req.qy;
-    q_req_.z() = req.qz;
-    q_req_.w() = req.qw;
+    r_req_[0] = req.wx;
+    r_req_[1] = req.wy;
+    r_req_[2] = req.wz;
 
-    ROS_INFO("received a rendering request");
+    res.result = true;
+    res.fx = camera_matrix_.at<double>(0,0);
+    res.fy = camera_matrix_.at<double>(1,1);
+    res.cx = camera_matrix_.at<double>(0,2);
+    res.cy = camera_matrix_.at<double>(1,2);
+
+    renderObject();
+
+    cv::Mat rgb, gray, depth;
+    vector<float> depth_buffer;
+
+    downloadTexture(rgb);
+    zbuffer2Z(depth_buffer);
+
+    if(req.reset_rendering)
+    {
+        ROS_INFO("reset requested");
+        initialize_tracking(rgb, depth_buffer);
+        return true;
+    }
+
+    blendWithCamera(rgb);
+    cv::cvtColor(rgb, gray, CV_BGR2GRAY);
+    std::vector<cv::Point2f> next_pts;
+    std::vector<float> next_depth;
+
+    calculateFlow(gray, next_pts);
+
+    stringstream ss;
+    ss << "zbuffer size " << depth_buffer.size() << " pts size " << next_pts.size() << "\n";
+    ROS_INFO(ss.str().c_str());
+
+    for(auto pt : next_pts)
+    {
+        float depth = 0;
+        if(pt.x < 0 || pt.x > width_ || pt.y < 0 || pt.y > height_)
+            depth = 0;
+        else
+            depth = depth_buffer.at(pt.x + pt.y * width_);
+
+        next_depth.push_back(depth);
+    }
+
+    cv::imwrite("/home/alessandro/debug/image.png", rgb);
+    saveResults(prev_points_, prev_depth_, next_pts, next_depth);
+
+    prev_gray_ = gray.clone();
+    std::swap(prev_points_, next_pts);
+    std::swap(prev_depth_, next_depth);
 
     return true;
   }
@@ -194,6 +364,32 @@ class SyntheticRenderer {
     // cv::applyColorMap(adjMap, disparity, cv::COLORMAP_JET);
   }
 
+  void initialize_tracking(cv::Mat& rgb, const std::vector<float>& depth_buffer)
+  {
+      cv::Mat grey;
+      cv::cvtColor(rgb, grey, CV_BGR2GRAY);
+      std::vector<cv::KeyPoint> kps;
+      cv::ORB orbExtractor;
+      orbExtractor.detect(grey, kps);
+
+      prev_points_.clear();
+      prev_depth_.clear();
+
+      for (auto kp : kps) {
+        cv::Point2f pt = kp.pt;
+        prev_points_.push_back(pt);
+        float depth = depth_buffer.at(pt.x + pt.y * width_);
+
+        prev_depth_.push_back(depth);
+      }
+
+      cout << "points for tracking " << prev_points_.size() << endl;
+
+      keypoints_extracted_ = true;
+
+      prev_gray_ = grey.clone();
+  }
+
   void run() {
     ros::Rate r(100);
 
@@ -205,18 +401,19 @@ class SyntheticRenderer {
     Eigen::Vector3f pos(0, 0, 0.5);
     Eigen::Vector3f inc(t_inc, 0, 0);
 
-    Config params;
+//    Config params;
 
-    std::unique_ptr<fato::FeatureMatcher> derived =
-        std::unique_ptr<fato::BriskMatcher>(new fato::BriskMatcher);
+//    std::unique_ptr<fato::FeatureMatcher> derived =
+//        std::unique_ptr<fato::BriskMatcher>(new fato::BriskMatcher);
 
-    fato::TrackerMB tracker(params, fato::BRISK, std::move(derived));
-    tracker.addModel(model_name);
+//    fato::TrackerMB tracker(params, fato::BRISK, std::move(derived));
+//    tracker.addModel(model_name);
 
     bool tracker_initialized = false;
-    bool keypoints_extracted = false;
+    keypoints_extracted_ = false;
 
-    std::vector<cv::Point2f> keypoints, prev_kps, next_kps;
+    std::vector<cv::Point2f> keypoints;
+    vector<float> prev_d, next_d;
     std::vector<cv::Point3f> points;
     cv::Mat prev, prev_gray;
 
@@ -224,26 +421,14 @@ class SyntheticRenderer {
       Eigen::Vector3f t_inc;
 
       if (!tracker_initialized && initialized_) {
-        tracker.setCameraMatrix(camera_matrix_);
+//        tracker.setCameraMatrix(camera_matrix_);
         tracker_initialized = true;
       }
 
       if (image_updated && initialized_) {
-        if (next_frame_requested_) {
-          frame_counter++;
-          pos += inc;
 
-          if (frame_counter % 240 == 0) {
-            inc = inc * -1.0;
-          }
-        }
 
-        double T[] = {pos[0], pos[1], pos[2]};
-        double R[] = {M_PI, 0, 0};
-
-        std::vector<pose::TranslationRotation3D> TR(1);
-        TR.at(0) = pose::TranslationRotation3D(T, R);
-        rendering_engine->render(TR);
+        renderObject();
 
         std::vector<uchar4> h_texture(camera_image.rows * camera_image.cols);
         downloadRenderedImg(*rendering_engine, h_texture);
@@ -259,35 +444,9 @@ class SyntheticRenderer {
         cv::Mat res;
         cv::cvtColor(img_rgba, res, CV_RGBA2BGR);
 
-        if (!keypoints_extracted) {
-          cv::Mat grey;
-          cv::cvtColor(res, grey, CV_BGR2GRAY);
-          std::vector<cv::KeyPoint> kps;
-          cv::ORB orbExtractor;
-          orbExtractor.detect(grey, kps);
+        if (!keypoints_extracted_) {
 
-          for (auto kp : kps) {
-            cv::Point2f pt = kp.pt;
-            keypoints.push_back(pt);
-            float depth = depth_buffer.at(pt.x + pt.y * width_);
-            points.push_back(cv::Point3f(pt.x, pt.y, depth));
-          }
-
-          prev_kps = keypoints;
-
-          keypoints_extracted = true;
-
-          prev_gray = grey.clone();
-        } else {
-          cv::Mat gray;
-          cv::cvtColor(res, gray, CV_BGR2GRAY);
-          vector<uchar> next_status, prev_status;
-          vector<float> next_errors, prev_errors;
-
-          cv::calcOpticalFlowPyrLK(prev_gray, gray, prev_kps, next_kps,
-                                   next_status, next_errors);
-
-          prev_gray = gray.clone();
+            initialize_tracking(res, depth_buffer);
         }
 
         prev = res.clone();
@@ -304,44 +463,26 @@ class SyntheticRenderer {
           }
         }
 
-        for (auto pt : next_kps) {
+        for (auto pt : prev_points_) {
           cv::circle(res, pt, 3, cv::Scalar(255, 0, 0), 2);
         }
 
-        if (next_frame_requested_) {
-          tracker.computeNextSequential(res);
-
-          //          // dump the information to file
-          //          util::HDF5File out_file(h5_file_name);
-          //          std::vector<int> descriptors_size{valid_point_count,
-          //          dsc_size};
-          //          std::vector<int> positions_size{valid_point_count, 3};
-          //          out_file.writeArray("descriptors",
-          //          all_filtered_descriptors,
-          //                              descriptors_size, true);
-          //          out_file.writeArray("positions", all_filtered_keypoints,
-          //                              positions_size, true);
-
-          prev_kps = next_kps;
-          next_frame_requested_ = false;
-        }
-
-        const fato::Target &target = tracker.getTarget();
+        //const fato::Target &target = tracker.getTarget();
 
         cv::Point3f center(0, 0, 0);
-        for (auto i = 0; i < target.active_points.size(); ++i) {
-          int id = target.active_to_model_.at(i);
+//        for (auto i = 0; i < target.active_points.size(); ++i) {
+//          int id = target.active_to_model_.at(i);
 
-          cv::Scalar color;
+//          cv::Scalar color;
 
-          if ((int)target.point_status_.at(id) == 0)
-            color = cv::Scalar(255, 0, 0);
-          else if ((int)target.point_status_.at(id) == 2)
-            color = cv::Scalar(0, 255, 0);
+//          if ((int)target.point_status_.at(id) == 0)
+//            color = cv::Scalar(255, 0, 0);
+//          else if ((int)target.point_status_.at(id) == 2)
+//            color = cv::Scalar(0, 255, 0);
 
-          cv::circle(res, target.active_points.at(i), 3, color);
-          // center += model_points.at(i);
-        }
+//          cv::circle(res, target.active_points.at(i), 3, color);
+//          // center += model_points.at(i);
+//        }
 
         cv_bridge::CvImage cv_img, cv_rend;
         cv_img.image = res;
@@ -378,10 +519,15 @@ class SyntheticRenderer {
 
   atomic_bool next_frame_requested_;
   Eigen::Vector3d t_req_;
-  Eigen::Quaterniond q_req_;
+  Eigen::Vector3d r_req_;
 
-  cv::Mat camera_matrix_;
+
+  std::vector<cv::Point2f> prev_points_;
+  std::vector<float> prev_depth_;
+
+  cv::Mat camera_matrix_, prev_gray_;
   int width_, height_;
+  bool keypoints_extracted_;
 };
 
 void simpleMovement() {
