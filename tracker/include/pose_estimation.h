@@ -46,6 +46,24 @@ void getPoseRansac(const std::vector<cv::Point3f>& model_points,
                std::vector<int>& inliers, cv::Mat& rotation,
                cv::Mat& translation);
 
+/**
+ * @brief getPoseFromFlow: estimate the pose of the target from optical flow
+ * @param prev_pts:  2d points in the previous frame
+ * @param prev_depth: estimated depth in the previous frame
+ * @param next_pts: 2d points position estimated by optical flow
+ * @param nodal_x: nodal x of the camera
+ * @param nodal_y: notal y of the camera
+ * @param focal_x
+ * @param focal_y
+ * @param translation: estimated tx,ty,tz
+ * @param rotation: estimated wx,wy,wz
+ */
+void getPoseFromFlow(const std::vector<cv::Point2f>& prev_pts,
+                     const std::vector<float>& prev_depth,
+                     const std::vector<cv::Point2f>& next_pts, float nodal_x,
+                     float nodal_y, float focal_x, float focal_y,
+                     std::vector<float>& translation, std::vector<float>& rotation);
+
 void getPose2D(const std::vector<cv::Point2f*>& model_points,
                const std::vector<cv::Point2f*>& tracked_points, float& scale,
                float& angle);

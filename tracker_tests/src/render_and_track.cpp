@@ -52,6 +52,7 @@
 #include <opencv2/contrib/contrib.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/video/tracking.hpp>
+#include <fstream>
 
 #include "fato_tracker_tests/RenderService.h"
 
@@ -61,7 +62,8 @@
 #include <tracker_model.h>
 #include <feature_matcher.hpp>
 #include <constants.h>
-#include <fstream>
+#include <pose_estimation.h>
+#include <draw_functions.h>
 
 #include "../../fato_rendering/include/multiple_rigid_models_ogre.h"
 #include "../../fato_rendering/include/windowless_gl_context.h"
@@ -90,10 +92,9 @@ auto downloadRenderedImg = [](pose::MultipleRigidModelsOgre &model_ogre,
 
 class SyntheticRenderer {
  public:
-  SyntheticRenderer() : initialized_(false), next_frame_requested_(false)
-  {
-      t_req_ = Eigen::Vector3d(0,0,0.5);
-      r_req_ = Eigen::Vector3d(M_PI,0,0);
+  SyntheticRenderer() : initialized_(false), next_frame_requested_(false) {
+    t_req_ = Eigen::Vector3d(0, 0, 0.5);
+    r_req_ = Eigen::Vector3d(M_PI, 0, 0);
   }
 
   void rgbCallback(const sensor_msgs::ImageConstPtr &rgb_msg,
@@ -106,11 +107,16 @@ class SyntheticRenderer {
     if (!initialized_) {
       cv::Mat cam =
           cv::Mat(3, 4, CV_64F, (void *)camera_info_msg->P.data()).clone();
+
+      double nodal_point_x = cam.at<double>(0, 2);
+      double nodal_point_y = cam.at<double>(1, 2);
+      double focal_length_x = cam.at<double>(0, 0);
+      double focal_length_y = cam.at<double>(1, 1);
+
       rendering_engine = unique_ptr<pose::MultipleRigidModelsOgre>(
           new pose::MultipleRigidModelsOgre(
-              camera_image.cols, camera_image.rows, cam.at<double>(0, 0),
-              cam.at<double>(1, 1), cam.at<double>(0, 2), cam.at<double>(1, 2),
-              0.01, 10.0));
+              camera_image.cols, camera_image.rows, focal_length_x,
+              focal_length_y, nodal_point_x, nodal_point_y, 0.01, 10.0));
 
       camera_matrix_ = cv::Mat(3, 3, CV_64FC1);
       for (int i = 0; i < camera_matrix_.rows; ++i) {
@@ -146,111 +152,98 @@ class SyntheticRenderer {
         "render_next", &SyntheticRenderer::serviceCallback, this);
   }
 
-  void renderObject()
-  {
-      double T[] = {t_req_[0], t_req_[1], t_req_[2]};
-      double R[] = {r_req_[0], r_req_[1], r_req_[2]};
-      std::vector<pose::TranslationRotation3D> TR(1);
-      TR.at(0) = pose::TranslationRotation3D(T, R);
+  void renderObject() {
+    double T[] = {t_req_[0], t_req_[1], t_req_[2]};
+    double R[] = {r_req_[0], r_req_[1], r_req_[2]};
+    std::vector<pose::TranslationRotation3D> TR(1);
+    TR.at(0) = pose::TranslationRotation3D(T, R);
 
-      Eigen::Matrix3d rot = TR.at(0).eigenRotation();
+    Eigen::Matrix3d rot = TR.at(0).eigenRotation();
 
-//      cout << "Eigen rotation " << endl;
-//      cout << rot << endl;
-
-      rendering_engine->render(TR);
+    rendering_engine->render(TR);
   }
 
-  void downloadTexture(cv::Mat& img)
-  {
-      std::vector<uchar4> h_texture(camera_image.rows * camera_image.cols);
-      downloadRenderedImg(*rendering_engine, h_texture);
+  void downloadTexture(cv::Mat &img) {
+    std::vector<uchar4> h_texture(camera_image.rows * camera_image.cols);
+    downloadRenderedImg(*rendering_engine, h_texture);
 
-      cv::Mat img_rgba(camera_image.rows, camera_image.cols, CV_8UC4,
-                       h_texture.data());
+    cv::Mat img_rgba(camera_image.rows, camera_image.cols, CV_8UC4,
+                     h_texture.data());
 
-      cv::cvtColor(img_rgba, img, CV_RGBA2BGR);
+    cv::cvtColor(img_rgba, img, CV_RGBA2BGR);
   }
 
-  void blendWithCamera(cv::Mat& img)
-  {
-      for (auto i = 0; i < camera_image.rows; ++i) {
-        for (auto j = 0; j < camera_image.cols; ++j) {
-          cv::Vec3b &pixel = img.at<cv::Vec3b>(i, j);
-          if (pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0) {
-            cv::Vec3b &cp = camera_image.at<cv::Vec3b>(i, j);
-            pixel[0] = cp[2];
-            pixel[1] = cp[1];
-            pixel[2] = cp[0];
-          }
+  void blendWithCamera(cv::Mat &img) {
+    for (auto i = 0; i < camera_image.rows; ++i) {
+      for (auto j = 0; j < camera_image.cols; ++j) {
+        cv::Vec3b &pixel = img.at<cv::Vec3b>(i, j);
+        if (pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0) {
+          cv::Vec3b &cp = camera_image.at<cv::Vec3b>(i, j);
+          pixel[0] = cp[2];
+          pixel[1] = cp[1];
+          pixel[2] = cp[0];
         }
       }
+    }
   }
 
-  void calculateFlow(cv::Mat& next, std::vector<cv::Point2f>& next_pts)
-  {
+  void calculateFlow(cv::Mat &next, std::vector<cv::Point2f> &next_pts) {
+    if (prev_points_.size() == 0) return;
 
-      if(prev_points_.size() == 0)
-          return;
+    vector<uchar> next_status, proj_status;
+    vector<float> next_errors, proj_errors;
 
-      vector<uchar> next_status, proj_status;
-      vector<float> next_errors, proj_errors;
+    vector<cv::Point2f> proj_pts, tmp_next_pts;
 
-      vector<cv::Point2f> proj_pts, tmp_next_pts;
+    cv::calcOpticalFlowPyrLK(prev_gray_, next, prev_points_, tmp_next_pts,
+                             next_status, next_errors);
+    cv::calcOpticalFlowPyrLK(next, prev_gray_, tmp_next_pts, proj_pts,
+                             proj_status, proj_errors);
 
-      cv::calcOpticalFlowPyrLK(prev_gray_, next, prev_points_, tmp_next_pts,
-                               next_status, next_errors);
-      cv::calcOpticalFlowPyrLK(next, prev_gray_, tmp_next_pts, proj_pts, proj_status,
-                               proj_errors);
+    std::vector<cv::Point2f> tmp_prev;
+    std::vector<float> tmp_depth;
 
+    for (int i = 0; i < tmp_next_pts.size(); ++i) {
+      float error = fato::getDistance(prev_points_.at(i), proj_pts.at(i));
 
-      std::vector<cv::Point2f> tmp_prev;
-      std::vector<float> tmp_depth;
-
-      for(int i = 0; i < tmp_next_pts.size(); ++i)
-      {
-        float error = fato::getDistance(prev_points_.at(i), proj_pts.at(i));
-
-        if(proj_status.at(i) == 1 && error < 20)
-        {
-            tmp_prev.push_back(prev_points_.at(i));
-            tmp_depth.push_back(prev_depth_.at(i));
-            next_pts.push_back(tmp_next_pts.at(i));
-        }
+      if (proj_status.at(i) == 1 && error < 20) {
+        tmp_prev.push_back(prev_points_.at(i));
+        tmp_depth.push_back(prev_depth_.at(i));
+        next_pts.push_back(tmp_next_pts.at(i));
       }
+    }
 
-      std::swap(prev_points_,tmp_prev);
-      std::swap(prev_depth_,tmp_depth);
+    std::swap(prev_points_, tmp_prev);
+    std::swap(prev_depth_, tmp_depth);
   }
 
-  void saveResults(std::vector<cv::Point2f>& prev_pts, std::vector<float>& prev_depth,
-                   std::vector<cv::Point2f>& next_pts, std::vector<float>& next_depth)
-  {
-    if(prev_pts.size() == 0 || next_pts.size() == 0)
-            return;
+  void saveResults(std::vector<cv::Point2f> &prev_pts,
+                   std::vector<float> &prev_depth,
+                   std::vector<cv::Point2f> &next_pts,
+                   std::vector<float> &next_depth) {
+    if (prev_pts.size() == 0 || next_pts.size() == 0) return;
 
     string filename = "/home/alessandro/debug/flow.hdf5";
 
-
     if (boost::filesystem::exists(boost::filesystem::path(filename))) {
-        boost::filesystem::remove(boost::filesystem::path(filename));
+      boost::filesystem::remove(boost::filesystem::path(filename));
     }
-
 
     util::HDF5File out_file(filename);
     ofstream file("/home/alessandro/debug/flow.txt");
 
     vector<float> prev, next;
-    for(auto i = 0; i < prev_pts.size(); ++i)
-    {
-        prev.push_back(prev_pts.at(i).x);
-        prev.push_back(prev_pts.at(i).y);
-        prev.push_back(prev_depth.at(i));
-        next.push_back(next_pts.at(i).x);
-        next.push_back(next_pts.at(i).y);
-        next.push_back(next_depth.at(i));
-        file << "[" << prev_pts.at(i).x  << "," << prev_pts.at(i).y << "," << prev_depth.at(i) << "] "
-             << "[" << next_pts.at(i).x  << "," << next_pts.at(i).y << "," << next_depth.at(i) << "]\n";
+    for (auto i = 0; i < prev_pts.size(); ++i) {
+      prev.push_back(prev_pts.at(i).x);
+      prev.push_back(prev_pts.at(i).y);
+      prev.push_back(prev_depth.at(i));
+      next.push_back(next_pts.at(i).x);
+      next.push_back(next_pts.at(i).y);
+      next.push_back(next_depth.at(i));
+      file << "[" << prev_pts.at(i).x << "," << prev_pts.at(i).y << ","
+           << prev_depth.at(i) << "] "
+           << "[" << next_pts.at(i).x << "," << next_pts.at(i).y << ","
+           << next_depth.at(i) << "]\n";
     }
 
     std::vector<int> size{prev_pts.size(), 3};
@@ -261,12 +254,136 @@ class SyntheticRenderer {
     out_file.writeScalar<double>("fy", camera_matrix_.at<double>(1, 1));
     out_file.writeScalar<double>("cx", camera_matrix_.at<double>(0, 2));
     out_file.writeScalar<double>("cy", camera_matrix_.at<double>(1, 2));
+  }
+
+  void solveLQ(std::vector<cv::Point2f> &prev_pts,
+                          std::vector<float> &prev_depth,
+                          std::vector<cv::Point2f> &next_pts,
+                          std::vector<float> &next_depth,
+                          cv::Mat& out) {
+    double focal =
+        (camera_matrix_.at<double>(0, 0) + camera_matrix_.at<double>(1, 1)) /
+        2.0f;
+    int valid_points = 0;
+
+    vector<cv::Point2f> p_points, n_points;
+    vector<float> p_depths;
+
+    for (auto i = 0; i < prev_pts.size(); ++i) {
+      if (prev_depth.at(i) > 0 && next_depth.at(i) > 0)
+      {
+          p_points.push_back(prev_pts.at(i));
+          n_points.push_back(next_pts.at(i));
+          p_depths.push_back(prev_depth.at(i));
+          valid_points++;
+      }
+    }
+
+    std::cout << "valid points " << valid_points << std::endl;
+
+    Eigen::MatrixXf A(valid_points * 2, 6);
+    Eigen::VectorXf b(valid_points * 2);
+
+    float cx = camera_matrix_.at<double>(0,2);
+    float cy = camera_matrix_.at<double>(1,2);
+
+    auto valid_count = 0;
+    for (auto i = 0; i < prev_pts.size(); ++i) {
+      if (prev_depth.at(i) > 0 && next_depth.at(i) > 0) {
+
+        float mz = prev_depth.at(i);
+        float x = next_pts.at(i).x - cx;
+        float y = next_pts.at(i).y - cy;
+        float xy = x * y / focal;
+
+        int id = 2 * valid_count;
+        int id2 = id + 1;
+        // first equation for X, u flow
+        A( id, 0 ) = focal / mz;
+        A( id, 1 ) = 0;
+        A( id, 2 ) = -x / mz;
+        A( id, 3 ) = -xy;
+        A( id, 4 ) = focal + (x * x) / focal;
+        A( id, 5 ) = -y;
+        // second equation for X, v flow
+        A( id2, 0 ) = 0;
+        A( id2, 1 ) = focal / mz;
+        A( id2, 2 ) = -y / mz;
+        A( id2, 3 ) = -(focal + (x * x) / focal);
+        A( id2, 4 ) = xy;
+        A( id2, 5 ) = x;
+        // setting u,v flow in b vector
+        b[id] = next_pts.at(i).x - prev_pts.at(i).x;
+        b[id2] = next_pts.at(i).y - prev_pts.at(i).y;
+
+        valid_count++;
+      }
+    }
+
+    Eigen::VectorXf Y = (A.transpose() * A).ldlt().solve(A.transpose() * b);
+    vector<float> t,r;
+
+    cout << "pose estimate" << endl;
+
+    fato::getPoseFromFlow(p_points, p_depths, n_points, cx, cy, camera_matrix_.at<double>(0,0),
+                    camera_matrix_.at<double>(1,1), t, r);
+
+    std::cout << std::fixed << std::setprecision(3) << "The solution using eigen is:\n"
+         << Y[0] << " " << Y[1] << " " << Y[2] << " " << Y[3] << " " << Y[4] << " "
+         << Y[5] << std::endl;
+
+    std::cout << std::fixed << std::setprecision(3) << "The solution using pose is:\n"
+         << t[0] << " " << t[1] << " " << t[2] << " " << r[0] << " " << r[1] << " "
+         << r[2] << std::endl;
+
+    cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
+    cv::Mat translation = cv::Mat(1, 3, CV_32FC1, 0.0f);
+
+    Eigen::Matrix3d rot_view;
+    rot_view = Eigen::AngleAxisd(r.at(1), Eigen::Vector3d::UnitZ()) *
+               Eigen::AngleAxisd(r.at(2), Eigen::Vector3d::UnitY()) *
+               Eigen::AngleAxisd(r.at(0), Eigen::Vector3d::UnitX());
+
+    Eigen::MatrixXd proj_mat(4,4);
+
+    for(int i = 0; i < 3; ++i)
+    {
+        for(int j = 0; j < 3; ++j)
+        {
+            proj_mat(i,j) = rot_view(i,j);
+        }
+        proj_mat(i,3) = t[i];
+        proj_mat(3,i) = 0;
+    }
+    proj_mat(3,3) = 1;
+
+    upd_pose_ = proj_mat * upd_pose_;
+
+    cout << "updated pose " << endl;
+    cout << fixed << setprecision(3) << upd_pose_ << endl;
+
+    for(int i = 0; i < 2; ++i)
+    {
+        for(int j = 0; j < 2; ++j)
+        {
+            rotation.at<double>(i,j) = upd_pose_(i,j);
+        }
+        translation.at<float>(i) = upd_pose_(i,3);
+    }
+
+    cv::Point3f center(0,0,0);
+
+    fato::drawObjectPose(center, camera_matrix_, rotation, translation, out);
+
+
+//    cout << proj_mat << endl;
+//    cout << "\n";
+//    cout << upd_pose_ << endl;
 
   }
 
   bool serviceCallback(fato_tracker_tests::RenderService::Request &req,
                        fato_tracker_tests::RenderService::Response &res) {
-
     ROS_INFO("received a rendering request");
 
     t_req_[0] = req.x;
@@ -278,10 +395,10 @@ class SyntheticRenderer {
     r_req_[2] = req.wz;
 
     res.result = true;
-    res.fx = camera_matrix_.at<double>(0,0);
-    res.fy = camera_matrix_.at<double>(1,1);
-    res.cx = camera_matrix_.at<double>(0,2);
-    res.cy = camera_matrix_.at<double>(1,2);
+    res.fx = camera_matrix_.at<double>(0, 0);
+    res.fy = camera_matrix_.at<double>(1, 1);
+    res.cx = camera_matrix_.at<double>(0, 2);
+    res.cy = camera_matrix_.at<double>(1, 2);
 
     renderObject();
 
@@ -291,11 +408,10 @@ class SyntheticRenderer {
     downloadTexture(rgb);
     zbuffer2Z(depth_buffer);
 
-    if(req.reset_rendering)
-    {
-        ROS_INFO("reset requested");
-        initialize_tracking(rgb, depth_buffer);
-        return true;
+    if (req.reset_rendering) {
+      ROS_INFO("reset requested");
+      initialize_tracking(rgb, depth_buffer);
+      return true;
     }
 
     blendWithCamera(rgb);
@@ -306,22 +422,24 @@ class SyntheticRenderer {
     calculateFlow(gray, next_pts);
 
     stringstream ss;
-    ss << "zbuffer size " << depth_buffer.size() << " pts size " << next_pts.size() << "\n";
+    ss << "zbuffer size " << depth_buffer.size() << " pts size "
+       << next_pts.size() << "\n";
     ROS_INFO(ss.str().c_str());
 
-    for(auto pt : next_pts)
-    {
-        float depth = 0;
-        if(pt.x < 0 || pt.x > width_ || pt.y < 0 || pt.y > height_)
-            depth = 0;
-        else
-            depth = depth_buffer.at(pt.x + pt.y * width_);
+    for (auto pt : next_pts) {
+      float depth = 0;
+      if (pt.x < 0 || pt.x > width_ || pt.y < 0 || pt.y > height_)
+        depth = 0;
+      else
+        depth = depth_buffer.at(pt.x + pt.y * width_);
 
-        next_depth.push_back(depth);
+      next_depth.push_back(depth);
     }
 
+    solveLQ(prev_points_, prev_depth_, next_pts, next_depth, rgb);
     cv::imwrite("/home/alessandro/debug/image.png", rgb);
     saveResults(prev_points_, prev_depth_, next_pts, next_depth);
+
 
     prev_gray_ = gray.clone();
     std::swap(prev_points_, next_pts);
@@ -356,38 +474,51 @@ class SyntheticRenderer {
     cv::Mat adjMap;
     // expand your range to 0..255. Similar to histEq();
     temp.convertTo(disparity, CV_8UC1, 255 / (max - min), -min);
-
-    // this is great. It converts your grayscale image into a tone-mapped one,
-    // much more pleasing for the eye
-    // function is found in contrib module, so include contrib.hpp
-    // and link accordingly
-    // cv::applyColorMap(adjMap, disparity, cv::COLORMAP_JET);
   }
 
-  void initialize_tracking(cv::Mat& rgb, const std::vector<float>& depth_buffer)
-  {
-      cv::Mat grey;
-      cv::cvtColor(rgb, grey, CV_BGR2GRAY);
-      std::vector<cv::KeyPoint> kps;
-      cv::ORB orbExtractor;
-      orbExtractor.detect(grey, kps);
+  void initialize_tracking(cv::Mat &rgb,
+                           const std::vector<float> &depth_buffer) {
+    cv::Mat grey;
+    cv::cvtColor(rgb, grey, CV_BGR2GRAY);
+    std::vector<cv::KeyPoint> kps;
+    cv::ORB orbExtractor;
+    orbExtractor.detect(grey, kps);
 
-      prev_points_.clear();
-      prev_depth_.clear();
+    prev_points_.clear();
+    prev_depth_.clear();
 
-      for (auto kp : kps) {
-        cv::Point2f pt = kp.pt;
-        prev_points_.push_back(pt);
-        float depth = depth_buffer.at(pt.x + pt.y * width_);
+    for (auto kp : kps) {
+      cv::Point2f pt = kp.pt;
+      prev_points_.push_back(pt);
+      float depth = depth_buffer.at(pt.x + pt.y * width_);
 
-        prev_depth_.push_back(depth);
-      }
+      prev_depth_.push_back(depth);
+    }
 
-      cout << "points for tracking " << prev_points_.size() << endl;
+    cout << "points for tracking " << prev_points_.size() << endl;
 
-      keypoints_extracted_ = true;
+    Eigen::Matrix3d rot_view;
+    rot_view = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) *
+               Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) *
+               Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
 
-      prev_gray_ = grey.clone();
+    upd_pose_ = Eigen::MatrixXd(4,4);
+
+    for(int i = 0; i < 3; ++i)
+    {
+        for(int j = 0; j < 3; ++j)
+        {
+            upd_pose_(i,j) = rot_view(i,j);
+        }
+        upd_pose_(i,3) = 0;
+        upd_pose_(3,i) = 0;
+    }
+    upd_pose_(3,3) = 1;
+    upd_pose_(2,3) = 0.5;
+
+    keypoints_extracted_ = true;
+
+    prev_gray_ = grey.clone();
   }
 
   void run() {
@@ -401,14 +532,6 @@ class SyntheticRenderer {
     Eigen::Vector3f pos(0, 0, 0.5);
     Eigen::Vector3f inc(t_inc, 0, 0);
 
-//    Config params;
-
-//    std::unique_ptr<fato::FeatureMatcher> derived =
-//        std::unique_ptr<fato::BriskMatcher>(new fato::BriskMatcher);
-
-//    fato::TrackerMB tracker(params, fato::BRISK, std::move(derived));
-//    tracker.addModel(model_name);
-
     bool tracker_initialized = false;
     keypoints_extracted_ = false;
 
@@ -421,13 +544,11 @@ class SyntheticRenderer {
       Eigen::Vector3f t_inc;
 
       if (!tracker_initialized && initialized_) {
-//        tracker.setCameraMatrix(camera_matrix_);
+        //        tracker.setCameraMatrix(camera_matrix_);
         tracker_initialized = true;
       }
 
       if (image_updated && initialized_) {
-
-
         renderObject();
 
         std::vector<uchar4> h_texture(camera_image.rows * camera_image.cols);
@@ -445,8 +566,7 @@ class SyntheticRenderer {
         cv::cvtColor(img_rgba, res, CV_RGBA2BGR);
 
         if (!keypoints_extracted_) {
-
-            initialize_tracking(res, depth_buffer);
+          initialize_tracking(res, depth_buffer);
         }
 
         prev = res.clone();
@@ -467,22 +587,7 @@ class SyntheticRenderer {
           cv::circle(res, pt, 3, cv::Scalar(255, 0, 0), 2);
         }
 
-        //const fato::Target &target = tracker.getTarget();
-
         cv::Point3f center(0, 0, 0);
-//        for (auto i = 0; i < target.active_points.size(); ++i) {
-//          int id = target.active_to_model_.at(i);
-
-//          cv::Scalar color;
-
-//          if ((int)target.point_status_.at(id) == 0)
-//            color = cv::Scalar(255, 0, 0);
-//          else if ((int)target.point_status_.at(id) == 2)
-//            color = cv::Scalar(0, 255, 0);
-
-//          cv::circle(res, target.active_points.at(i), 3, color);
-//          // center += model_points.at(i);
-//        }
 
         cv_bridge::CvImage cv_img, cv_rend;
         cv_img.image = res;
@@ -521,13 +626,16 @@ class SyntheticRenderer {
   Eigen::Vector3d t_req_;
   Eigen::Vector3d r_req_;
 
-
   std::vector<cv::Point2f> prev_points_;
   std::vector<float> prev_depth_;
 
-  cv::Mat camera_matrix_, prev_gray_;
+  cv::Mat camera_matrix_, prev_gray_; 
   int width_, height_;
   bool keypoints_extracted_;
+
+  Eigen::MatrixXd upd_pose_;
+
+
 };
 
 void simpleMovement() {

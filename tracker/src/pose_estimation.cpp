@@ -50,25 +50,73 @@ void getPoseRansac(const std::vector<cv::Point3f>& model_points,
     Mat rotation_vect;
     solvePnPRansac(model_points, tracked_points, camera_model,
                    Mat::zeros(1, 8, CV_32F), rotation_vect, translation, false,
-                   iterations, distance, model_points.size(), inliers,
-                   CV_P3P);
+                   iterations, distance, model_points.size(), inliers, CV_P3P);
 
-    try
-    {
+    try {
       Rodrigues(rotation_vect, rotation);
       rotation.convertTo(rotation, CV_32FC1);
-    }
-    catch(cv::Exception& e)
-    {
+    } catch (cv::Exception& e) {
       cout << "Error estimating ransac rotation: " << e.what() << endl;
     }
 
+  } else {
+    rotation = Mat(3, 3, CV_32FC1, 0.0f);
+    translation = Mat(1, 3, CV_32FC1, 0.0f);
   }
-  else
-  {
-     rotation = Mat(3,3,CV_32FC1,0.0f);
-     translation = Mat(1,3,CV_32FC1,0.0f);
+}
+
+
+void getPoseFromFlow(const std::vector<cv::Point2f>& prev_pts,
+                     const std::vector<float>& prev_depth,
+                     const std::vector<cv::Point2f>& next_pts, float nodal_x,
+                     float nodal_y, float focal_x, float focal_y,
+                     vector<float>& translation, vector<float>& rotation) {
+  int valid_points = prev_pts.size();
+
+  Eigen::MatrixXf A(valid_points * 2, 6);
+  Eigen::VectorXf b(valid_points * 2);
+
+  float focal = (focal_x + focal_y) / 2.0;
+
+  for (auto i = 0; i < prev_pts.size(); ++i) {
+    float mz = prev_depth.at(i);
+    float x = next_pts.at(i).x - nodal_x;
+    float y = next_pts.at(i).y - nodal_y;
+    float xy = x * y / focal;
+
+    int id = 2 * i;
+    int id2 = id + 1;
+    // first equation for X, u flow
+    A(id, 0) = focal / mz;
+    A(id, 1) = 0;
+    A(id, 2) = -x / mz;
+    A(id, 3) = -xy;
+    A(id, 4) = focal + (x * x) / focal;
+    A(id, 5) = -y;
+    // second equation for X, v flow
+    A(id2, 0) = 0;
+    A(id2, 1) = focal / mz;
+    A(id2, 2) = -y / mz;
+    A(id2, 3) = -(focal + (x * x) / focal);
+    A(id2, 4) = xy;
+    A(id2, 5) = x;
+    // setting u,v flow in b vector
+    b[id] = next_pts.at(i).x - prev_pts.at(i).x;
+    b[id2] = next_pts.at(i).y - prev_pts.at(i).y;
   }
+
+  translation.resize(3,0);
+  rotation.resize(3,0);
+  // solving least square to find the 6 unknown parameters: tx,ty, tz, wx, wy, wz
+  Eigen::VectorXf Y = (A.transpose() * A).ldlt().solve(A.transpose() * b);
+
+  translation[0] = Y[0];
+  translation[1] = Y[1];
+  translation[2] = Y[2];
+
+  rotation[0] = Y[3];
+  rotation[1] = Y[4];
+  rotation[2] = Y[5];
 }
 
 void getPose2D(const std::vector<cv::Point2f*>& model_points,
@@ -127,8 +175,7 @@ void getPose2D(const std::vector<cv::Point2f*>& model_points,
     scale = scales[scale_size / 2];
 }
 
-
-//TODO: implement ransac approach for better SVD estimation
+// TODO: implement ransac approach for better SVD estimation
 Mat getRigidTransform(Mat& a, Mat& b) {
   int numRows = a.rows;
 
@@ -229,104 +276,6 @@ Mat getRigidTransform(Mat& a, Mat& b, vector<float>& cA, vector<float>& cB) {
 
   return R;
 }
-
-// inline Mat getRigidTransform(Mat& a, Mat& b, ofstream& file)
-//{
-
-//    file << "Debug Rigid Transform:\n\n";
-
-//    int numRows = a.rows;
-
-//    vector<float> srcM = { 0, 0, 0 };
-//    vector<float> dstM = { 0, 0, 0 };
-
-//    // compute centroid of the two sets of points
-//    for (int i = 0; i < numRows; i++)
-//    {
-//        for (int j = 0; j < 3; j++)
-//        {
-//            srcM[j] += a.at<float>(i, j);
-//            dstM[j] += b.at<float>(i, j);
-//        }
-//    }
-
-//    for (int i = 0; i < 3; i++)
-//    {
-//        srcM[i] = srcM[i] / static_cast<float>(numRows);
-//        dstM[i] = dstM[i] / static_cast<float>(numRows);
-//    }
-
-//    Mat AA, BB, AA_T, BB_T;
-//    a.copyTo(AA);
-//    b.copyTo(BB);
-//    // subtracting centroid from all the points
-//    for (int i = 0; i < numRows; i++)
-//    {
-//        for (int j = 0; j < 3; j++)
-//        {
-//            AA.at<float>(i, j) -= srcM[j];
-//            BB.at<float>(i, j) -= dstM[j];
-//        }
-//    }
-
-//    file << "AA\n" << AA << "\n";
-//    file << "BB\n" << BB << "\n";
-
-//    transpose(AA, AA_T);
-
-//    Mat3f H;
-//    H = AA_T * BB;
-
-//    file << "H\n" << H << "\n";
-
-//    Mat w, u, vt, vt_T, u_T;
-//    SVD::compute(H, w, u, vt);
-
-//    file << "U\n" << u << "\n";
-//    file << "VT\n" << vt << "\n";
-//    ///cout << "w\n" << w << endl;
-
-//    transpose(vt, vt_T);
-//    transpose(u, u_T);
-
-//    Mat3f R;
-//    R = vt_T * u_T;
-
-//    // reflection case
-//    if (determinant(R) < 0)
-//    {
-//        for (size_t i = 0; i < 3; i++)
-//        {
-//            vt.at<float>(2, i) *= -1;
-//        }
-//        transpose(vt, vt_T);
-//        R = vt_T * u_T;
-//    }
-
-//    return R;
-//}
-
-// inline float getRotationError(Mat& a, Mat&b, Mat& rotation)
-//{
-//    Mat b_T, proj, error, proj_T;
-//    transpose(b, b_T);
-
-//    proj = rotation * b_T;
-//    transpose(proj, proj_T);
-
-//    error = a - proj_T;
-
-//    float errorVal = 0;
-
-//    for (int i = 0; i < error.rows; ++i)
-//    {
-//        errorVal += pow(error.at<float>(i, 0), 2) +
-//            pow(error.at<float>(i, 1), 2) +
-//            pow(error.at<float>(i, 2), 2);
-//    }
-
-//    return sqrtf(errorVal / static_cast<float>(error.rows));
-//}
 
 void rotateBBox(const vector<Point3f>& bBox, const Mat& rotation,
                 vector<Point3f>& updatedBBox) {
