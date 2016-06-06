@@ -169,6 +169,8 @@ private:
 };
 
 
+Eigen::MatrixXd getProjectionMatrix(const cv::Mat &rotation, const cv::Mat &translation);
+
 } // end namespace
 
 

@@ -253,11 +253,6 @@ void TrackerModel::run(string model_file) {
         tracker.learnBackground(rgb_image_);
       }
 
-      vector<Point2f> valid_points;
-      vector<Point3f> model_points;
-
-      tracker.getActiveModelPoints(model_points, valid_points);
-
       vector<int> inliers;
 
       Mat cam(3, 3, CV_64FC1);
@@ -323,10 +318,10 @@ void TrackerModel::run(string model_file) {
         }
       }
 
-      double determinant = a.determinant();
+//      double determinant = a.determinant();
 
-      cout << "determint cv " << determinant << " cus " << b.determinant()
-           << endl;
+//      cout << "determint cv " << determinant << " cus " << b.determinant()
+//           << endl;
 
       double err = 0;
 

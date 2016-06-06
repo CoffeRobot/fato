@@ -83,22 +83,12 @@ class TrackerMB {
 
   void computeNextSequential(cv::Mat& rgb);
 
-  const std::vector<cv::Point2f>* getPoints() { return &m_updatedPoints; }
-
-  const std::vector<KpStatus>* getPointsStatus() { return &m_pointsStatus; }
-
   std::vector<cv::Point2f> getActivePoints();
-
-  void getActiveModelPoints(std::vector<cv::Point3f>& model, std::vector<cv::Point2f>& active);
-
-  const std::vector<int>* getPointsIds() { return &m_upd_to_init_ids; }
 
   const std::vector<cv::Point2f>* getInitPoints() { return &m_points; }
 
 
   const Target& getTarget(){return target_object_;}
-
-  const std::vector<cv::Point2f>* getVotes() { return &m_votes; }
 
   bool isNewPose() { return m_learn_new_pose; }
 
@@ -131,8 +121,6 @@ class TrackerMB {
 
   int runDetector();
 
-  cv::Point2f initCentroid(const std::vector<cv::Point2f>& points);
-
   void getOpticalFlow(const cv::Mat& prev,
                       const cv::Mat& next,
                       Target& target);
@@ -155,11 +143,12 @@ class TrackerMB {
                         std::vector<cv::Point3f>& model_valid_pts,
                         std::vector<cv::Point2f>& current_valid_pts);
 
-  bool isPointValid(const int& id);
-
   void trackSequential(cv::Mat& next);
 
   void detectSequential(cv::Mat& next);
+
+  void projectPointsDepth(std::vector<cv::Point3f>& points, Eigen::MatrixXd& projection,
+                          std::vector<float>& projected_depth);
 
   int m_height, m_width;
 
@@ -189,17 +178,12 @@ class TrackerMB {
   cv::Mat m_initDescriptors;
   std::vector<cv::KeyPoint> m_initKeypoints;
   std::vector<cv::Point2f> m_points;
-  std::vector<KpStatus> m_pointsStatus;
   std::unique_ptr<FeatureMatcher> feature_detector_;
 
   /****************************************************************************/
   /*                       TRACKER VARIABLES                                  */
   /****************************************************************************/
-  std::vector<cv::Point2f> m_updatedPoints;
   std::vector<cv::Point2f> m_relativeDistances;
-  std::vector<cv::Point2f> m_votes;
-  std::vector<int> m_upd_to_init_ids;
-  std::vector<int> m_init_to_upd_ids;
 
   /****************************************************************************/
   /*                       LEARN MODEL                                        */

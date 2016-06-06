@@ -49,6 +49,7 @@
 #include "../include/DBScanClustering.h"
 #include "../../utilities/include/utilities.h"
 #include "../include/epnp.h"
+#include "../include/utilities.h"
 
 using namespace std;
 using namespace cv;
@@ -65,20 +66,12 @@ TrackerMB::TrackerMB(Config& params, int descriptor_type,
 
 TrackerMB::~TrackerMB() { taskFinished(); }
 
-bool TrackerMB::isPointValid(const int& id) {
-  return m_pointsStatus[id] == KpStatus::TRACK;
-  //||m_pointsStatus[id] == Status::MATCH;
-}
-
 void TrackerMB::addModel(const Mat& descriptors,
                          const std::vector<Point3f>& points) {
   m_initDescriptors = descriptors.clone();
 
   target_object_.descriptors_ = descriptors.clone();
   target_object_.model_points_ = points;
-
-  m_pointsStatus.resize(target_object_.model_points_.size(), KpStatus::LOST);
-  m_updatedPoints.resize(target_object_.model_points_.size(), Point2f(0, 0));
 
   std::cout << "Model loaded with " << target_object_.model_points_.size()
             << " key points" << std::endl;
@@ -103,14 +96,6 @@ void TrackerMB::addModel(const string& h5_file) {
   }
 
   target_object_.init(pts, m_initDescriptors);
-
-  m_pointsStatus.resize(target_object_.model_points_.size(), KpStatus::LOST);
-  m_updatedPoints.resize(target_object_.model_points_.size(), Point2f(0, 0));
-
-  for (auto i = 0; i < m_updatedPoints.size(); ++i) {
-    m_upd_to_init_ids.push_back(i);
-    m_init_to_upd_ids.push_back(i);
-  }
 
   feature_detector_->setTarget(m_initDescriptors);
 
@@ -142,23 +127,6 @@ void TrackerMB::learnBackground(const Mat& rgb) {
 void TrackerMB::setMatcerParameters(float confidence, float second_ratio) {
   matcher_confidence_ = confidence;
   matcher_ratio_ = second_ratio;
-}
-
-Point2f TrackerMB::initCentroid(const vector<Point2f>& points) {
-  Point2f centroid(0, 0);
-  int validPoints = 0;
-
-  for (size_t i = 0; i < points.size(); i++) {
-    if (m_pointsStatus[i] == KpStatus::INIT) {
-      centroid += points[i];
-      validPoints++;
-    }
-  }
-
-  centroid.x = centroid.x / static_cast<float>(validPoints);
-  centroid.y = centroid.y / static_cast<float>(validPoints);
-
-  return centroid;
 }
 
 void TrackerMB::getOpticalFlow(const Mat& prev, const Mat& next,
@@ -256,21 +224,6 @@ void TrackerMB::trackSequential(Mat& next) {
       cout << "Error estimating ransac rotation: " << e.what() << endl;
     }
 
-    vector<int> custom_inliers;
-    PNPSolver custom_pnp;
-    custom_pnp.set_internal_parameters(
-        camera_matrix_.at<double>(0, 2), camera_matrix_.at<double>(1, 2),
-        camera_matrix_.at<double>(0, 0), camera_matrix_.at<double>(1, 1));
-    custom_pnp.set_maximum_number_of_correspondences(model_pts.size());
-    custom_pnp.setCorrespondences(model_pts, target_object_.active_points);
-    custom_pnp.solvePnP(num_iters, model_pts.size(), ransac_error,
-                        custom_inliers);
-    custom_pnp.getPose(target_object_.rotation_custom,
-                       target_object_.translation_custom);
-
-    cout << "inliers: " << inliers.size() << " custom " << custom_inliers.size()
-         << endl;
-
     vector<int> to_remove;
     if (inliers.size() > 0) {
       for (int i = 0; i < inliers.size(); ++i) {
@@ -298,11 +251,52 @@ void TrackerMB::trackSequential(Mat& next) {
     }
     target_object_.removeInvalidPoints(to_remove);
 
+
+    if (inliers.size() > 5 && !target_object_.target_found_)
+    {
+        // first time the objects is found, need to estimate pose and depth of points
+        // relying only on PNP
+        Eigen::MatrixXd projection_matrix = getProjectionMatrix(
+            target_object_.rotation, target_object_.translation);
+
+        cout << fixed << setprecision(3) << projection_matrix << endl;
+
+        if (target_object_.target_found_) {
+          model_pts.clear();
+
+          for (int i = 0; i < target_object_.active_points.size(); ++i) {
+            const int& id = target_object_.active_to_model_.at(i);
+            model_pts.push_back(target_object_.model_points_.at(id));
+          }
+
+          projectPointsDepth(model_pts, projection_matrix, target_object_.projected_depth_);
+
+          for(auto d : target_object_.projected_depth_)
+              cout << d << " ";
+          cout << "\n";
+        }
+    }
+    else if(inliers.size() > 5 && target_object_.target_found_)
+    {
+        // the object has been found previously, pose from flow can be used since we know
+        // the depth in the previous frame
+    }
+    else
+    {
+        // object is lost
+    }
+
+
+
+
+
+
   } else  // object lost
   {
     target_object_.rotation = Mat(3, 3, CV_64FC1, 0.0f);
     target_object_.translation = Mat(1, 3, CV_64FC1, 0.0f);
     target_object_.rotation_vec = Mat(1, 3, CV_64FC1, 0.0f);
+    target_object_.target_found_ = false;
   }
 
   /*************************************************************************************/
@@ -329,9 +323,6 @@ void TrackerMB::detectSequential(Mat& next) {
   /*************************************************************************************/
   if (matches.size() < 2) return;
   if (matches.at(0).size() != 2) return;
-
-  m_pointsStatus.clear();
-  m_pointsStatus.resize(target_object_.model_points_.size(), KpStatus::LOST);
 
   vector<cv::Point2f>& active_points = target_object_.active_points;
   vector<KpStatus>& point_status = target_object_.point_status_;
@@ -362,7 +353,7 @@ void TrackerMB::detectSequential(Mat& next) {
     float confidence = 1 - (matches[i][0].distance / 512.0);
     auto ratio = (fst_match.distance / scd_match.distance);
 
-    KpStatus& s = m_pointsStatus.at(model_idx);
+    KpStatus& s = point_status.at(model_idx);
 
     if (confidence < 0.80f) continue;
 
@@ -370,40 +361,11 @@ void TrackerMB::detectSequential(Mat& next) {
 
     if (s == KpStatus::TRACK) continue;
 
-    m_pointsStatus.at(model_idx) = KpStatus::MATCH;
-    m_updatedPoints.at(model_idx) = keypoints.at(match_idx).pt;
-
     // new interface using target class and keeping a list of pointers for speed
     if (point_status.at(model_idx) == KpStatus::LOST) {
       active_points.push_back(keypoints.at(match_idx).pt);
       target_object_.active_to_model_.push_back(model_idx);
       point_status.at(model_idx) = KpStatus::MATCH;
-    }
-  }
-}
-
-void TrackerMB::getTrackedPoints(std::vector<cv::Point2f>& model_pts,
-                                 std::vector<cv::Point2f>& current_pts,
-                                 const std::vector<int>& ids,
-                                 std::vector<cv::Point2f*>& model_valid_pts,
-                                 std::vector<cv::Point2f*>& current_valid_pts) {
-  for (auto i = 0; i < model_pts.size(); ++i) {
-    if (isPointValid(ids[i])) {
-      model_valid_pts.push_back(&model_pts[i]);
-      current_valid_pts.push_back(&current_pts[i]);
-    }
-  }
-}
-
-void TrackerMB::getTrackedPoints(std::vector<cv::Point2f>& model_pts,
-                                 std::vector<cv::Point2f>& current_pts,
-                                 const std::vector<int>& ids,
-                                 std::vector<cv::Point3f>& model_valid_pts,
-                                 std::vector<cv::Point2f>& current_valid_pts) {
-  for (auto i = 0; i < model_pts.size(); ++i) {
-    if (isPointValid(ids[i])) {
-      model_valid_pts.push_back(Point3f(model_pts[i].x, model_pts[i].y, 0));
-      current_valid_pts.push_back(current_pts[i]);
     }
   }
 }
@@ -431,25 +393,24 @@ void TrackerMB::projectPointsToModel(const Point2f& model_centroid,
   }
 }
 
-std::vector<cv::Point2f> TrackerMB::getActivePoints() {
-  vector<Point2f> valid_points;
+void TrackerMB::projectPointsDepth(std::vector<Point3f>& points,
+                                   Eigen::MatrixXd& projection,
+                                   std::vector<float>& projected_depth) {
+  Eigen::MatrixXd eig_points(4, points.size());
 
-  for (auto i = 0; i < m_updatedPoints.size(); ++i) {
-    if (isPointValid(i)) {
-      valid_points.push_back(m_updatedPoints.at(i));
-    }
+  for (auto i = 0; i < points.size(); ++i) {
+    eig_points(0, i) = points.at(i).x;
+    eig_points(1, i) = points.at(i).y;
+    eig_points(2, i) = points.at(i).z;
+    eig_points(3, i) = 1;
   }
 
-  return valid_points;
-}
+  Eigen::MatrixXd eig_proj = projection * eig_points;
 
-void TrackerMB::getActiveModelPoints(std::vector<Point3f>& model,
-                                     std::vector<Point2f>& active) {
-  for (auto i = 0; i < m_updatedPoints.size(); ++i) {
-    if (isPointValid(i)) {
-      model.push_back(target_object_.model_points_.at(i));
-      active.push_back(m_updatedPoints.at(i));
-    }
+  projected_depth.resize(points.size(), 0);
+
+  for (auto i = 0; i < points.size(); ++i) {
+    projected_depth.at(i) = eig_proj(2, i);
   }
 }
 

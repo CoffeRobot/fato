@@ -33,6 +33,7 @@
 #include "../include/utilities.h"
 #include "../include/device_1d.h"
 #include <iostream>
+#include <stdexcept>
 
 namespace fato {
 
@@ -203,6 +204,29 @@ float TimerGPU::read() {
 }
 
 void TimerGPU::reset() { cudaEventRecord(start_, stream_); }
+
+Eigen::MatrixXd getProjectionMatrix(const cv::Mat &rotation, const cv::Mat &translation)
+{
+    if(rotation.type() != CV_64FC1)
+        throw std::runtime_error("error: opencv rotation matrix is not of type double");
+    if(translation.type() != CV_64FC1)
+        throw std::runtime_error("error: opencv translation matrix is not of type double");
+
+    Eigen::MatrixXd proj_mat(4,4);
+
+    for(int i = 0; i < 3; ++i)
+    {
+        for(int j = 0; j < 3; ++j)
+        {
+            proj_mat(i,j) = rotation.at<double>(i,j);
+        }
+        proj_mat(i,3) = translation.at<double>(i);
+        proj_mat(3,i) = 0;
+    }
+    proj_mat(3,3) = 1;
+
+    return proj_mat;
+}
 
 //void cvToPcl(const cv::Mat3f& points, pcl::PointCloud<pcl::PointXYZ>& cloud) {
 //  int width = points.cols, height = points.rows;

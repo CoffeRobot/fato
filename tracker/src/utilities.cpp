@@ -36,6 +36,7 @@
 #include <boost/algorithm/string.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <stdexcept>
 
 using namespace std;
 using namespace cv;
@@ -186,5 +187,6 @@ bool projectPoint(const float focal, const cv::Point2f& center,
 
   return true;
 }
+
 
 }  // end namespace

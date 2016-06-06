@@ -52,7 +52,6 @@ add_library(${PROJECT_NAME}
   src/bounding_cube.cpp
   src/model.cpp
   src/config.cpp
-  src/utilities.cpp
   src/epnp.cpp
 )
 

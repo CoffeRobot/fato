@@ -57,6 +57,8 @@ class Target {
   std::vector<cv::Point3f> model_points_;
   std::vector<cv::Point3f> rel_distances_;
   std::vector<cv::Point2f> active_points;
+  std::vector<cv::Point2f> prev_points_;
+  std::vector<float> projected_depth_;
   std::vector<KpStatus> point_status_;
 
   cv::Mat descriptors_;

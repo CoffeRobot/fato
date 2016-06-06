@@ -30,7 +30,7 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-
+//TODO: utilities file really needed in tracker? better to remove
 #ifndef UTILITIES_H
 #define UTILITIES_H
 
@@ -119,6 +119,7 @@ bool projectPoint(const float focal, const cv::Point2f& center,
 bool projectPoint(const float focal, const cv::Point2f& center,
                   const cv::Point3f* src, cv::Point2f& dst);
 
+Eigen::MatrixXd getProjectionMatrix(const cv::Mat& rotation, const cv::Mat& translation);
 
 template<typename T>
 bool is_infinite( const T &value )
