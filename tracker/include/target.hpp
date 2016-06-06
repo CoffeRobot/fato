@@ -34,6 +34,7 @@
 
 #include <vector>
 #include <opencv2/core/core.hpp>
+#include <Eigen/Core>
 
 #include "constants.h"
 
@@ -71,6 +72,9 @@ class Target {
   // position of points in previous frame, used for structure from motion pose
   // estimation
   std::vector<cv::Point3f> last_frame_points_;
+
+  Eigen::MatrixXd pose_;
+  bool target_found_;
 
 };
 }

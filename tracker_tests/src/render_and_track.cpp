@@ -362,14 +362,17 @@ class SyntheticRenderer {
     cout << "updated pose " << endl;
     cout << fixed << setprecision(3) << upd_pose_ << endl;
 
-    for(int i = 0; i < 2; ++i)
+    for(int i = 0; i < 3; ++i)
     {
-        for(int j = 0; j < 2; ++j)
+        for(int j = 0; j < 3; ++j)
         {
             rotation.at<double>(i,j) = upd_pose_(i,j);
         }
         translation.at<float>(i) = upd_pose_(i,3);
     }
+
+    cout << fixed << setprecision(3)<<  "translation " << translation << endl;
+    cout << fixed << setprecision(3) << "rotation " << rotation << endl;
 
     cv::Point3f center(0,0,0);
 

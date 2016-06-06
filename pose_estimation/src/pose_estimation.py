@@ -270,7 +270,7 @@ class PoseEstimation:
         print(mat_str)
 
         #im = self.draw_transform(proj, cam, im)
-        #im = self.draw_projected_transform(self.upd_pose, cam, im)
+        im = self.draw_projected_transform(self.upd_pose, cam, im)
         im = self.draw_motion(im)
 
         cv2.imshow("", im)

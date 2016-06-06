@@ -63,6 +63,12 @@ void Target::init(std::vector<cv::Point3f> &points, cv::Mat &descriptors) {
   rotation_vec = Mat(1, 3, CV_64FC1, 0.0f);
   translation = Mat(1, 3, CV_64FC1, 0.0f);
   translation_custom = Mat(1, 3, CV_64FC1, 0.0f);
+
+  target_found_ = false;
+  pose_ = Eigen::MatrixXd(4,4);
+
+  for(auto i = 0; i < 4; ++i)
+      pose_(i,i) = 1;
 }
 
 void Target::removeInvalidPoints(const std::vector<int> &ids) {

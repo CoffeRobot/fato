@@ -391,6 +391,7 @@ void drawObjectPose(const Point3f& centroid, const float focal,
   arrowedLine(out, center, za, Scalar(255, 0, 0), 3);
 }
 
+//BUG: cannot conver matrix to double if it is const!!!
 void drawObjectPose(const Point3f& centroid, Mat& camera_matrix,
                     const Mat& rotation, const Mat& translation, Mat& out) {
   Point3f c = centroid;
