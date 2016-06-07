@@ -100,7 +100,7 @@ class TrackerModel : public TrackerNode {
   //TrackerParams params_;
 
   ros::AsyncSpinner spinner_;
-  ros::Publisher publisher_, render_publisher_;
+  ros::Publisher publisher_, render_publisher_, flow_publisher_;
 
   std::string obj_file_;
 };

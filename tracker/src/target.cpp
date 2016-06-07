@@ -35,6 +35,8 @@
 #include <fstream>
 #include <opencv2/calib3d/calib3d.hpp>
 #include <target.hpp>
+#include <stdexcept>
+#include <Eigen/Dense>
 
 using namespace cv;
 
@@ -48,6 +50,8 @@ void Target::init(std::vector<cv::Point3f> &points, cv::Mat &descriptors) {
 
   rel_distances_.reserve(model_points_.size());
   point_status_.resize(model_points_.size(), KpStatus::LOST);
+  projected_depth_.resize(model_points_.size(),
+                          std::numeric_limits<float>::quiet_NaN());
 
   for (auto pt : model_points_) {
     rel_distances_.push_back(centroid_ - pt);
@@ -65,19 +69,37 @@ void Target::init(std::vector<cv::Point3f> &points, cv::Mat &descriptors) {
   translation_custom = Mat(1, 3, CV_64FC1, 0.0f);
 
   target_found_ = false;
-  pose_ = Eigen::MatrixXd(4,4);
+  resetPose();
 
-  for(auto i = 0; i < 4; ++i)
-      pose_(i,i) = 1;
+}
+
+void Target::resetPose()
+{
+    pose_ = Eigen::MatrixXd(4, 4);
+
+    Eigen::Matrix3d rot_view;
+    rot_view = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) *
+               Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) *
+               Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
+
+    for(int i = 0; i < 3; ++i)
+    {
+        for(int j = 0; j < 3; ++j)
+        {
+            pose_(i,j) = rot_view(i,j);
+        }
+    }
+    pose_(2,3) = 0.5;
+    pose_(3,3) = 1;
 }
 
 void Target::removeInvalidPoints(const std::vector<int> &ids) {
-
   int last_valid = active_points.size() - 1;
 
   for (auto id : ids) {
     int mid = active_to_model_.at(id);
     point_status_.at(mid) = KpStatus::LOST;
+    projected_depth_.at(mid) = std::numeric_limits<float>::quiet_NaN();
   }
 
   vector<int> elem_ids(active_points.size(), 0);
@@ -87,6 +109,7 @@ void Target::removeInvalidPoints(const std::vector<int> &ids) {
     auto &el_id = elem_ids.at(id);
 
     std::swap(active_points.at(el_id), active_points.at(last_valid));
+    std::swap(prev_points_.at(el_id), prev_points_.at(last_valid));
     std::swap(active_to_model_.at(el_id), active_to_model_.at(last_valid));
     std::swap(elem_ids.at(el_id), elem_ids.at(last_valid));
     last_valid--;
@@ -95,42 +118,38 @@ void Target::removeInvalidPoints(const std::vector<int> &ids) {
   int resized = last_valid + 1;
   active_points.resize(resized);
   active_to_model_.resize(resized);
+  prev_points_.resize(resized);
 
-  if (!isConsistent()) {
-    std::cout << "ERROR!" << std::endl;
-  }
+  isConsistent();
 }
 
 bool Target::isConsistent() {
+  bool consistent_check = true;
+
   for (auto i : active_to_model_) {
     if (point_status_.at(i) != KpStatus::TRACK &&
         point_status_.at(i) != KpStatus::MATCH)
-      return false;
+      throw std::runtime_error("points status not consistent in target");
   }
-  return true;
+
+  return consistent_check;
 }
 
-void Target::projectVectors(Mat &camera, Mat &out)
-{
+void Target::projectVectors(Mat &camera, Mat &out) {
+  std::vector<Point3f *> model_pts;
+  std::vector<Point3f *> rel_pts;
 
-    std::vector<Point3f*> model_pts;
-    std::vector<Point3f*> rel_pts;
+  for (auto i = 0; i < active_to_model_.size(); ++i) {
+    model_pts.push_back(&model_points_.at(active_to_model_.at(i)));
+    rel_pts.push_back(&rel_distances_.at(active_to_model_.at(i)));
+  }
 
-    for(auto i = 0; i < active_to_model_.size(); ++i)
-    {
-        model_pts.push_back(&model_points_.at(active_to_model_.at(i)));
-        rel_pts.push_back(&rel_distances_.at(active_to_model_.at(i)));
-    }
+  std::vector<Point2f> model_2d, rel_2d;
+  projectPoints(model_pts, rotation, translation, camera, Mat(), model_2d);
+  projectPoints(rel_pts, rotation, translation, camera, Mat(), rel_2d);
 
-    std::vector<Point2f> model_2d, rel_2d;
-    projectPoints(model_pts, rotation, translation, camera, Mat(), model_2d);
-    projectPoints(rel_pts, rotation, translation, camera, Mat(), rel_2d);
-
-    for(auto i = 0; i < model_2d.size(); ++i)
-    {
-        line(out, model_2d.at(i), rel_2d.at(i), Scalar(0,255,0));
-    }
+  for (auto i = 0; i < model_2d.size(); ++i) {
+    line(out, model_2d.at(i), rel_2d.at(i), Scalar(0, 255, 0));
+  }
 }
-
-
 }

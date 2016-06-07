@@ -144,6 +144,9 @@ void TrackerMB::getOpticalFlow(const Mat& prev, const Mat& next,
 
   vector<int> to_remove;
 
+  // TODO: first implementation need to optimize
+  target.prev_points_ = target.active_points;
+
   for (int i = 0; i < next_points.size(); ++i) {
     float error = fato::getDistance(target.active_points.at(i), prev_points[i]);
 
@@ -152,10 +155,11 @@ void TrackerMB::getOpticalFlow(const Mat& prev, const Mat& next,
 
     if (prev_status[i] == 1 && error < 20) {
       // const int& id = ids[i];
-      auto id = i;
 
       if (s == KpStatus::MATCH) s = KpStatus::TRACK;
 
+      // saving previous location of the point, needed to compute pose from
+      // motion
       target.active_points.at(i) = next_points[i];
 
     } else {
@@ -200,105 +204,51 @@ void TrackerMB::trackSequential(Mat& next) {
   /*************************************************************************************/
   /*                             POSE ESTIMATION /
   /*************************************************************************************/
-  // auto& profiler = Profiler::getInstance();
-  float ransac_error = 2.0f;
-  int num_iters = 50;
-
+  // finding all the points in the model that are active
   vector<Point3f> model_pts;
-
   for (int i = 0; i < target_object_.active_points.size(); ++i) {
     const int& id = target_object_.active_to_model_.at(i);
     model_pts.push_back(target_object_.model_points_.at(id));
   }
-
-  if (model_pts.size() > 4) {
-    vector<int> inliers;
-    solvePnPRansac(model_pts, target_object_.active_points, camera_matrix_,
-                   Mat::zeros(1, 8, CV_64F), target_object_.rotation_vec,
-                   target_object_.translation, true, num_iters, ransac_error,
-                   model_pts.size(), inliers, CV_EPNP);
-
-    try {
-      Rodrigues(target_object_.rotation_vec, target_object_.rotation);
-    } catch (cv::Exception& e) {
-      cout << "Error estimating ransac rotation: " << e.what() << endl;
-    }
-
-    vector<int> to_remove;
-    if (inliers.size() > 0) {
-      for (int i = 0; i < inliers.size(); ++i) {
-        int start;
-        int end;
-        if (i == 0) {
-          start = 0;
-          end = inliers.at(i);
-        } else {
-          start = inliers.at(i - 1) + 1;
-          end = inliers.at(i);
-        }
-
-        for (int j = start; j < end; ++j) to_remove.push_back(j);
-      }
-
-      for (int j = inliers.back() + 1; j < target_object_.active_points.size();
-           ++j) {
-        to_remove.push_back(j);
-      }
-    } else {
-      for (int j = 0; j < target_object_.active_points.size(); ++j) {
-        to_remove.push_back(j);
-      }
-    }
-    target_object_.removeInvalidPoints(to_remove);
-
-
-    if (inliers.size() > 5 && !target_object_.target_found_)
-    {
-        // first time the objects is found, need to estimate pose and depth of points
-        // relying only on PNP
-        Eigen::MatrixXd projection_matrix = getProjectionMatrix(
-            target_object_.rotation, target_object_.translation);
-
-        cout << fixed << setprecision(3) << projection_matrix << endl;
-
-        if (target_object_.target_found_) {
-          model_pts.clear();
-
-          for (int i = 0; i < target_object_.active_points.size(); ++i) {
-            const int& id = target_object_.active_to_model_.at(i);
-            model_pts.push_back(target_object_.model_points_.at(id));
-          }
-
-          projectPointsDepth(model_pts, projection_matrix, target_object_.projected_depth_);
-
-          for(auto d : target_object_.projected_depth_)
-              cout << d << " ";
-          cout << "\n";
-        }
-    }
-    else if(inliers.size() > 5 && target_object_.target_found_)
-    {
-        // the object has been found previously, pose from flow can be used since we know
-        // the depth in the previous frame
-    }
-    else
-    {
-        // object is lost
-    }
-
-
-
-
-
-
-  } else  // object lost
-  {
+  // estimating pose with ransac
+  int inliers_count = 0;
+  if (model_pts.size() < 4) {
+    inliers_count = 0;
     target_object_.rotation = Mat(3, 3, CV_64FC1, 0.0f);
     target_object_.translation = Mat(1, 3, CV_64FC1, 0.0f);
     target_object_.rotation_vec = Mat(1, 3, CV_64FC1, 0.0f);
     target_object_.target_found_ = false;
+    target_object_.resetPose();
+  } else {
+    inliers_count = poseFromPnP(model_pts);
+    // the target object has been found again, then estimated depth has to be reinitialized
+    if(!target_object_.target_found_)
+    {
+        target_object_.target_found_ = true;
+        cout << "object found!" << endl;
+        Eigen::MatrixXd projection_matrix = getProjectionMatrix(
+            target_object_.rotation, target_object_.translation);
+
+        model_pts.clear();
+        for (int i = 0; i < target_object_.active_points.size(); ++i) {
+          const int& id = target_object_.active_to_model_.at(i);
+          model_pts.push_back(target_object_.model_points_.at(id));
+        }
+        vector<float> projected_depth;
+        projectPointsDepth(model_pts, projection_matrix, projected_depth);
+
+        for (auto i = 0; i < target_object_.active_points.size(); ++i) {
+          const int& id = target_object_.active_to_model_.at(i);
+          target_object_.projected_depth_.at(id) = projected_depth.at(i);
+        }
+    }
   }
 
+  // flow4pose estimation
+  if(inliers_count > 5 && target_object_.target_found_)
+  {
+    poseFromFlow();
+  }
   /*************************************************************************************/
   /*                       SWAP MEMORY */
   /*************************************************************************************/
@@ -391,6 +341,100 @@ void TrackerMB::projectPointsToModel(const Point2f& model_centroid,
 
     proj_pts.push_back(model_centroid + rm);
   }
+}
+
+int TrackerMB::poseFromPnP(vector<Point3f>& model_pts) {
+  float ransac_error = 2.0f;
+  int num_iters = 50;
+
+  vector<int> inliers;
+  solvePnPRansac(model_pts, target_object_.active_points, camera_matrix_,
+                 Mat::zeros(1, 8, CV_64F), target_object_.rotation_vec,
+                 target_object_.translation, true, num_iters, ransac_error,
+                 model_pts.size(), inliers, CV_EPNP);
+
+  try {
+    Rodrigues(target_object_.rotation_vec, target_object_.rotation);
+  } catch (cv::Exception& e) {
+    cout << "Error estimating ransac rotation: " << e.what() << endl;
+  }
+
+  vector<int> to_remove;
+  if (inliers.size() > 0) {
+    for (int i = 0; i < inliers.size(); ++i) {
+      int start;
+      int end;
+      if (i == 0) {
+        start = 0;
+        end = inliers.at(i);
+      } else {
+        start = inliers.at(i - 1) + 1;
+        end = inliers.at(i);
+      }
+
+      for (int j = start; j < end; ++j) to_remove.push_back(j);
+    }
+
+    for (int j = inliers.back() + 1; j < target_object_.active_points.size();
+         ++j) {
+      to_remove.push_back(j);
+    }
+  } else {
+    for (int j = 0; j < target_object_.active_points.size(); ++j) {
+      to_remove.push_back(j);
+    }
+  }
+  target_object_.removeInvalidPoints(to_remove);
+
+  return inliers.size();
+}
+
+void TrackerMB::poseFromFlow()
+{
+    vector<Point2f> prev_points;
+    vector<Point2f> curr_points;
+    vector<float> depths;
+
+    prev_points.reserve(target_object_.active_points.size());
+    curr_points.reserve(target_object_.active_points.size());
+    depths.reserve(target_object_.active_points.size());
+
+    for (auto i = 0; i < target_object_.active_points.size(); ++i) {
+      int id = target_object_.active_to_model_.at(i);
+      if (!is_nan(target_object_.projected_depth_.at(id))) {
+        prev_points.push_back(target_object_.prev_points_.at(i));
+        curr_points.push_back(target_object_.active_points.at(i));
+        depths.push_back(target_object_.projected_depth_.at(id));
+      }
+    }
+
+    float nodal_x = camera_matrix_.at<double>(0, 2);
+    float nodal_y = camera_matrix_.at<double>(1, 2);
+    float focal_x = camera_matrix_.at<double>(0, 0);
+    float focal_y = camera_matrix_.at<double>(1, 1);
+
+    vector<float> t, r;
+    getPoseFromFlow(prev_points, depths, curr_points, nodal_x, nodal_y,
+                    focal_x, focal_y, t, r);
+
+    Eigen::Matrix3d rot_view;
+    rot_view = Eigen::AngleAxisd(r.at(1), Eigen::Vector3d::UnitZ()) *
+               Eigen::AngleAxisd(r.at(2), Eigen::Vector3d::UnitY()) *
+               Eigen::AngleAxisd(r.at(0), Eigen::Vector3d::UnitX());
+
+    Eigen::MatrixXd proj_mat(4, 4);
+
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j) {
+        proj_mat(i, j) = rot_view(i, j);
+      }
+      proj_mat(i, 3) = t[i];
+      proj_mat(3, i) = 0;
+    }
+    proj_mat(3, 3) = 1;
+
+    target_object_.pose_ = proj_mat * target_object_.pose_;
+
 }
 
 void TrackerMB::projectPointsDepth(std::vector<Point3f>& points,

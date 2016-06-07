@@ -147,6 +147,10 @@ class TrackerMB {
 
   void detectSequential(cv::Mat& next);
 
+  int poseFromPnP(std::vector<cv::Point3f> &model_pts);
+
+  void poseFromFlow();
+
   void projectPointsDepth(std::vector<cv::Point3f>& points, Eigen::MatrixXd& projection,
                           std::vector<float>& projected_depth);
 

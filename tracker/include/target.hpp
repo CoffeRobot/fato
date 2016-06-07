@@ -48,6 +48,8 @@ class Target {
 
   void init(std::vector<cv::Point3f>& points, cv::Mat& descriptors);
 
+  void resetPose();
+
   void removeInvalidPoints(const std::vector<int>& ids);
 
   bool isConsistent();

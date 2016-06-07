@@ -54,7 +54,6 @@
 #include <opencv2/video/tracking.hpp>
 #include <fstream>
 
-
 #include "fato_tracker_tests/RenderService.h"
 
 #include <device_1d.h>
@@ -73,6 +72,7 @@
 #include <utility_kernels_pose.h>
 
 using namespace std;
+using namespace fato;
 
 ros::Publisher pose_publisher, rendering_publisher, disparity_publisher;
 
@@ -255,13 +255,48 @@ class SyntheticRenderer {
     out_file.writeScalar<double>("fy", camera_matrix_.at<double>(1, 1));
     out_file.writeScalar<double>("cx", camera_matrix_.at<double>(0, 2));
     out_file.writeScalar<double>("cy", camera_matrix_.at<double>(1, 2));
+
+    const Target &t = model_tracker_->getTarget();
+
+    std::vector<double> rotation;
+    std::vector<double> translation;
+    for (auto i = 0; i < 3; ++i) {
+      for (auto j = 0; j < 3; ++j) {
+        rotation.push_back(t.rotation.at<double>(i, j));
+      }
+      translation.push_back(t.translation.at<double>(i));
+    }
+
+    out_file.writeArray("pnp_rot", rotation, vector<int>{rotation.size(), 1});
+    out_file.writeArray("pnp_tr", translation,
+                        vector<int>{translation.size(), 1});
+
+    cout << "writing tracker arrays " << endl;
+    cout << t.active_points.size() << " " << t.prev_points_.size() << " " << t.projected_depth_.size() << endl;
+
+    if (t.target_found_) {
+      vector<float> prev_points;
+      vector<float> curr_points;
+
+      for (auto i = 0; i < t.active_points.size(); ++i) {
+        int id = t.active_to_model_.at(i);
+        prev_points.push_back(t.prev_points_.at(i).x);
+        prev_points.push_back(t.prev_points_.at(i).y);
+        prev_points.push_back(t.projected_depth_.at(id));
+        curr_points.push_back(t.active_points.at(i).x);
+        curr_points.push_back(t.active_points.at(i).y);
+      }
+
+      out_file.writeArray("track_prev_pts", prev_points, size);
+      out_file.writeArray("track_next_pts", curr_points,
+                          vector<int>{curr_points.size(), 2});
+    }
   }
 
   void solveLQ(std::vector<cv::Point2f> &prev_pts,
-                          std::vector<float> &prev_depth,
-                          std::vector<cv::Point2f> &next_pts,
-                          std::vector<float> &next_depth,
-                          cv::Mat& out) {
+               std::vector<float> &prev_depth,
+               std::vector<cv::Point2f> &next_pts,
+               std::vector<float> &next_depth, cv::Mat &out) {
     double focal =
         (camera_matrix_.at<double>(0, 0) + camera_matrix_.at<double>(1, 1)) /
         2.0f;
@@ -271,12 +306,11 @@ class SyntheticRenderer {
     vector<float> p_depths;
 
     for (auto i = 0; i < prev_pts.size(); ++i) {
-      if (prev_depth.at(i) > 0 && next_depth.at(i) > 0)
-      {
-          p_points.push_back(prev_pts.at(i));
-          n_points.push_back(next_pts.at(i));
-          p_depths.push_back(prev_depth.at(i));
-          valid_points++;
+      if (prev_depth.at(i) > 0 && next_depth.at(i) > 0) {
+        p_points.push_back(prev_pts.at(i));
+        n_points.push_back(next_pts.at(i));
+        p_depths.push_back(prev_depth.at(i));
+        valid_points++;
       }
     }
 
@@ -285,13 +319,12 @@ class SyntheticRenderer {
     Eigen::MatrixXf A(valid_points * 2, 6);
     Eigen::VectorXf b(valid_points * 2);
 
-    float cx = camera_matrix_.at<double>(0,2);
-    float cy = camera_matrix_.at<double>(1,2);
+    float cx = camera_matrix_.at<double>(0, 2);
+    float cy = camera_matrix_.at<double>(1, 2);
 
     auto valid_count = 0;
     for (auto i = 0; i < prev_pts.size(); ++i) {
       if (prev_depth.at(i) > 0 && next_depth.at(i) > 0) {
-
         float mz = prev_depth.at(i);
         float x = next_pts.at(i).x - cx;
         float y = next_pts.at(i).y - cy;
@@ -300,19 +333,19 @@ class SyntheticRenderer {
         int id = 2 * valid_count;
         int id2 = id + 1;
         // first equation for X, u flow
-        A( id, 0 ) = focal / mz;
-        A( id, 1 ) = 0;
-        A( id, 2 ) = -x / mz;
-        A( id, 3 ) = -xy;
-        A( id, 4 ) = focal + (x * x) / focal;
-        A( id, 5 ) = -y;
+        A(id, 0) = focal / mz;
+        A(id, 1) = 0;
+        A(id, 2) = -x / mz;
+        A(id, 3) = -xy;
+        A(id, 4) = focal + (x * x) / focal;
+        A(id, 5) = -y;
         // second equation for X, v flow
-        A( id2, 0 ) = 0;
-        A( id2, 1 ) = focal / mz;
-        A( id2, 2 ) = -y / mz;
-        A( id2, 3 ) = -(focal + (x * x) / focal);
-        A( id2, 4 ) = xy;
-        A( id2, 5 ) = x;
+        A(id2, 0) = 0;
+        A(id2, 1) = focal / mz;
+        A(id2, 2) = -y / mz;
+        A(id2, 3) = -(focal + (x * x) / focal);
+        A(id2, 4) = xy;
+        A(id2, 5) = x;
         // setting u,v flow in b vector
         b[id] = next_pts.at(i).x - prev_pts.at(i).x;
         b[id2] = next_pts.at(i).y - prev_pts.at(i).y;
@@ -322,20 +355,21 @@ class SyntheticRenderer {
     }
 
     Eigen::VectorXf Y = (A.transpose() * A).ldlt().solve(A.transpose() * b);
-    vector<float> t,r;
+    vector<float> t, r;
 
     cout << "pose estimate" << endl;
 
-    fato::getPoseFromFlow(p_points, p_depths, n_points, cx, cy, camera_matrix_.at<double>(0,0),
-                    camera_matrix_.at<double>(1,1), t, r);
+    fato::getPoseFromFlow(p_points, p_depths, n_points, cx, cy,
+                          camera_matrix_.at<double>(0, 0),
+                          camera_matrix_.at<double>(1, 1), t, r);
 
-    std::cout << std::fixed << std::setprecision(3) << "The solution using eigen is:\n"
-         << Y[0] << " " << Y[1] << " " << Y[2] << " " << Y[3] << " " << Y[4] << " "
-         << Y[5] << std::endl;
+    std::cout << std::fixed << std::setprecision(3)
+              << "The solution using eigen is:\n" << Y[0] << " " << Y[1] << " "
+              << Y[2] << " " << Y[3] << " " << Y[4] << " " << Y[5] << std::endl;
 
-    std::cout << std::fixed << std::setprecision(3) << "The solution using pose is:\n"
-         << t[0] << " " << t[1] << " " << t[2] << " " << r[0] << " " << r[1] << " "
-         << r[2] << std::endl;
+    std::cout << std::fixed << std::setprecision(3)
+              << "The solution using pose is:\n" << t[0] << " " << t[1] << " "
+              << t[2] << " " << r[0] << " " << r[1] << " " << r[2] << std::endl;
 
     cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
     cv::Mat translation = cv::Mat(1, 3, CV_32FC1, 0.0f);
@@ -345,76 +379,65 @@ class SyntheticRenderer {
                Eigen::AngleAxisd(r.at(2), Eigen::Vector3d::UnitY()) *
                Eigen::AngleAxisd(r.at(0), Eigen::Vector3d::UnitX());
 
-    Eigen::MatrixXd proj_mat(4,4);
+    Eigen::MatrixXd proj_mat(4, 4);
 
-    for(int i = 0; i < 3; ++i)
-    {
-        for(int j = 0; j < 3; ++j)
-        {
-            proj_mat(i,j) = rot_view(i,j);
-        }
-        proj_mat(i,3) = t[i];
-        proj_mat(3,i) = 0;
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j) {
+        proj_mat(i, j) = rot_view(i, j);
+      }
+      proj_mat(i, 3) = t[i];
+      proj_mat(3, i) = 0;
     }
-    proj_mat(3,3) = 1;
+    proj_mat(3, 3) = 1;
 
     upd_pose_ = proj_mat * upd_pose_;
 
     cout << "updated pose " << endl;
     cout << fixed << setprecision(3) << upd_pose_ << endl;
 
-    for(int i = 0; i < 3; ++i)
-    {
-        for(int j = 0; j < 3; ++j)
-        {
-            rotation.at<double>(i,j) = upd_pose_(i,j);
-        }
-        translation.at<float>(i) = upd_pose_(i,3);
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j) {
+        rotation.at<double>(i, j) = upd_pose_(i, j);
+      }
+      translation.at<float>(i) = upd_pose_(i, 3);
     }
 
-    cout << fixed << setprecision(3)<<  "translation " << translation << endl;
+    cout << fixed << setprecision(3) << "translation " << translation << endl;
     cout << fixed << setprecision(3) << "rotation " << rotation << endl;
 
-    cv::Point3f center(0,0,0);
+    cv::Point3f center(0, 0, 0);
 
     fato::drawObjectPose(center, camera_matrix_, rotation, translation, out);
-
-
-//    cout << proj_mat << endl;
-//    cout << "\n";
-//    cout << upd_pose_ << endl;
-
   }
 
   bool serviceCallback(fato_tracker_tests::RenderService::Request &req,
                        fato_tracker_tests::RenderService::Response &res) {
     ROS_INFO("received a rendering request");
 
+    // reading and writing the request message
     t_req_[0] = req.x;
     t_req_[1] = req.y;
     t_req_[2] = req.z;
-
     r_req_[0] = req.wx;
     r_req_[1] = req.wy;
     r_req_[2] = req.wz;
 
     res.result = true;
-    res.fx = camera_matrix_.at<double>(0, 0);
-    res.fy = camera_matrix_.at<double>(1, 1);
-    res.cx = camera_matrix_.at<double>(0, 2);
-    res.cy = camera_matrix_.at<double>(1, 2);
+    //    res.fx = camera_matrix_.at<double>(0, 0);
+    //    res.fy = camera_matrix_.at<double>(1, 1);
+    //    res.cx = camera_matrix_.at<double>(0, 2);
+    //    res.cy = camera_matrix_.at<double>(1, 2);
 
     renderObject();
-
-    cv::Mat rgb, gray, depth;
+    cv::Mat rgb, gray;
     vector<float> depth_buffer;
-
     downloadTexture(rgb);
     zbuffer2Z(depth_buffer);
 
     if (req.reset_rendering) {
       ROS_INFO("reset requested");
       initialize_tracking(rgb, depth_buffer);
+      // TODO: reset tracker as well
       return true;
     }
 
@@ -425,11 +448,12 @@ class SyntheticRenderer {
 
     calculateFlow(gray, next_pts);
 
-    stringstream ss;
-    ss << "zbuffer size " << depth_buffer.size() << " pts size "
-       << next_pts.size() << "\n";
-    ROS_INFO(ss.str().c_str());
+    //    stringstream ss;
+    //    ss << "zbuffer size " << depth_buffer.size() << " pts size "
+    //       << next_pts.size() << "\n";
+    //    ROS_INFO(ss.str().c_str());
 
+    // using the ground thruth depth for the estimation
     for (auto pt : next_pts) {
       float depth = 0;
       if (pt.x < 0 || pt.x > width_ || pt.y < 0 || pt.y > height_)
@@ -439,11 +463,10 @@ class SyntheticRenderer {
 
       next_depth.push_back(depth);
     }
-
     solveLQ(prev_points_, prev_depth_, next_pts, next_depth, rgb);
+
     cv::imwrite("/home/alessandro/debug/image.png", rgb);
     saveResults(prev_points_, prev_depth_, next_pts, next_depth);
-
 
     prev_gray_ = gray.clone();
     std::swap(prev_points_, next_pts);
@@ -499,26 +522,22 @@ class SyntheticRenderer {
       prev_depth_.push_back(depth);
     }
 
-    cout << "points for tracking " << prev_points_.size() << endl;
-
     Eigen::Matrix3d rot_view;
     rot_view = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) *
                Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) *
                Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
 
-    upd_pose_ = Eigen::MatrixXd(4,4);
+    upd_pose_ = Eigen::MatrixXd(4, 4);
 
-    for(int i = 0; i < 3; ++i)
-    {
-        for(int j = 0; j < 3; ++j)
-        {
-            upd_pose_(i,j) = rot_view(i,j);
-        }
-        upd_pose_(i,3) = 0;
-        upd_pose_(3,i) = 0;
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j) {
+        upd_pose_(i, j) = rot_view(i, j);
+      }
+      upd_pose_(i, 3) = 0;
+      upd_pose_(3, i) = 0;
     }
-    upd_pose_(3,3) = 1;
-    upd_pose_(2,3) = 0.5;
+    upd_pose_(3, 3) = 1;
+    upd_pose_(2, 3) = 0.5;
 
     keypoints_extracted_ = true;
 
@@ -528,27 +547,23 @@ class SyntheticRenderer {
   void run() {
     ros::Rate r(100);
 
-    int frame_counter = 0;
-    int fst_id = 0;
-    int scd_id = 1;
-
-    float t_inc = 0.02 / 30.0;
-    Eigen::Vector3f pos(0, 0, 0.5);
-    Eigen::Vector3f inc(t_inc, 0, 0);
-
     bool tracker_initialized = false;
     keypoints_extracted_ = false;
 
-    std::vector<cv::Point2f> keypoints;
-    vector<float> prev_d, next_d;
-    std::vector<cv::Point3f> points;
-    cv::Mat prev, prev_gray;
+    std::unique_ptr<FeatureMatcher> derived =
+        std::unique_ptr<BriskMatcher>(new BriskMatcher);
+    Config params;
+
+    model_tracker_ =
+        unique_ptr<TrackerMB>(new TrackerMB(params, BRISK, std::move(derived)));
+
+    model_tracker_->addModel(model_name);
+
+    cv::Mat prev;
 
     while (ros::ok()) {
-      Eigen::Vector3f t_inc;
-
       if (!tracker_initialized && initialized_) {
-        //        tracker.setCameraMatrix(camera_matrix_);
+        model_tracker_->setCameraMatrix(camera_matrix_);
         tracker_initialized = true;
       }
 
@@ -571,6 +586,15 @@ class SyntheticRenderer {
 
         if (!keypoints_extracted_) {
           initialize_tracking(res, depth_buffer);
+        }
+
+        const Target &target = model_tracker_->getTarget();
+
+        // if target has not been found try to find and estimate pose with
+        // pnpransac
+        if (!target.target_found_) {
+          cout << "Finding object using PnP ransac" << endl;
+          model_tracker_->computeNextSequential(res);
         }
 
         prev = res.clone();
@@ -633,13 +657,13 @@ class SyntheticRenderer {
   std::vector<cv::Point2f> prev_points_;
   std::vector<float> prev_depth_;
 
-  cv::Mat camera_matrix_, prev_gray_; 
+  cv::Mat camera_matrix_, prev_gray_;
   int width_, height_;
   bool keypoints_extracted_;
 
   Eigen::MatrixXd upd_pose_;
 
-
+  unique_ptr<TrackerMB> model_tracker_;
 };
 
 void simpleMovement() {
@@ -682,9 +706,6 @@ int main(int argc, char **argv) {
   if (!ros::param::get("fato/model/obj_file", obj_file)) {
     throw std::runtime_error("cannot read obj file param");
   }
-
-  cout << "img_topic " << img_topic << endl;
-  cout << "info_topic " << info_topic << endl;
 
   rendering_publisher =
       nh.advertise<sensor_msgs::Image>("fato_tracker/synthetic", 1);

@@ -40,6 +40,8 @@
 #include <profiler.h>
 #include <draw_functions.h>
 #include <opencv2/calib3d/calib3d.hpp>
+#include <string>
+#include <iostream>
 
 #include <utility_kernels.h>
 #include <utility_kernels_pose.h>
@@ -79,10 +81,13 @@ TrackerModel::TrackerModel(string model_file, string obj_file)
       obj_file_(obj_file) {
   cvStartWindowThread();
 
-  publisher_ = nh_.advertise<sensor_msgs::Image>("fato_tracker/output", 1);
+  publisher_ = nh_.advertise<sensor_msgs::Image>("fato_tracker/output_pnp", 1);
 
   render_publisher_ =
       nh_.advertise<sensor_msgs::Image>("fato_tracker/render", 1);
+
+  flow_publisher_ =
+          nh_.advertise<sensor_msgs::Image>("fato_tracker/output_flow", 1);
 
   getTrackerParameters();
 
@@ -161,9 +166,6 @@ void TrackerModel::run(string model_file) {
   ROS_INFO("TrackerMB: starting...");
   ros::Rate r(100);
 
-  Mat prev_rotation, prev_translation;
-
-  bool target_found = false;
   bool camera_is_set = false;
   bool background_learned = false;
 
@@ -215,6 +217,8 @@ void TrackerModel::run(string model_file) {
     h_texture.resize(480 * 640);
     d_texture.copyTo(h_texture);
   };
+
+  Mat flow_output;
 
   while (ros::ok()) {
     if (img_updated_) {
@@ -279,8 +283,43 @@ void TrackerModel::run(string model_file) {
         // center += model_points.at(i);
       }
 
+      flow_output = rgb_image_.clone();
+
+
       drawObjectPose(target.centroid_, cam, target.rotation, target.translation,
                      rgb_image_);
+
+
+      cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
+      cv::Mat translation = cv::Mat(1, 3, CV_32FC1, 0.0f);
+
+      for(int i = 0; i < 3; ++i)
+      {
+          for(int j = 0; j < 3; ++j)
+          {
+              rotation.at<double>(i,j) = target.pose_(i,j);
+          }
+          translation.at<float>(i) = target.pose_(i,3);
+      }
+
+      drawObjectPose(target.centroid_, cam, rotation, translation, flow_output);
+
+      for(int i = 0; i < 3; ++i)
+      {
+        cout << setprecision(2) << fixed
+             << rotation.at<double>(i,0 ) << "," << rotation.at<double>(i,1) << ","
+             << rotation.at<double>(i,2) << "   "
+             << target.rotation.at<double>(i,0) << "," << target.rotation.at<double>(i,1) << ","
+             << target.rotation.at<double>(i,2) << "\n";
+      }
+      cout <<"\n";
+
+      for(int i = 0; i < 3; ++i)
+      {
+        cout << setprecision(2) << fixed
+             << translation.at<float>(i) << "  " << target.translation.at<float>(i) << "\n";
+      }
+      cout <<"\n";
 
       if (target.active_to_model_.size()) {
         std::vector<Point3f> model_pts;
@@ -358,7 +397,7 @@ void TrackerModel::run(string model_file) {
       cv::Mat img_rgb;
       cv::cvtColor(img_rgba, img_rgb, CV_RGBA2BGR);
 
-      cv_bridge::CvImage cv_img, cv_rend;
+      cv_bridge::CvImage cv_img, cv_rend, cv_flow;
       cv_img.image = rgb_image_;
       cv_img.encoding = sensor_msgs::image_encodings::BGR8;
       publisher_.publish(cv_img.toImageMsg());
@@ -366,6 +405,11 @@ void TrackerModel::run(string model_file) {
       cv_rend.image = img_rgb;
       cv_rend.encoding = sensor_msgs::image_encodings::BGR8;
       render_publisher_.publish(cv_rend.toImageMsg());
+
+
+      cv_flow.image = flow_output;
+      cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
+      flow_publisher_.publish(cv_flow.toImageMsg());
 
       video_writer.write(rgb_image_);
       r.sleep();
