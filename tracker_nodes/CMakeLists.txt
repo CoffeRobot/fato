@@ -19,6 +19,15 @@ find_package(OpenCV 2.4.8 REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 
+add_service_files(
+  DIRECTORY srv
+  FILES TrackerService.srv
+)
+
+generate_messages(
+  DEPENDENCIES std_msgs sensor_msgs# Or other packages containing msgs
+)
+
 catkin_package(
   INCLUDE_DIRS
     include
@@ -32,7 +41,6 @@ catkin_package(
   LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS tracker fato_rendering utilities tracker_io
 )
-
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 

@@ -43,7 +43,8 @@ enum struct KpStatus {
   BACKGROUND,
   LOST,
   NOCLUSTER,
-  LEARN
+  LEARN,
+  PNP
 };
 
 }

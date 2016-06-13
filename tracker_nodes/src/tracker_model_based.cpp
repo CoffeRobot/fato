@@ -48,6 +48,7 @@
 #include <hdf5_file.h>
 #include <multiple_rigid_models_ogre.h>
 
+
 #include "../../fato_rendering/include/multiple_rigid_models_ogre.h"
 #include "../../fato_rendering/include/windowless_gl_context.h"
 #include "../../utilities/include/hdf5_file.h"
@@ -89,6 +90,9 @@ TrackerModel::TrackerModel(string model_file, string obj_file)
   flow_publisher_ =
           nh_.advertise<sensor_msgs::Image>("fato_tracker/output_flow", 1);
 
+  service_server_ = nh_.advertiseService(
+      "tracker_service", &TrackerModel::serviceCallback, this);
+
   getTrackerParameters();
 
   initRGB();
@@ -123,6 +127,23 @@ void TrackerModel::rgbCallback(
   readImage(rgb_msg, rgb);
   cvtColor(rgb, rgb_image_, CV_RGB2BGR);
   img_updated_ = true;
+}
+
+bool TrackerModel::serviceCallback(fato_tracker_nodes::TrackerService::Request &req,
+                     fato_tracker_nodes::TrackerService::Response &res) {
+
+    res.result = true;
+    if (req.stop_matcher) {
+        stop_matcher = true;
+        cout << "Matcher stopped!" << endl;
+    }
+    else
+    {
+        cout << "Matcher restarted" << endl;
+        stop_matcher = false;
+    }
+
+    return true;
 }
 
 void TrackerModel::getTrackerParameters() {
@@ -220,6 +241,8 @@ void TrackerModel::run(string model_file) {
 
   Mat flow_output;
 
+  stop_matcher = false;
+
   while (ros::ok()) {
     if (img_updated_) {
       if (!camera_matrix_initialized)
@@ -249,6 +272,7 @@ void TrackerModel::run(string model_file) {
       }
 
       // cout << "Frame" << endl;
+      tracker.stop_matcher = stop_matcher;
       tracker.computeNextSequential(rgb_image_);
 
       char c = waitKey(1);
@@ -268,6 +292,8 @@ void TrackerModel::run(string model_file) {
 
       const Target &target = tracker.getTarget();
 
+      cout << target.active_points.size() << " " << target.prev_points_.size() << endl;
+
       cv::Point3f center(0, 0, 0);
       for (auto i = 0; i < target.active_points.size(); ++i) {
         int id = target.active_to_model_.at(i);
@@ -277,9 +303,15 @@ void TrackerModel::run(string model_file) {
         if (target.point_status_.at(id) == fato::KpStatus::MATCH)
           color = Scalar(255, 0, 0);
         else if (target.point_status_.at(id) == fato::KpStatus::TRACK)
+        {
           color = Scalar(0, 255, 0);
+          //circle(rgb_image_, target.prev_points_.at(i), 1, color);
+          line(rgb_image_, target.prev_points_.at(i), target.active_points.at(i), Scalar(255,0,0), 1);
+        }
 
-        circle(rgb_image_, target.active_points.at(i), 3, color);
+        //circle(rgb_image_, target.prev_points_.at(i), 3, color);
+        circle(rgb_image_, target.active_points.at(i), 1, color);
+        //line(rgb_image_, target.prev_points_.at(i), target.active_points.at(i), Scalar(255,0,0), 1);
         // center += model_points.at(i);
       }
 
@@ -304,22 +336,22 @@ void TrackerModel::run(string model_file) {
 
       drawObjectPose(target.centroid_, cam, rotation, translation, flow_output);
 
-      for(int i = 0; i < 3; ++i)
-      {
-        cout << setprecision(2) << fixed
-             << rotation.at<double>(i,0 ) << "," << rotation.at<double>(i,1) << ","
-             << rotation.at<double>(i,2) << "   "
-             << target.rotation.at<double>(i,0) << "," << target.rotation.at<double>(i,1) << ","
-             << target.rotation.at<double>(i,2) << "\n";
-      }
-      cout <<"\n";
+//      for(int i = 0; i < 3; ++i)
+//      {
+//        cout << setprecision(2) << fixed
+//             << rotation.at<double>(i,0 ) << "," << rotation.at<double>(i,1) << ","
+//             << rotation.at<double>(i,2) << "   "
+//             << target.rotation.at<double>(i,0) << "," << target.rotation.at<double>(i,1) << ","
+//             << target.rotation.at<double>(i,2) << "\n";
+//      }
+//      cout <<"\n";
 
-      for(int i = 0; i < 3; ++i)
-      {
-        cout << setprecision(2) << fixed
-             << translation.at<float>(i) << "  " << target.translation.at<float>(i) << "\n";
-      }
-      cout <<"\n";
+//      for(int i = 0; i < 3; ++i)
+//      {
+//        cout << setprecision(2) << fixed
+//             << translation.at<float>(i) << "  " << target.translation.at<float>(i) << "\n";
+//      }
+//      cout <<"\n";
 
       if (target.active_to_model_.size()) {
         std::vector<Point3f> model_pts;
@@ -340,7 +372,7 @@ void TrackerModel::run(string model_file) {
                       rel_2d);
 
         for (auto i = 0; i < model_2d.size(); ++i) {
-          line(rgb_image_, model_2d.at(i), rel_2d.at(i), Scalar(255, 0, 0), 1);
+          //line(rgb_image_, model_2d.at(i), rel_2d.at(i), Scalar(255, 0, 0), 1);
           //cout << model_2d.at(i) << " " << rel_2d.at(i) << "\n";
         }
       }
@@ -362,24 +394,24 @@ void TrackerModel::run(string model_file) {
 //      cout << "determint cv " << determinant << " cus " << b.determinant()
 //           << endl;
 
-      double err = 0;
+//      double err = 0;
 
-      for (auto i = 0; i < 3; ++i) {
-        for (auto j = 0; j < 3; ++j) {
-          double dt = a(i, j) - b(i, j);
-          err += sqrt(err * err);
-        }
-      }
+//      for (auto i = 0; i < 3; ++i) {
+//        for (auto j = 0; j < 3; ++j) {
+//          double dt = a(i, j) - b(i, j);
+//          err += sqrt(err * err);
+//        }
+//      }
 
-      if (err > 1) {
-        for (auto i = 0; i < 3; ++i) {
-          for (auto j = 0; j < 3; ++j) {
-            cout << std::setprecision(2) << a(i, j) << "|" << b(i, j) << " ";
-          }
-          cout << "\n";
-        }
-        cout << "\n";
-      }
+//      if (err > 1) {
+//        for (auto i = 0; i < 3; ++i) {
+//          for (auto j = 0; j < 3; ++j) {
+//            cout << std::setprecision(2) << a(i, j) << "|" << b(i, j) << " ";
+//          }
+//          cout << "\n";
+//        }
+//        cout << "\n";
+//      }
 
       double T[] = {tvec.at<double>(0, 0), tvec.at<double>(0, 1),
                     tvec.at<double>(0, 2)};

@@ -74,7 +74,7 @@
 using namespace std;
 using namespace fato;
 
-ros::Publisher pose_publisher, rendering_publisher, disparity_publisher;
+ros::Publisher pose_publisher, rendering_publisher, disparity_publisher, flow_publisher;
 
 cv::Mat camera_image;
 string img_topic, info_topic, model_name, obj_file;
@@ -221,7 +221,8 @@ class SyntheticRenderer {
   void saveResults(std::vector<cv::Point2f> &prev_pts,
                    std::vector<float> &prev_depth,
                    std::vector<cv::Point2f> &next_pts,
-                   std::vector<float> &next_depth) {
+                   std::vector<float> &next_depth,
+                   std::vector<float> &depth_buffer) {
     if (prev_pts.size() == 0 || next_pts.size() == 0) return;
 
     string filename = "/home/alessandro/debug/flow.hdf5";
@@ -272,24 +273,51 @@ class SyntheticRenderer {
                         vector<int>{translation.size(), 1});
 
     cout << "writing tracker arrays " << endl;
-    cout << t.active_points.size() << " " << t.prev_points_.size() << " " << t.projected_depth_.size() << endl;
+    cout << t.active_points.size() << " " << t.prev_points_.size() << " "
+         << t.projected_depth_.size() << endl;
 
+    int valid_count = 0;
+    int match_count = 0;
     if (t.target_found_) {
       vector<float> prev_points;
       vector<float> curr_points;
+      vector<float> gt_depth;
 
       for (auto i = 0; i < t.active_points.size(); ++i) {
         int id = t.active_to_model_.at(i);
+        if (t.point_status_.at(id) != KpStatus::TRACK) {
+          match_count++;
+          continue;
+        }
         prev_points.push_back(t.prev_points_.at(i).x);
         prev_points.push_back(t.prev_points_.at(i).y);
         prev_points.push_back(t.projected_depth_.at(id));
         curr_points.push_back(t.active_points.at(i).x);
         curr_points.push_back(t.active_points.at(i).y);
+
+        int x = floor(t.active_points.at(i).x);
+        int y = floor(t.active_points.at(i).y);
+        gt_depth.push_back(depth_buffer.at(x + y * width_));
+
+        valid_count++;
       }
 
-      out_file.writeArray("track_prev_pts", prev_points, size);
-      out_file.writeArray("track_next_pts", curr_points,
-                          vector<int>{curr_points.size(), 2});
+      vector<double> flow_pose;
+      for (auto i = 0; i < 4; ++i) {
+        for (auto j = 0; j < 4; ++j) {
+          flow_pose.push_back(t.pose_(i, j));
+        }
+      }
+
+      if (valid_count > 0) {
+        out_file.writeArray("track_prev_pts", prev_points,
+                            vector<int>{valid_count, 3});
+        out_file.writeArray("track_next_pts", curr_points,
+                            vector<int>{valid_count, 2});
+        out_file.writeArray("track_flow_pose", flow_pose, vector<int>{16, 1});
+        out_file.writeArray("track_depth_gt", gt_depth,
+                            vector<int>{valid_count, 1});
+      }
     }
   }
 
@@ -357,19 +385,23 @@ class SyntheticRenderer {
     Eigen::VectorXf Y = (A.transpose() * A).ldlt().solve(A.transpose() * b);
     vector<float> t, r;
 
-    cout << "pose estimate" << endl;
+    // cout << "pose estimate" << endl;
 
     fato::getPoseFromFlow(p_points, p_depths, n_points, cx, cy,
                           camera_matrix_.at<double>(0, 0),
                           camera_matrix_.at<double>(1, 1), t, r);
 
-    std::cout << std::fixed << std::setprecision(3)
-              << "The solution using eigen is:\n" << Y[0] << " " << Y[1] << " "
-              << Y[2] << " " << Y[3] << " " << Y[4] << " " << Y[5] << std::endl;
+    //    std::cout << std::fixed << std::setprecision(3)
+    //              << "The solution using eigen is:\n" << Y[0] << " " << Y[1]
+    //              << " "
+    //              << Y[2] << " " << Y[3] << " " << Y[4] << " " << Y[5] <<
+    //              std::endl;
 
-    std::cout << std::fixed << std::setprecision(3)
-              << "The solution using pose is:\n" << t[0] << " " << t[1] << " "
-              << t[2] << " " << r[0] << " " << r[1] << " " << r[2] << std::endl;
+    //    std::cout << std::fixed << std::setprecision(3)
+    //              << "The solution using pose is:\n" << t[0] << " " << t[1] <<
+    //              " "
+    //              << t[2] << " " << r[0] << " " << r[1] << " " << r[2] <<
+    //              std::endl;
 
     cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
     cv::Mat translation = cv::Mat(1, 3, CV_32FC1, 0.0f);
@@ -392,8 +424,8 @@ class SyntheticRenderer {
 
     upd_pose_ = proj_mat * upd_pose_;
 
-    cout << "updated pose " << endl;
-    cout << fixed << setprecision(3) << upd_pose_ << endl;
+    //    cout << "updated pose " << endl;
+    //    cout << fixed << setprecision(3) << upd_pose_ << endl;
 
     for (int i = 0; i < 3; ++i) {
       for (int j = 0; j < 3; ++j) {
@@ -402,8 +434,9 @@ class SyntheticRenderer {
       translation.at<float>(i) = upd_pose_(i, 3);
     }
 
-    cout << fixed << setprecision(3) << "translation " << translation << endl;
-    cout << fixed << setprecision(3) << "rotation " << rotation << endl;
+    //    cout << fixed << setprecision(3) << "translation " << translation <<
+    //    endl;
+    //    cout << fixed << setprecision(3) << "rotation " << rotation << endl;
 
     cv::Point3f center(0, 0, 0);
 
@@ -423,10 +456,6 @@ class SyntheticRenderer {
     r_req_[2] = req.wz;
 
     res.result = true;
-    //    res.fx = camera_matrix_.at<double>(0, 0);
-    //    res.fy = camera_matrix_.at<double>(1, 1);
-    //    res.cx = camera_matrix_.at<double>(0, 2);
-    //    res.cy = camera_matrix_.at<double>(1, 2);
 
     renderObject();
     cv::Mat rgb, gray;
@@ -437,6 +466,7 @@ class SyntheticRenderer {
     if (req.reset_rendering) {
       ROS_INFO("reset requested");
       initialize_tracking(rgb, depth_buffer);
+      model_tracker_->resetTarget();
       // TODO: reset tracker as well
       return true;
     }
@@ -447,6 +477,7 @@ class SyntheticRenderer {
     std::vector<float> next_depth;
 
     calculateFlow(gray, next_pts);
+    model_tracker_->computeNextSequential(rgb);
 
     //    stringstream ss;
     //    ss << "zbuffer size " << depth_buffer.size() << " pts size "
@@ -458,15 +489,23 @@ class SyntheticRenderer {
       float depth = 0;
       if (pt.x < 0 || pt.x > width_ || pt.y < 0 || pt.y > height_)
         depth = 0;
-      else
-        depth = depth_buffer.at(pt.x + pt.y * width_);
+      else {
+        int x = floor(pt.x);
+        int y = floor(pt.y);
+        // depth = depth_buffer.at(pt.x + pt.y * width_);
+        depth = depth_buffer.at(x + y * width_);
+        // cout << depth << " " << d2 << endl;
+      }
 
       next_depth.push_back(depth);
     }
-    solveLQ(prev_points_, prev_depth_, next_pts, next_depth, rgb);
+
+    cv::Mat tmp = rgb.clone();
+
+    solveLQ(prev_points_, prev_depth_, next_pts, next_depth, tmp);
 
     cv::imwrite("/home/alessandro/debug/image.png", rgb);
-    saveResults(prev_points_, prev_depth_, next_pts, next_depth);
+    saveResults(prev_points_, prev_depth_, next_pts, next_depth, depth_buffer);
 
     prev_gray_ = gray.clone();
     std::swap(prev_points_, next_pts);
@@ -517,7 +556,9 @@ class SyntheticRenderer {
     for (auto kp : kps) {
       cv::Point2f pt = kp.pt;
       prev_points_.push_back(pt);
-      float depth = depth_buffer.at(pt.x + pt.y * width_);
+      int x = floor(pt.x);
+      int y = floor(pt.y);
+      float depth = depth_buffer.at(x + y * width_);
 
       prev_depth_.push_back(depth);
     }
@@ -592,10 +633,40 @@ class SyntheticRenderer {
 
         // if target has not been found try to find and estimate pose with
         // pnpransac
-        if (!target.target_found_) {
-          cout << "Finding object using PnP ransac" << endl;
-          model_tracker_->computeNextSequential(res);
+        // if (!target.target_found_) {
+        //  cout << "Finding object using PnP ransac" << endl;
+        model_tracker_->computeNextSequential(res);
+        //}
+
+        cv::Mat pose_img = res.clone();
+        cv::Mat cam(3, 3, CV_64FC1);
+        for (int i = 0; i < cam.rows; ++i) {
+          for (int j = 0; j < cam.cols; ++j) {
+            cam.at<double>(i, j) = camera_matrix_.at<double>(i, j);
+          }
         }
+        drawObjectPose(target.centroid_, cam, target.rotation, target.translation,
+                       pose_img);
+
+        cv::Mat flow_output = res.clone();
+        cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
+        cv::Mat translation = cv::Mat(1, 3, CV_32FC1, 0.0f);
+
+        for(int i = 0; i < 3; ++i)
+        {
+            for(int j = 0; j < 3; ++j)
+            {
+                rotation.at<double>(i,j) = target.pose_(i,j);
+            }
+            translation.at<float>(i) = target.pose_(i,3);
+        }
+
+        drawObjectPose(target.centroid_, cam, rotation, translation, flow_output);
+        for(auto pt : target.active_points)
+        {
+            cv::circle(flow_output, pt, 2, cv::Scalar(0,255,0), 1);
+        }
+
 
         prev = res.clone();
 
@@ -617,14 +688,20 @@ class SyntheticRenderer {
 
         cv::Point3f center(0, 0, 0);
 
-        cv_bridge::CvImage cv_img, cv_rend;
+        cv_bridge::CvImage cv_img, cv_rend, cv_pose, cv_flow;
         cv_img.image = res;
         cv_img.encoding = sensor_msgs::image_encodings::BGR8;
         cv_rend.image = disparity;
         cv_rend.encoding = sensor_msgs::image_encodings::MONO8;
+        cv_pose.image = pose_img;
+        cv_pose.encoding = sensor_msgs::image_encodings::BGR8;
+        cv_flow.image = flow_output;
+        cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
 
         rendering_publisher.publish(cv_img.toImageMsg());
         disparity_publisher.publish(cv_rend.toImageMsg());
+        pose_publisher.publish(cv_pose.toImageMsg());
+        flow_publisher.publish(cv_flow.toImageMsg());
 
         image_updated = false;
       }
@@ -711,6 +788,12 @@ int main(int argc, char **argv) {
       nh.advertise<sensor_msgs::Image>("fato_tracker/synthetic", 1);
   disparity_publisher =
       nh.advertise<sensor_msgs::Image>("fato_tracker/synthetic_disparity", 1);
+
+  pose_publisher =
+      nh.advertise<sensor_msgs::Image>("fato_tracker/synthetic_pose", 1);
+
+  flow_publisher =
+          nh.advertise<sensor_msgs::Image>("fato_tracker/synthetic_flow", 1);
 
   SyntheticRenderer sr;
 

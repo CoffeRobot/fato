@@ -47,7 +47,7 @@
 
 
 #include "tracker_node.h"
-
+#include "fato_tracker_nodes/TrackerService.h"
 
 namespace fato{
 
@@ -63,6 +63,9 @@ class TrackerModel : public TrackerNode {
           const sensor_msgs::ImageConstPtr &depth_msg,
           const sensor_msgs::ImageConstPtr &rgb_msg,
           const sensor_msgs::CameraInfoConstPtr &camera_info_msg);
+
+  bool serviceCallback(fato_tracker_nodes::TrackerService::Request &req,
+                  fato_tracker_nodes::TrackerService::Response &res);
 
  private:
   void run(std::string model_file);
@@ -101,8 +104,11 @@ class TrackerModel : public TrackerNode {
 
   ros::AsyncSpinner spinner_;
   ros::Publisher publisher_, render_publisher_, flow_publisher_;
+  ros::ServiceServer service_server_;
 
   std::string obj_file_;
+
+  bool stop_matcher;
 };
 
 } // end namespace

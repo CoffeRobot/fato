@@ -71,7 +71,7 @@ class TrackerMB {
 
   void learnBackground(const cv::Mat& rgb);
 
-  void initSequential(const cv::Mat& rgb, const cv::Mat& mask);
+  void resetTarget();
 
   void setFeatureExtractionParameters(int num_features, float scale_factor,
                                       int num_levels, int edge_threshold,
@@ -116,6 +116,8 @@ class TrackerMB {
   int m_original_model_size;
   std::vector<KpStatus> m_points_status_debug;
 
+  bool stop_matcher;
+
  private:
   int runTracker();
 
@@ -130,6 +132,10 @@ class TrackerMB {
                             const float scale,
                             const std::vector<cv::Point2f>& pts,
                             std::vector<cv::Point2f>& proj_pts);
+
+  void removeOutliers(std::vector<int>& inliers);
+
+  void validateInliers(std::vector<int>& inliers);
 
   void getTrackedPoints(std::vector<cv::Point2f>& model_pts,
                         std::vector<cv::Point2f>& current_pts,
@@ -147,7 +153,7 @@ class TrackerMB {
 
   void detectSequential(cv::Mat& next);
 
-  int poseFromPnP(std::vector<cv::Point3f> &model_pts);
+  void poseFromPnP(std::vector<cv::Point3f> &model_pts, std::vector<int> &inliers);
 
   void poseFromFlow();
 

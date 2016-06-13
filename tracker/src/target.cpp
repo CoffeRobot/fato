@@ -39,6 +39,7 @@
 #include <Eigen/Dense>
 
 using namespace cv;
+using namespace std;
 
 namespace fato {
 
@@ -57,7 +58,15 @@ void Target::init(std::vector<cv::Point3f> &points, cv::Mat &descriptors) {
     rel_distances_.push_back(centroid_ - pt);
   }
 
+  resetPose();
+}
+
+void Target::resetPose() {
+  //cout << "Object status resetting " << endl;
   int reserved_memory = model_points_.size() / 10;
+
+  active_to_model_.clear();
+  active_points.clear();
 
   active_to_model_.reserve(reserved_memory);
   active_points.reserve(reserved_memory);
@@ -69,28 +78,27 @@ void Target::init(std::vector<cv::Point3f> &points, cv::Mat &descriptors) {
   translation_custom = Mat(1, 3, CV_64FC1, 0.0f);
 
   target_found_ = false;
-  resetPose();
 
-}
+  pose_ = Eigen::MatrixXd(4, 4);
 
-void Target::resetPose()
-{
-    pose_ = Eigen::MatrixXd(4, 4);
+  Eigen::Matrix3d rot_view;
+  rot_view = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) *
+             Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) *
+             Eigen::AngleAxisd(0, Eigen::Vector3d::UnitX());
 
-    Eigen::Matrix3d rot_view;
-    rot_view = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) *
-               Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) *
-               Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
-
-    for(int i = 0; i < 3; ++i)
-    {
-        for(int j = 0; j < 3; ++j)
-        {
-            pose_(i,j) = rot_view(i,j);
-        }
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      pose_(i, j) = rot_view(i, j);
     }
-    pose_(2,3) = 0.5;
-    pose_(3,3) = 1;
+  }
+  pose_(2, 3) = 0;
+  pose_(3, 3) = 1;
+
+  for (auto &p : point_status_) p = KpStatus::LOST;
+
+  for (auto &d : projected_depth_) d = numeric_limits<float>::quiet_NaN();
+
+  //cout << "Object status reset " << endl;
 }
 
 void Target::removeInvalidPoints(const std::vector<int> &ids) {
@@ -128,7 +136,8 @@ bool Target::isConsistent() {
 
   for (auto i : active_to_model_) {
     if (point_status_.at(i) != KpStatus::TRACK &&
-        point_status_.at(i) != KpStatus::MATCH)
+        point_status_.at(i) != KpStatus::MATCH &&
+        point_status_.at(i) != KpStatus::PNP)
       throw std::runtime_error("points status not consistent in target");
   }
 

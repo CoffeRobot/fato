@@ -110,6 +110,9 @@ void getPoseFromFlow(const std::vector<cv::Point2f>& prev_pts,
   // solving least square to find the 6 unknown parameters: tx,ty, tz, wx, wy, wz
   Eigen::VectorXf Y = (A.transpose() * A).ldlt().solve(A.transpose() * b);
 
+  cout << "LQ: " << fixed << setprecision(3) << Y[0] << " " << Y[1] << " " << Y[2] << " "
+                 << Y[3] << " " << Y[4] << " " << Y[5] << endl;
+
   translation[0] = Y[0];
   translation[1] = Y[1];
   translation[2] = Y[2];
