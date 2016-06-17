@@ -5,6 +5,7 @@ float64 wx
 float64 wy
 float64 wz
 bool reset_rendering
+bool add_flow_noise
 ---
 float64 fx
 float64 fy

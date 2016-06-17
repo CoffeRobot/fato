@@ -1,0 +1,4 @@
+bool stop_matcher
+bool reset_tracker
+---
+bool result

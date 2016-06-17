@@ -125,10 +125,7 @@ void TrackerMB::learnBackground(const Mat& rgb) {
   feature_detector_->setTarget(m_initDescriptors);
 }
 
-void TrackerMB::resetTarget()
-{
-    target_object_.resetPose();
-}
+void TrackerMB::resetTarget() { target_object_.resetPose(); }
 
 void TrackerMB::setMatcerParameters(float confidence, float second_ratio) {
   matcher_confidence_ = confidence;
@@ -217,56 +214,48 @@ void TrackerMB::trackSequential(Mat& next) {
     model_pts.push_back(target_object_.model_points_.at(id));
   }
 
-  if(model_pts.size() > 4)
-  {
-      vector<int> inliers;
-      poseFromPnP(model_pts, inliers);
-      auto inliers_count = inliers.size();
-      removeOutliers(inliers);
-      validateInliers(inliers);
+  if (model_pts.size() > 4) {
+    vector<int> inliers;
+    poseFromPnP(model_pts, inliers);
+    auto inliers_count = inliers.size();
+    removeOutliers(inliers);
+    validateInliers(inliers);
 
-      if(!target_object_.target_found_)
-      {
-          // removing outliers using pnp ransac
+    if (!target_object_.target_found_) {
+      // removing outliers using pnp ransac
 
+      cout << "object found!" << endl;
+      Eigen::MatrixXd projection_matrix = getProjectionMatrix(
+          target_object_.rotation, target_object_.translation);
 
-          cout << "object found!" << endl;
-          Eigen::MatrixXd projection_matrix = getProjectionMatrix(
-              target_object_.rotation, target_object_.translation);
-
-          model_pts.clear();
-          for (int i = 0; i < target_object_.active_points.size(); ++i) {
-            const int& id = target_object_.active_to_model_.at(i);
-            model_pts.push_back(target_object_.model_points_.at(id));
-          }
-          vector<float> projected_depth;
-          projectPointsDepth(model_pts, projection_matrix, projected_depth);
-
-          for (auto i = 0; i < target_object_.active_points.size(); ++i) {
-            const int& id = target_object_.active_to_model_.at(i);
-            target_object_.projected_depth_.at(id) = projected_depth.at(i);
-            //cout << setprecision(3) << fixed << projected_depth.at(i) << endl;
-          }
-          if(inliers_count > 4)
-          {
-              target_object_.target_found_ = true;
-              target_object_.pose_ = projection_matrix * target_object_.pose_;
-          }
-
+      model_pts.clear();
+      for (int i = 0; i < target_object_.active_points.size(); ++i) {
+        const int& id = target_object_.active_to_model_.at(i);
+        model_pts.push_back(target_object_.model_points_.at(id));
       }
-      else
-      {
-        poseFromFlow();
+      vector<float> projected_depth;
+      projectPointsDepth(model_pts, projection_matrix, projected_depth);
+
+      for (auto i = 0; i < target_object_.active_points.size(); ++i) {
+        const int& id = target_object_.active_to_model_.at(i);
+        target_object_.projected_depth_.at(id) = projected_depth.at(i);
+        // cout << setprecision(3) << fixed << projected_depth.at(i) << endl;
       }
-  }
-  else
-  {
-      cout << "object lost" << endl;
-      target_object_.rotation = Mat(3, 3, CV_64FC1, 0.0f);
-      target_object_.translation = Mat(1, 3, CV_64FC1, 0.0f);
-      target_object_.rotation_vec = Mat(1, 3, CV_64FC1, 0.0f);
-      target_object_.target_found_ = false;
-      target_object_.resetPose();
+      if (inliers_count > 4) {
+        target_object_.target_found_ = true;
+        target_object_.pose_ = projection_matrix * target_object_.pose_;
+      }
+
+    } else {
+      poseFromFlow();
+    }
+  } else {
+    cout << "object lost" << endl;
+    target_object_.rotation = Mat(3, 3, CV_64FC1, 0.0f);
+    target_object_.translation = Mat(1, 3, CV_64FC1, 0.0f);
+    target_object_.rotation_vec = Mat(1, 3, CV_64FC1, 0.0f);
+    target_object_.target_found_ = false;
+    target_object_.resetPose();
   }
   /*************************************************************************************/
   /*                       SWAP MEMORY */
@@ -275,9 +264,7 @@ void TrackerMB::trackSequential(Mat& next) {
 }
 
 void TrackerMB::detectSequential(Mat& next) {
-
-  if(stop_matcher)
-      return;
+  if (stop_matcher) return;
 
   vector<KeyPoint> keypoints;
   Mat gray, descriptors;
@@ -366,57 +353,49 @@ void TrackerMB::projectPointsToModel(const Point2f& model_centroid,
   }
 }
 
+void TrackerMB::removeOutliers(vector<int>& inliers) {
+  vector<int> to_remove;
+  auto check_point = [&](int p) {
 
-void TrackerMB::removeOutliers(vector<int>& inliers)
-{
-    vector<int> to_remove;
-    auto check_point = [&](int p){
-
-        int id = target_object_.active_to_model_.at(p);
-        if(target_object_.point_status_[id] == KpStatus::PNP)
-        {
-            to_remove.push_back(p);
-        }
-    };
-
-
-    if (inliers.size() > 0) {
-      for (int i = 0; i < inliers.size(); ++i) {
-        int start;
-        int end;
-        if (i == 0) {
-          start = 0;
-          end = inliers.at(i);
-        } else {
-          start = inliers.at(i - 1) + 1;
-          end = inliers.at(i);
-        }
-
-        for (int j = start; j < end; ++j)
-            check_point(j);
-      }
-
-      for (int j = inliers.back() + 1; j < target_object_.active_points.size();
-           ++j) {
-        check_point(j);
-      }
-    } else {
-      for (int j = 0; j < target_object_.active_points.size(); ++j) {
-        check_point(j);
-      }
+    int id = target_object_.active_to_model_.at(p);
+    if (target_object_.point_status_[id] == KpStatus::PNP) {
+      to_remove.push_back(p);
     }
-    target_object_.removeInvalidPoints(to_remove);
+  };
+
+  if (inliers.size() > 0) {
+    for (int i = 0; i < inliers.size(); ++i) {
+      int start;
+      int end;
+      if (i == 0) {
+        start = 0;
+        end = inliers.at(i);
+      } else {
+        start = inliers.at(i - 1) + 1;
+        end = inliers.at(i);
+      }
+
+      for (int j = start; j < end; ++j) check_point(j);
+    }
+
+    for (int j = inliers.back() + 1; j < target_object_.active_points.size();
+         ++j) {
+      check_point(j);
+    }
+  } else {
+    for (int j = 0; j < target_object_.active_points.size(); ++j) {
+      check_point(j);
+    }
+  }
+  target_object_.removeInvalidPoints(to_remove);
 }
 
-void TrackerMB::validateInliers(std::vector<int> &inliers)
-{
-   for(auto i = 0; i < target_object_.active_points.size(); ++i)
-   {
-        int id = target_object_.active_to_model_.at(i);
-        KpStatus& s = target_object_.point_status_.at(id);
-        if(s == KpStatus::PNP)
-            s = KpStatus::TRACK;
-   }
+void TrackerMB::validateInliers(std::vector<int>& inliers) {
+  for (auto i = 0; i < target_object_.active_points.size(); ++i) {
+    int id = target_object_.active_to_model_.at(i);
+    KpStatus& s = target_object_.point_status_.at(id);
+    if (s == KpStatus::PNP) s = KpStatus::TRACK;
+  }
 }
 
 void TrackerMB::poseFromPnP(vector<Point3f>& model_pts, vector<int>& inliers) {
@@ -435,70 +414,76 @@ void TrackerMB::poseFromPnP(vector<Point3f>& model_pts, vector<int>& inliers) {
   }
 }
 
-void TrackerMB::poseFromFlow()
-{
-    vector<Point2f> prev_points;
-    vector<Point2f> curr_points;
-    vector<float> depths;
+void TrackerMB::poseFromFlow() {
+  vector<Point2f> prev_points;
+  vector<Point2f> curr_points;
+  vector<float> depths;
 
-    prev_points.reserve(target_object_.active_points.size());
-    curr_points.reserve(target_object_.active_points.size());
-    depths.reserve(target_object_.active_points.size());
+  prev_points.reserve(target_object_.active_points.size());
+  curr_points.reserve(target_object_.active_points.size());
+  depths.reserve(target_object_.active_points.size());
 
-    //cout << "BEFORE POSE" << endl;
+  // cout << "BEFORE POSE" << endl;
 
-    for (auto i = 0; i < target_object_.active_points.size(); ++i) {
-      int id = target_object_.active_to_model_.at(i);
-      if (!is_nan(target_object_.projected_depth_.at(id))) {
-        prev_points.push_back(target_object_.prev_points_.at(i));
-        curr_points.push_back(target_object_.active_points.at(i));
-        depths.push_back(target_object_.projected_depth_.at(id));
-        //cout << setprecision(3) << fixed << target_object_.projected_depth_.at(id) << " " << endl;
-      }
+  for (auto i = 0; i < target_object_.active_points.size(); ++i) {
+    int id = target_object_.active_to_model_.at(i);
+    if (!is_nan(target_object_.projected_depth_.at(id))) {
+      prev_points.push_back(target_object_.prev_points_.at(i));
+      curr_points.push_back(target_object_.active_points.at(i));
+      depths.push_back(target_object_.projected_depth_.at(id));
+      // cout << setprecision(3) << fixed <<
+      // target_object_.projected_depth_.at(id) << " " << endl;
     }
+  }
 
-    float nodal_x = camera_matrix_.at<double>(0, 2);
-    float nodal_y = camera_matrix_.at<double>(1, 2);
-    float focal_x = camera_matrix_.at<double>(0, 0);
-    float focal_y = camera_matrix_.at<double>(1, 1);
+  float nodal_x = camera_matrix_.at<double>(0, 2);
+  float nodal_y = camera_matrix_.at<double>(1, 2);
+  float focal_x = camera_matrix_.at<double>(0, 0);
+  float focal_y = camera_matrix_.at<double>(1, 1);
 
-    vector<float> t, r;
-    getPoseFromFlow(prev_points, depths, curr_points, nodal_x, nodal_y,
-                    focal_x, focal_y, t, r);
+  vector<float> t, r;
+      getPoseFromFlow(prev_points, depths, curr_points, nodal_x, nodal_y,
+                      focal_x, focal_y, t, r);
 
-    Eigen::Matrix3d rot_view;
-    rot_view = Eigen::AngleAxisd(r.at(2), Eigen::Vector3d::UnitZ()) *
-               Eigen::AngleAxisd(r.at(1), Eigen::Vector3d::UnitY()) *
-               Eigen::AngleAxisd(r.at(0), Eigen::Vector3d::UnitX());
+//  vector<int> outliers;
+//  getPoseFromFlowRobust(prev_points, depths, curr_points, nodal_x, nodal_y,
+//                        focal_x, focal_y, 10, t, r, outliers);
+//  cout << "outliers size " << outliers.size() << endl;
 
-    Eigen::MatrixXd proj_mat(4, 4);
+//  target_object_.removeInvalidPoints(outliers);
 
-    for (int i = 0; i < 3; ++i) {
-      for (int j = 0; j < 3; ++j) {
-        proj_mat(i, j) = rot_view(i, j);
-      }
-      proj_mat(i, 3) = t[i];
-      proj_mat(3, i) = 0;
+  Eigen::Matrix3d rot_view;
+  rot_view = Eigen::AngleAxisd(r.at(2), Eigen::Vector3d::UnitZ()) *
+             Eigen::AngleAxisd(r.at(1), Eigen::Vector3d::UnitY()) *
+             Eigen::AngleAxisd(r.at(0), Eigen::Vector3d::UnitX());
+
+  Eigen::MatrixXd proj_mat(4, 4);
+
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      proj_mat(i, j) = rot_view(i, j);
     }
-    proj_mat(3, 3) = 1;
+    proj_mat(i, 3) = t[i];
+    proj_mat(3, i) = 0;
+  }
+  proj_mat(3, 3) = 1;
 
-    target_object_.pose_ = proj_mat * target_object_.pose_;
+  target_object_.pose_ = proj_mat * target_object_.pose_;
 
-    vector<Point3f> model_pts;
-    for (int i = 0; i < target_object_.active_points.size(); ++i) {
-      const int& id = target_object_.active_to_model_.at(i);
-      model_pts.push_back(target_object_.model_points_.at(id));
-    }
-    vector<float> projected_depth;
-    projectPointsDepth(model_pts, target_object_.pose_, projected_depth);
+  vector<Point3f> model_pts;
+  for (int i = 0; i < target_object_.active_points.size(); ++i) {
+    const int& id = target_object_.active_to_model_.at(i);
+    model_pts.push_back(target_object_.model_points_.at(id));
+  }
+  vector<float> projected_depth;
+  projectPointsDepth(model_pts, target_object_.pose_, projected_depth);
 
-    //cout << "FLOW POSE" << endl;
-    for (auto i = 0; i < target_object_.active_points.size(); ++i) {
-      const int& id = target_object_.active_to_model_.at(i);
-      target_object_.projected_depth_.at(id) = projected_depth.at(i);
-      //cout << setprecision(3) << fixed << projected_depth.at(i) << " " << endl;
-    }
-
+  // cout << "FLOW POSE" << endl;
+  for (auto i = 0; i < target_object_.active_points.size(); ++i) {
+    const int& id = target_object_.active_to_model_.at(i);
+    target_object_.projected_depth_.at(id) = projected_depth.at(i);
+    // cout << setprecision(3) << fixed << projected_depth.at(i) << " " << endl;
+  }
 }
 
 void TrackerMB::projectPointsDepth(std::vector<Point3f>& points,

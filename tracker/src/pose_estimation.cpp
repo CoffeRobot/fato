@@ -35,6 +35,7 @@
 #include <boost/math/constants/constants.hpp>
 #include "../include/utilities.h"
 #include <eigen3/Eigen/Geometry>
+#include <algorithm>
 
 using namespace std;
 using namespace cv;
@@ -65,6 +66,46 @@ void getPoseRansac(const std::vector<cv::Point3f>& model_points,
   }
 }
 
+void getMatrices(const std::vector<cv::Point2f>& prev_pts,
+                 const std::vector<float>& prev_depth,
+                 const std::vector<cv::Point2f>& next_pts, float nodal_x,
+                 float nodal_y, float focal_x, float focal_y,
+                 Eigen::MatrixXf& A, Eigen::VectorXf& b)
+{
+    int valid_points = prev_pts.size();
+
+    A = Eigen::MatrixXf(valid_points * 2, 6);
+    b = Eigen::VectorXf(valid_points * 2);
+
+    float focal = (focal_x + focal_y) / 2.0;
+
+    for (auto i = 0; i < valid_points ; ++i) {
+      float mz = prev_depth.at(i);
+      float x = next_pts.at(i).x - nodal_x;
+      float y = next_pts.at(i).y - nodal_y;
+      float xy = x * y / focal;
+
+      int id = 2 * i;
+      int id2 = id + 1;
+      // first equation for X, u flow
+      A(id, 0) = focal / mz;
+      A(id, 1) = 0;
+      A(id, 2) = -x / mz;
+      A(id, 3) = -xy;
+      A(id, 4) = focal + (x * x) / focal;
+      A(id, 5) = -y;
+      // second equation for X, v flow
+      A(id2, 0) = 0;
+      A(id2, 1) = focal / mz;
+      A(id2, 2) = -y / mz;
+      A(id2, 3) = -(focal + (x * x) / focal);
+      A(id2, 4) = xy;
+      A(id2, 5) = x;
+      // setting u,v flow in b vector
+      b[id] = next_pts.at(i).x - prev_pts.at(i).x;
+      b[id2] = next_pts.at(i).y - prev_pts.at(i).y;
+    }
+}
 
 void getPoseFromFlow(const std::vector<cv::Point2f>& prev_pts,
                      const std::vector<float>& prev_depth,
@@ -110,8 +151,8 @@ void getPoseFromFlow(const std::vector<cv::Point2f>& prev_pts,
   // solving least square to find the 6 unknown parameters: tx,ty, tz, wx, wy, wz
   Eigen::VectorXf Y = (A.transpose() * A).ldlt().solve(A.transpose() * b);
 
-  cout << "LQ: " << fixed << setprecision(3) << Y[0] << " " << Y[1] << " " << Y[2] << " "
-                 << Y[3] << " " << Y[4] << " " << Y[5] << endl;
+//  cout << "LQ: " << fixed << setprecision(3) << Y[0] << " " << Y[1] << " " << Y[2] << " "
+//                 << Y[3] << " " << Y[4] << " " << Y[5] << endl;
 
   translation[0] = Y[0];
   translation[1] = Y[1];
@@ -120,6 +161,103 @@ void getPoseFromFlow(const std::vector<cv::Point2f>& prev_pts,
   rotation[0] = Y[3];
   rotation[1] = Y[4];
   rotation[2] = Y[5];
+}
+
+void getPoseFromFlowRobust(const std::vector<cv::Point2f>& prev_pts,
+                           const std::vector<float>& prev_depth,
+                           const std::vector<cv::Point2f>& next_pts, float nodal_x,
+                           float nodal_y, float focal_x, float focal_y, int num_iters,
+                           std::vector<float>& translation, std::vector<float>& rotation,
+                           std::vector<int>& outliers)
+{
+
+    Eigen::MatrixXf X;
+    Eigen::VectorXf y;
+
+    getMatrices(prev_pts, prev_depth, next_pts, nodal_x, nodal_y, focal_x, focal_y, X, y);
+
+    // during tracking possible to initialize with the previous estimation???
+    Eigen::VectorXf beta = (X.transpose() * X).ldlt().solve(X.transpose() * y);
+
+    Eigen::VectorXf W;
+    Eigen::MatrixXf XW(X.rows(), X.cols());
+
+    for(auto i = 0; i < num_iters; ++i)
+    {
+        cout << "iter " << i;// << endl;
+
+        Eigen::VectorXf residuals = ((X * beta) - y);
+        residuals = residuals.array().abs();
+
+        //cout << residuals << endl;
+
+        std::vector<float> res_vector(residuals.rows(), 0);
+
+        for(int j = 0; j < residuals.rows(); ++j)
+        {
+            res_vector.at(j) = residuals(j);
+        }
+
+        sort(res_vector.begin(), res_vector.end());
+
+        float residual_scale;
+        if(res_vector.size() % 2 != 0)
+            residual_scale = res_vector.at(res_vector.size() / 2);
+        else
+            residual_scale = res_vector.at(res_vector.size() / 2) +
+                         res_vector.at(res_vector.size() / 2 + 1) / 2.0f;
+
+        residual_scale *= 6.9460; // constant defined in the IRLS and bisquare distance
+
+        W = residuals / residual_scale;
+
+        for(auto j = 0; j < W.rows(); ++j)
+        {
+            if(W(j) >1)
+            {
+                W(j) = 0;
+            }
+            else
+            {
+                auto tmp = 1-W(j)*W(j);
+                W(j) = tmp * tmp;
+            }
+        }
+
+        for(auto j = 0; j < XW.rows(); ++j)
+        {
+            for(auto k = 0; k < XW.cols(); ++k)
+            {
+                XW(j,k) = W(j) * X(j,k);
+            }
+        }
+
+        beta = (XW.transpose() * X).ldlt().solve(XW.transpose() * y);
+    }
+
+    cout << "\n here" << endl;
+
+    int num_points = W.rows()/2;
+
+    for(auto j = 0; j < num_points; ++j)
+    {
+        int id = 2*j;
+        if(W(id) == 0 || W(id+1) == 0)
+        {
+           outliers.push_back(j);
+        }
+    }
+
+    translation.resize(3,0);
+    rotation.resize(3,0);
+
+    translation[0] = beta[0];
+    translation[1] = beta[1];
+    translation[2] = beta[2];
+
+    rotation[0] = beta[3];
+    rotation[1] = beta[4];
+    rotation[2] = beta[5];
 }
 
 void getPose2D(const std::vector<cv::Point2f*>& model_points,

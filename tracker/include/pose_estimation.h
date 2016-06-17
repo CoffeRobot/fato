@@ -35,16 +35,23 @@
 
 #include <opencv2/core/core.hpp>
 #include <vector>
+#include <Eigen/Dense>
 
 #include "../../utilities/include/constants.h"
 
 namespace fato {
 
 void getPoseRansac(const std::vector<cv::Point3f>& model_points,
-               const std::vector<cv::Point2f>& tracked_points,
-               const cv::Mat& camera_model, int iterations, float distance,
-               std::vector<int>& inliers, cv::Mat& rotation,
-               cv::Mat& translation);
+                   const std::vector<cv::Point2f>& tracked_points,
+                   const cv::Mat& camera_model, int iterations, float distance,
+                   std::vector<int>& inliers, cv::Mat& rotation,
+                   cv::Mat& translation);
+
+void getMatrices(const std::vector<cv::Point2f>& prev_pts,
+                 const std::vector<float>& prev_depth,
+                 const std::vector<cv::Point2f>& next_pts, float nodal_x,
+                 float nodal_y, float focal_x, float focal_y,
+                 Eigen::MatrixXf& A, Eigen::VectorXf& b);
 
 /**
  * @brief getPoseFromFlow: estimate the pose of the target from optical flow
@@ -62,13 +69,37 @@ void getPoseFromFlow(const std::vector<cv::Point2f>& prev_pts,
                      const std::vector<float>& prev_depth,
                      const std::vector<cv::Point2f>& next_pts, float nodal_x,
                      float nodal_y, float focal_x, float focal_y,
-                     std::vector<float>& translation, std::vector<float>& rotation);
+                     std::vector<float>& translation,
+                     std::vector<float>& rotation);
+
+/**
+ * @brief getPoseFromFlowRobust: estimate the pose using iterative reweighted
+ * least squares
+ * @param prev_pts
+ * @param prev_depth
+ * @param next_pts
+ * @param nodal_x
+ * @param nodal_y
+ * @param focal_x
+ * @param focal_y
+ * @param num_iters
+ * @param translation
+ * @param rotation
+ */
+void getPoseFromFlowRobust(const std::vector<cv::Point2f>& prev_pts,
+                           const std::vector<float>& prev_depth,
+                           const std::vector<cv::Point2f>& next_pts,
+                           float nodal_x, float nodal_y, float focal_x,
+                           float focal_y, int num_iters,
+                           std::vector<float>& translation,
+                           std::vector<float>& rotation,
+                           std::vector<int>& outliers);
 
 void getPose2D(const std::vector<cv::Point2f*>& model_points,
                const std::vector<cv::Point2f*>& tracked_points, float& scale,
                float& angle);
 
-//cv::Mat getPose3D(const std::vector<cv::Point3f*>& model_points,
+// cv::Mat getPose3D(const std::vector<cv::Point3f*>& model_points,
 //                  const std::vector<cv::Point3f*>& tracked_points,
 //                  const std::vector<Status*>& points_status);
 

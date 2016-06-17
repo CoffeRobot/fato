@@ -3,6 +3,7 @@
 import rospy
 import scipy
 import numpy as np
+
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose
 import cv2
@@ -12,7 +13,6 @@ import transformations as tf
 import h5py
 from fato_tracker_tests.srv import *
 
-
 class PoseEstimation:
     render_service = []
     flow_file = []
@@ -21,6 +21,10 @@ class PoseEstimation:
     focal = 640.507873535
     X = []
     Y = []
+    beta = []
+    W = []
+    beta_robuts = []
+    outliers = []
     fx = 0
     fy = 0
     cx = 0
@@ -30,12 +34,14 @@ class PoseEstimation:
     gt_pos = []
     gt_rot = []
     upd_pose = []
+    upd_robust_pose = []
     tr_prev_points = []
     tr_next_points = []
     tr_gtd_points = []
     tr_pnp_pose = []
     tr_flow_pose = []
     result_image = []
+    add_flow_noise = False
 
     def __init__(self):
         self.data = []
@@ -43,6 +49,7 @@ class PoseEstimation:
         self.obj_pos = np.array([0.0, 0.0, 0.5])
         self.obj_rot = np.array([np.pi, 0.0, 0.0])
         self.upd_pose = self.get_projection_matrix(self.obj_pos, self.obj_rot)
+        self.upd_robust_pose = self.upd_pose.copy()
 
     def read_data(self):
 
@@ -67,12 +74,22 @@ class PoseEstimation:
 
         self.create_image()
 
+        if self.add_flow_noise:
+            self.add_noise()
+
         self.get_matrices()
 
     def get_matrices(self):
 
         self.X = np.empty((0, 6), float)
         self.Y = np.empty((0, 1), float)
+
+        mask = np.isnan(self.prev_points[:,2]) * 1
+        mask = mask != 1
+
+        self.prev_points = self.prev_points[mask,...]
+        self.next_points = self.next_points[mask,...]
+
         num_pts = self.prev_points.shape[0]
 
         valid_pts = 0
@@ -113,7 +130,8 @@ class PoseEstimation:
                                        a + self.obj_rot[0],
                                        b + self.obj_rot[1],
                                        c + self.obj_rot[2],
-                                       False)
+                                       False,
+                                       self.add_flow_noise)
 
         self.gt_pos = np.array([tx + self.obj_pos[0], ty + self.obj_pos[1],
                                 tz + self.obj_pos[2]])
@@ -136,11 +154,13 @@ class PoseEstimation:
                                        self.obj_rot[0],
                                        self.obj_rot[1],
                                        self.obj_rot[2],
-                                       True)
+                                       True,
+                                       self.add_flow_noise)
 
         self.upd_pose = self.get_projection_matrix(self.obj_pos, self.obj_rot)
+        self.upd_robust_pose = self.upd_pose.copy()
 
-    def draw_motion(self, im=None):
+    def draw_motion(self, im=None, draw_outliers=False):
 
         show_image = False
 
@@ -148,11 +168,24 @@ class PoseEstimation:
             im = self.result_image
             show_image = True
 
+        if draw_outliers:
+            print("points shape: " + str(self.prev_points.shape[0]) + " outliers " +
+                  str(self.outliers.shape))
+
         for i in range(0, self.prev_points.shape[0]):
             prev_pt = self.prev_points[i]
             next_pt = self.next_points[i]
 
-            cv2.circle(im, (prev_pt[0], prev_pt[1]), 2, np.array([0, 255, 0]), -1)
+            color = np.array([0, 255, 0])
+
+            if draw_outliers:
+                id = 2*i
+                if (self.outliers[id] or self.outliers[id+1]) and draw_outliers:
+                    color = np.array([0, 0, 255])
+                else:
+                    color = np.array([0, 255, 0])
+
+            cv2.circle(im, (prev_pt[0], prev_pt[1]), 2, color, -1)
             cv2.line(im, (prev_pt[0], prev_pt[1]), (next_pt[0], next_pt[1]), np.array([255, 0, 0]), 1)
 
         if show_image:
@@ -164,6 +197,46 @@ class PoseEstimation:
     def compute_pose(self):
 
         return np.linalg.inv(self.X.T.dot(self.X)).dot(self.X.T).dot(self.Y)
+
+    def compute_pose_iter(self):
+
+        self.beta_robuts = self.beta.copy()
+
+        for iter in range(10):
+
+            residuals = abs(np.dot(self.X,self.beta_robuts) - self.Y)
+            mess = 'residuals ' + str(residuals.shape)
+
+            res_scale = 6.9460 * np.median(residuals)
+
+            self.W = residuals / res_scale
+            self.W.shape = (self.W.shape[0],1)
+            mess += ' W ' + str(self.W.shape)
+
+            self.outliers = (self.W > 1)*1
+            self.W[ self.outliers.nonzero() ] = 0
+            mess += ' O ' + str(self.outliers.shape)
+
+            good_values = (self.W != 0)*1
+
+            # calculate robust weights for 'good' points
+            # Note that if you supply your own regression weight vector,
+            # the final weight is the product of the robust weight and the regression weight.
+            tmp = 1 - np.power(self.W[ good_values.nonzero() ], 2)
+            self.W[ good_values.nonzero() ] = np.power(tmp, 2)
+
+            mess += ' X ' + str(self.X.shape)
+            #print(mess)
+            # get weighted X'es
+            XW = np.tile(self.W, (1, 6)) * self.X
+            mess += ' XW ' + str(XW.shape)
+            print(mess)
+
+            a = np.dot(XW.T, self.X)
+            b = np.dot(XW.T, self.Y)
+
+            # get the least-squares solution to a linear matrix equation
+            self.beta_robuts = np.linalg.lstsq(a,b)[0]
 
     def get_projection_matrix(self, t, r):
 
@@ -282,12 +355,14 @@ class PoseEstimation:
 
         flow_im = self.project_pose()
 
-        pnp_im = self.project_pnp()
+        robust_im = self.project_robust_pose()
+        #pnp_im = self.project_pnp()
 
         tr_im = self.project_track_pose()
+        tr_im = self.project_pnp(tr_im)
         tr_im = self.draw_difference_gt(tr_im)
 
-        im = np.hstack([flow_im, np.hstack([pnp_im, tr_im])])
+        im = np.hstack([flow_im, np.hstack([robust_im, tr_im])])
 
         self.print_poses()
 
@@ -313,9 +388,13 @@ class PoseEstimation:
 
         return im
 
-    def project_pnp(self):
+    def project_pnp(self, im=None):
 
-        pnp_image = self.result_image.copy()
+        pnp_image = []
+        if im is None:
+            pnp_image = self.result_image.copy()
+        else:
+            pnp_image = im
 
         cam = np.array([[self.fx, 0, self.cx, 0], [0, self.fy, self.cy, 0], [0, 0, 1, 0]])
 
@@ -330,41 +409,45 @@ class PoseEstimation:
         cam = np.array([[self.fx, 0, self.cx, 0], [0, self.fy, self.cy, 0], [0, 0, 1, 0]])
 
         gt_t = self.gt_pos
-        gt_r = np.array([self.gt_rot[0], self.gt_rot[1], self.gt_rot[2]])
+        gt_r = np.array([self.gt_rot[0], 0, -self.gt_rot[1]])
 
         proj = self.get_projection_matrix(gt_t, gt_r)
 
-        beta = self.compute_pose()
+        self.beta = self.compute_pose()
+        self.compute_pose_iter()
 
-        est_t = np.array([beta[0], beta[1], beta[2]])
-        est_r = np.array([beta[3], -beta[4], beta[5]])
+        est_t = np.array([self.beta[0], self.beta[1], self.beta[2]])
+        est_r = np.array([self.beta[3], -self.beta[4], self.beta[5]])
 
         proj_beta = self.get_projection_matrix(est_t, est_r)
-
-        # mat_str = ''
-        # for i in range(0,4):
-        #    for j in range(0,4):
-        #        mat_str += '{:0.3f}'.format(proj_beta[i,j]) + ' '
-
-        #    mat_str += '\n'
-
-        # print(mat_str)
         self.upd_pose = np.dot(proj_beta, self.upd_pose)
 
-        # mat_str = '\n updated pose \n'
-        # for i in range(0,4):
-        #    for j in range(0,4):
-        #        mat_str += '{:0.3f}'.format(self.upd_pose[i,j]) + ' '
+        est_t = np.array([self.beta_robuts[0], self.beta_robuts[1], self.beta_robuts[2]])
+        est_r = np.array([self.beta_robuts[3], -self.beta_robuts[4], self.beta_robuts[5]])
 
-        #    mat_str += '\n'
+        proj_beta = self.get_projection_matrix(est_t, est_r)
+        self.upd_robust_pose = np.dot(proj_beta, self.upd_robust_pose)
 
-        # print(mat_str)
-
-        # im = self.draw_transform(proj, cam, im)
+        im = self.draw_transform(proj, cam, im)
         im = self.draw_projected_transform(self.upd_pose, cam, im)
         im = self.draw_motion(im)
 
         return im
+
+    def project_robust_pose(self, im=None):
+
+        res_image = []
+        if im is None:
+            res_image = self.result_image.copy()
+        else:
+            res_image = im
+
+        cam = np.array([[self.fx, 0, self.cx, 0], [0, self.fy, self.cy, 0], [0, 0, 1, 0]])
+
+        res_image = self.draw_projected_transform(self.upd_robust_pose, cam, res_image)
+        res_image = self.draw_motion(res_image,True)
+
+        return res_image
 
     def dummy_init(self):
 
@@ -561,24 +644,57 @@ class PoseEstimation:
 
     def print_poses(self):
 
+        gt_t = self.gt_pos
+        gt_r = np.array([self.gt_rot[0], self.gt_rot[1], self.gt_rot[2]])
+
+        proj = self.get_projection_matrix(gt_t, gt_r)
+
+        gt_pose_mess = 'POSES: \n gt pose \n'
         upd_pose_mess = '\n updated pose \n'
+        robust_pose_mess = '\n robust pose \n'
         pnp_pose_mess = '\n pnp pose \n'
         flow_pose_mess = '\n flow pose \n'
         for i in range(0, 4):
             for j in range(0, 4):
+                gt_pose_mess += '{:0.3f}'.format(proj[i, j]) + ' '
                 upd_pose_mess += '{:0.3f}'.format(self.upd_pose[i, j]) + ' '
                 pnp_pose_mess += '{:0.3f}'.format(self.tr_pnp_pose[i, j]) + ' '
                 flow_pose_mess += '{:0.3f}'.format(self.tr_flow_pose[i, j]) + ' '
+                robust_pose_mess += '{:0.3f}'.format(self.upd_robust_pose[i, j]) + ' '
             upd_pose_mess += '\n'
             pnp_pose_mess += '\n'
             flow_pose_mess += '\n'
+            gt_pose_mess += '\n'
+            robust_pose_mess += '\n'
 
-        print(upd_pose_mess + pnp_pose_mess + flow_pose_mess)
+        print(gt_pose_mess + upd_pose_mess + robust_pose_mess + pnp_pose_mess + flow_pose_mess)
+
+        outliers_count = np.sum(self.outliers)
+        print('outliers ' + str(outliers_count))
 
     def create_image(self):
 
         self.result_image = cv2.imread("/home/alessandro/debug/image.png")
         # self.result_image = np.hstack([im, np.hstack([im,im])])
+
+    def add_noise(self):
+
+        print("Adding depth noise")
+
+        mu = 0
+        sigma = 1
+
+        num_points = self.prev_points.shape[0]
+        num_noise = (int)(np.floor(num_points * 0.1))
+
+        ids = np.arange(num_points)
+        np.random.shuffle(ids)
+
+        depth_noise = np.random.normal(mu, sigma, num_noise)
+        depth_noise *= 0.01
+
+        for i in range(0, num_noise):
+            self.prev_points[ids[i],2] = self.prev_points[ids[i],2] + depth_noise[i]
 
 
 camera_matrix = np.zeros([3, 4])
