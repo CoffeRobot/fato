@@ -3,15 +3,183 @@
 import rospy
 import scipy
 import numpy as np
+import warnings
 
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose
 import cv2
 import cmath
 import transformations as tf
+import utilities as ut
 
 import h5py
 from fato_tracker_tests.srv import *
+
+
+def get_normal_equations(prev_pts, next_pts, pts_z, camera):
+
+    X = np.empty((0, 6), float)
+    Y = np.empty((0, 1), float)
+
+    [r,c] = prev_pts.shape
+    if r < c and (r == 3 or r == 4):
+        raise AssertionError("Unexpected matrix of points, must be in the form Nx3!")
+
+    num_pts = prev_pts.shape[0]
+
+    fx = camera[0,0]
+    fy = camera[1,1]
+    cx = camera[0,2]
+    cy = camera[1,2]
+    focal = (fx + fy)/2.0
+
+    print('fx ' + str(fx) + ' fy ' + str(fy) + ' cx ' + str(cx) + ' cy ' + str(cy) + ' f ' + str(focal))
+
+
+
+    for i in range(0, num_pts):
+
+        prev_pt = prev_pts[i]
+        next_pt = next_pts[i]
+        mz = pts_z[i]
+
+        x = next_pt[0] - cx
+        y = next_pt[1] - cy
+        xv = next_pt[0] - prev_pt[0]
+        yv = next_pt[1] - prev_pt[1]
+
+        eq_x = np.zeros([1,6])
+        eq_y = np.zeros([1,6])
+
+        eq_x[0,0] = focal / mz
+        eq_x[0,1] = 0
+        eq_x[0,2] = -x/mz
+        eq_x[0,3] = - x * y / focal
+        eq_x[0,4] = focal + (x * x) / focal
+        eq_x[0,5] = -y
+
+        eq_y[0,0] = 0
+        eq_y[0,1] = focal / mz
+        eq_y[0,2] = -y/mz
+        eq_y[0,3] = -(focal + (y*y) / focal)
+        eq_y[0,4] = x * y / focal
+        eq_y[0,5] = x
+
+        X = np.append(X, eq_x, axis=0)
+        X = np.append(X, eq_y, axis=0)
+
+        Y = np.append(Y, xv)
+        Y = np.append(Y, yv)
+
+    return X,Y
+
+def ransac_ls(X,Y,num_iters, min_inliers):
+
+    # pick up right indices
+    num_points = X.shape[0] / 2
+    num_params = X.shape[1]
+
+    if num_points < 3:
+        raise AssertionError("Number of points less than 3, cannot solve system!")
+
+    if num_points < min_inliers:
+        raise AssertionError("Unexpected number of inliers, must be < X.shape[0]/2!")
+
+    ids = np.arange(num_points)
+
+    min_residuals = np.finfo(float).max
+    best_beta = np.zeros([num_params])
+    min_outliers = np.iinfo(int).max
+
+    for i in range(num_iters):
+
+        np.random.shuffle(ids)
+        logic_id = np.zeros([2*num_points])
+        logic_id[2*ids[0:min_inliers]] = 1
+        logic_id[2*ids[0:min_inliers]+1] = 1
+        mask= logic_id.nonzero()
+
+        X_ran = X[mask]
+        Y_ran = Y[mask]
+
+        beta = least_square(X_ran, Y_ran)
+        residuals = abs(np.dot(X,beta) - Y)
+        sum_residuals = sum(residuals)
+
+        res_scale = 6.9460 * np.median(residuals)
+
+        #print('median residual in iter ' + str(iter) + ' ' + str(np.median(residuals)))
+        if res_scale == 0:
+            res_scale = 0.00001
+
+        W = residuals / res_scale
+        outliers = sum((W > 1)*1)
+
+        if sum_residuals < min_residuals:
+            # print('res ' + str(sum_residuals) + ' beta ' + ut.to_string(beta)) \
+            #      + ' outliers ' + str(outliers)
+            min_residuals = sum_residuals
+            best_beta = beta
+            min_outliers = outliers
+
+    return best_beta
+
+
+def least_square(X,Y):
+
+    return np.linalg.inv(X.T.dot(X)).dot(X.T).dot(Y)
+
+def m_estimator(X,Y, num_iters, beta=None):
+
+    if beta is None:
+        beta = least_square(X,Y)
+
+    for iter in range(num_iters):
+
+        residuals = abs(np.dot(X,beta) - Y)
+        mess = 'residuals ' + str(residuals.shape)
+
+        res_scale = 6.9460 * np.median(residuals)
+
+        #print('median residual in iter ' + str(iter) + ' ' + str(np.median(residuals)))
+
+        if res_scale == 0:
+            break
+
+        W = residuals / res_scale
+
+        W.shape = (W.shape[0],1)
+        mess += ' W ' + str(W.shape)
+
+        outliers = (W > 1)*1
+        W[ outliers.nonzero() ] = 0
+        mess += ' O ' + str(outliers.shape)
+
+        good_values = (W != 0)*1
+
+        # calculate robust weights for 'good' points
+        # Note that if you supply your own regression weight vector,
+        # the final weight is the product of the robust weight and the regression weight.
+        tmp = 1 - np.power(W[ good_values.nonzero() ], 2)
+        W[ good_values.nonzero() ] = np.power(tmp, 2)
+
+        mess += ' X ' + str(X.shape)
+        # print(X.shape)
+        # print(mess)
+        # get weighted X'es
+        XW = np.tile(W, (1, len(beta))) * X
+        mess += ' XW ' + str(XW.shape)
+        #print(mess)
+
+        a = np.dot(XW.T, X)
+        b = np.dot(XW.T, Y)
+
+        # get the least-squares solution to a linear matrix equation
+        beta = np.linalg.lstsq(a,b)[0]
+        #print(to_string(beta))
+
+    return beta
+
 
 class PoseEstimation:
     render_service = []
@@ -91,6 +259,10 @@ class PoseEstimation:
         self.next_points = self.next_points[mask,...]
 
         num_pts = self.prev_points.shape[0]
+
+        [r,c] = self.prev_points.shape
+        if r == 3 or r == 4:
+            warnings.warn('points must be in the form Nx3, transposing matrix')
 
         valid_pts = 0
 
@@ -208,6 +380,9 @@ class PoseEstimation:
             mess = 'residuals ' + str(residuals.shape)
 
             res_scale = 6.9460 * np.median(residuals)
+
+            if res_scale == 0:
+                continue
 
             self.W = residuals / res_scale
             self.W.shape = (self.W.shape[0],1)
@@ -645,7 +820,7 @@ class PoseEstimation:
     def print_poses(self):
 
         gt_t = self.gt_pos
-        gt_r = np.array([self.gt_rot[0], self.gt_rot[1], self.gt_rot[2]])
+        gt_r = np.array([self.gt_rot[0], self.gt_rot[2], self.gt_rot[1]])
 
         proj = self.get_projection_matrix(gt_t, gt_r)
 

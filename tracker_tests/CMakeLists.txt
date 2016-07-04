@@ -137,6 +137,15 @@ target_link_libraries(test_projection
    ${OPENCV_LIBS}
    ${Boost_LIBRARIES})
 
+ add_executable(kalman_demo
+   src/kalman_filter.cpp
+  )
+
+target_link_libraries(kalman_demo
+  ${catkin_LIBRARIES}
+  ${OPENCV_LIBS}
+  ${Boost_LIBRARIES})
+
  add_executable(synthetic_track
    src/render_and_track.cpp
   )
