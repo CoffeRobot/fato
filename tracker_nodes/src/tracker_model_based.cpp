@@ -179,7 +179,7 @@ void TrackerModel::run(string model_file) {
   util::HDF5File in_file(model_file);
 
   VideoWriter video_writer("/home/alessandro/Downloads/", "pose_estimation.avi",
-                           640, 480, 1, 30);
+                           1280, 480, 1, 30);
 
   TrackerMB tracker(params, BRISK, std::move(derived));
   ROS_INFO("TrackerMB: setting model...");
@@ -243,6 +243,11 @@ void TrackerModel::run(string model_file) {
 
   stop_matcher = false;
 
+  vector<cv::Scalar> axis;
+  axis.push_back(cv::Scalar(255,255,0));
+  axis.push_back(cv::Scalar(0,255,255));
+  axis.push_back(cv::Scalar(255,0,255));
+
   while (ros::ok()) {
     if (img_updated_) {
       if (!camera_matrix_initialized)
@@ -292,7 +297,7 @@ void TrackerModel::run(string model_file) {
 
       const Target &target = tracker.getTarget();
 
-      cout << target.active_points.size() << " " << target.prev_points_.size() << endl;
+      //cout << target.active_points.size() << " " << target.prev_points_.size() << endl;
 
       cv::Point3f center(0, 0, 0);
       for (auto i = 0; i < target.active_points.size(); ++i) {
@@ -321,6 +326,12 @@ void TrackerModel::run(string model_file) {
       drawObjectPose(target.centroid_, cam, target.rotation, target.translation,
                      rgb_image_);
 
+      Pose p_k =target.kal_pnp_pose;
+
+      pair<Mat,Mat> pcv = p_k.toCV();
+
+      drawObjectPose(target.centroid_, cam, pcv.first, pcv.second,
+                     axis, rgb_image_);
 
       cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
       cv::Mat translation = cv::Mat(1, 3, CV_32FC1, 0.0f);
@@ -334,7 +345,26 @@ void TrackerModel::run(string model_file) {
           translation.at<float>(i) = target.pose_(i,3);
       }
 
-      drawObjectPose(target.centroid_, cam, rotation, translation, flow_output);
+//      drawObjectPose(target.centroid_, cam, target.rotation_kalman, target.translation_kalman,
+//                     flow_output);
+
+      if(target.target_found_)
+        drawObjectPose(target.centroid_, cam, rotation, translation, flow_output);
+
+      for(int i = 0; i < 3; ++i)
+      {
+          for(int j = 0; j < 3; ++j)
+          {
+              rotation.at<double>(i,j) = target.kalman_pose_(i,j);
+          }
+          translation.at<float>(i) = target.kalman_pose_(i,3);
+      }
+
+      p_k = target.flow_pose;
+      cout << p_k.str() << endl;
+      pcv = p_k.toCV();
+      drawObjectPose(target.centroid_, cam, pcv.first, pcv.second, axis, flow_output);
+
 
 //      for(int i = 0; i < 3; ++i)
 //      {
@@ -377,49 +407,40 @@ void TrackerModel::run(string model_file) {
         }
       }
 
-      const Mat &tvec = target.translation;
-      const Mat &rvec = target.rotation_vec;
+//      const Mat &tvec = target.translation;
+//      const Mat &rvec = target.rotation_vec;
 
-      Eigen::Matrix3d b(3, 3);
-      Eigen::Matrix3d a(3, 3);
-      for (auto i = 0; i < 3; ++i) {
-        for (auto j = 0; j < 3; ++j) {
-          a(i, j) = target.rotation.at<double>(i, j);
-          b(i, j) = target.rotation_custom.at<double>(i, j);
-        }
+//      double T[] = {tvec.at<double>(0, 0), tvec.at<double>(0, 1),
+//                    tvec.at<double>(0, 2)};
+//      double R[] = {rvec.at<double>(0, 0), rvec.at<double>(0, 1),
+//                    rvec.at<double>(0, 2)};
+
+
+      double T[] = {target.pose_(0,3), target.pose_(1,3), target.pose_(2,3)};
+      Eigen::Matrix3d rotation_temp;
+      Eigen::Vector3d translation_vect;
+      for(auto i = 0; i < 3; ++i)
+      {
+          for(auto j = 0; j < 3; ++j)
+          {
+            rotation_temp(i,j) = target.pose_(i,j);
+          }
+          translation_vect(i) = target.pose_(i,3);
       }
 
-//      double determinant = a.determinant();
 
-//      cout << "determint cv " << determinant << " cus " << b.determinant()
-//           << endl;
-
-//      double err = 0;
-
-//      for (auto i = 0; i < 3; ++i) {
-//        for (auto j = 0; j < 3; ++j) {
-//          double dt = a(i, j) - b(i, j);
-//          err += sqrt(err * err);
-//        }
-//      }
-
-//      if (err > 1) {
-//        for (auto i = 0; i < 3; ++i) {
-//          for (auto j = 0; j < 3; ++j) {
-//            cout << std::setprecision(2) << a(i, j) << "|" << b(i, j) << " ";
-//          }
-//          cout << "\n";
-//        }
-//        cout << "\n";
-//      }
-
-      double T[] = {tvec.at<double>(0, 0), tvec.at<double>(0, 1),
-                    tvec.at<double>(0, 2)};
-      double R[] = {rvec.at<double>(0, 0), rvec.at<double>(0, 1),
-                    rvec.at<double>(0, 2)};
+      double tra_render[3];
+      double rot_render[9];
+      Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
+      Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
+          rot_render);
+      tra_render_eig = translation_vect;
+      rot_render_eig = rotation_temp;
 
       std::vector<pose::TranslationRotation3D> TR(1);
-      TR.at(0) = pose::TranslationRotation3D(T, R);
+      TR.at(0).setT(tra_render);
+      TR.at(0).setR_mat(rot_render);
+
       rendering_engine->render(TR);
 
       std::vector<uchar4> h_texture(480 * 640);
@@ -443,7 +464,14 @@ void TrackerModel::run(string model_file) {
       cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
       flow_publisher_.publish(cv_flow.toImageMsg());
 
-      video_writer.write(rgb_image_);
+
+      Size sz1 = flow_output.size();
+      Size sz2 = img_rgb.size();
+      Mat im3(sz1.height, sz1.width+sz2.width, CV_8UC3);
+      flow_output.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
+      img_rgb.copyTo(im3(Rect(sz1.width, 0, sz2.width, sz2.height)));
+
+      video_writer.write(im3);
       r.sleep();
     }
   }

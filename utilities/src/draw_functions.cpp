@@ -418,6 +418,34 @@ void drawObjectPose(const Point3f& centroid, Mat& camera_matrix,
               3);
 }
 
+void drawObjectPose(const Point3f& centroid, Mat& camera_matrix,
+                    const Mat& rotation, const Mat& translation,
+                    std::vector<cv::Scalar>& axis_colors, Mat& out) {
+  Point3f c = centroid;
+  vector<Point3f> points;
+  Point3f x_axis(0.06, 0, 0);
+  Point3f y_axis(0, 0.06, 0);
+  Point3f z_axis(0, 0, 0.06);
+  points.push_back(c);
+  points.push_back(c + x_axis);
+  points.push_back(c + y_axis);
+  points.push_back(c + z_axis);
+
+  rotation.convertTo(rotation, CV_64F);
+
+  vector<Point2f> projected_points;
+  projectPoints(points, rotation, translation, camera_matrix, Mat(),
+                projected_points);
+
+  arrowedLine(out, projected_points[0], projected_points[1], axis_colors.at(0),
+              3);
+  arrowedLine(out, projected_points[0], projected_points[2], axis_colors.at(1),
+              3);
+  arrowedLine(out, projected_points[0], projected_points[3], axis_colors.at(2),
+              3);
+}
+
+
 void arrowedLine(Mat& img, Point2f pt1, Point2f pt2, const Scalar& color,
                  int thickness, int line_type, int shift, double tipLength) {
   const double tipSize =

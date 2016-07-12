@@ -30,11 +30,11 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-//#include "../include/target.hpp"
+#include "../include/target.hpp"
 #include <iostream>
 #include <fstream>
 #include <opencv2/calib3d/calib3d.hpp>
-#include <target.hpp>
+//#include <target.hpp>
 #include <stdexcept>
 #include <Eigen/Dense>
 
@@ -72,14 +72,37 @@ void Target::resetPose() {
   active_points.reserve(reserved_memory);
 
   rotation = Mat(3, 3, CV_64FC1, 0.0f);
+  setIdentity(rotation);
   rotation_custom = Mat(3, 3, CV_64FC1, 0.0f);
+  setIdentity(rotation_custom);
   rotation_vec = Mat(1, 3, CV_64FC1, 0.0f);
   translation = Mat(1, 3, CV_64FC1, 0.0f);
   translation_custom = Mat(1, 3, CV_64FC1, 0.0f);
+  rotation_kalman = Mat(3, 3, CV_64FC1, 0.0f);
+  setIdentity(rotation_kalman);
+  translation_kalman = Mat(1, 3, CV_64FC1, 0.0f);
+
 
   target_found_ = false;
 
   pose_ = Eigen::MatrixXd(4, 4);
+  kalman_pose_ = Eigen::MatrixXd(4,4);
+
+  for(auto i = 0; i < 4; ++i)
+  {
+      for(auto j = 0; j < 4; ++j)
+      {
+          pose_(i,j) = 0;
+          kalman_pose_(i,j) = 0;
+      }
+  }
+  pose_(3, 3) = 1;
+  kalman_pose_(3,3) = 1;
+
+  pnp_pose = Pose(rotation, translation);
+  kal_pnp_pose = Pose(rotation, translation);
+  flow_pose = Pose(rotation, translation);
+
 
   Eigen::Matrix3d rot_view;
   rot_view = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) *
@@ -89,10 +112,9 @@ void Target::resetPose() {
   for (int i = 0; i < 3; ++i) {
     for (int j = 0; j < 3; ++j) {
       pose_(i, j) = rot_view(i, j);
+      kalman_pose_(i, j) = rot_view(i, j);
     }
   }
-  pose_(2, 3) = 0;
-  pose_(3, 3) = 1;
 
   for (auto &p : point_status_) p = KpStatus::LOST;
 

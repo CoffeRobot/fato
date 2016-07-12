@@ -37,6 +37,7 @@
 #include <Eigen/Core>
 
 #include "constants.h"
+#include "pose_estimation.h"
 
 namespace fato {
 
@@ -72,12 +73,17 @@ class Target {
   cv::Mat rotation, rotation_custom;
   cv::Mat translation, translation_custom;
   cv::Mat rotation_vec;
+  cv::Mat rotation_kalman, translation_kalman;
+
+  Pose pnp_pose, kal_pnp_pose;
+  Pose flow_pose;
 
   // position of points in previous frame, used for structure from motion pose
   // estimation
   std::vector<cv::Point3f> last_frame_points_;
 
-  Eigen::MatrixXd pose_;
+  Eigen::MatrixXd pose_, kalman_pose_;
+
   bool target_found_;
 
 };

@@ -49,7 +49,7 @@ def init_kalman():
     print(filter.Q)
     filter.H = np.array([[1, 0, 0,        0],
                       [0,        1, 0, 0]])
-    filter.R = np.array([[1, 0],[0, 1]]) # measurement noise
+    filter.R = np.array([[0.1, 0],[0, 0.1]]) # measurement noise
     filter.P = np.eye(4) * 1e-4 # covariance post
     filter.u = 0.
 

@@ -41,6 +41,7 @@
 #include <sensor_msgs/image_encodings.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/video/tracking.hpp>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/image_transport.h>
@@ -68,6 +69,9 @@
 
 #include "../../fato_rendering/include/multiple_rigid_models_ogre.h"
 #include "../../fato_rendering/include/windowless_gl_context.h"
+#include "../../tracker/include/target.hpp"
+#include "../../utilities/include/draw_functions.h"
+#include "../../tracker/include/pose_estimation.h"
 
 #include <utility_kernels.h>
 #include <utility_kernels_pose.h>
@@ -93,11 +97,79 @@ auto downloadRenderedImg = [](pose::MultipleRigidModelsOgre &model_ogre,
   d_texture.copyTo(h_texture);
 };
 
+template <typename T>
+string toString(cv::Mat& mat) {
+  stringstream ss;
+  ss << fixed << setprecision(3);
+  for (auto i = 0; i < mat.rows; ++i) {
+    for (auto j = 0; j < mat.cols; ++j) {
+      ss << mat.at<T>(i, j) << " ";
+    }
+    ss << "\n";
+  }
+
+  return ss.str();
+}
+
 class SyntheticRenderer {
  public:
   SyntheticRenderer() : initialized_(false), next_frame_requested_(false) {
     t_req_ = Eigen::Vector3d(0, 0, 0.5);
     r_req_ = Eigen::Vector3d(M_PI, 0, 0);
+  }
+
+  void printTrackerStatus()
+  {
+    const Target &t = model_tracker_->getTarget();
+
+    ofstream file("/home/alessandro/debug/object_pose.txt", ofstream::out | ofstream::app);
+
+    file << "pnp - kalman - flow - kalman \n";
+
+    for(int i = 0; i < 3; ++i)
+    {
+        stringstream ss,ss1,pnps, pnpk;
+
+        pnps << setprecision(3) << fixed;
+        pnpk << setprecision(3) << fixed;
+        ss << setprecision(3) << fixed;
+        ss1 << setprecision(3) << fixed;
+
+        for(int j = 0; j < 4;++j)
+        {
+            if(i < 3 && j < 3 )
+            {
+                pnps << t.rotation.at<double>(i,j) << " ";
+                pnpk << t.rotation_kalman.at<double>(i,j) << " ";
+            }
+            else if(i < 3 && j == 3)
+            {
+                pnps << t.translation.at<double>(i) << " ";
+                pnpk << t.translation_kalman.at<double>(i) << " ";
+            }
+            ss << t.pose_(i,j) << " ";
+            ss1 << t.kalman_pose_(i,j) << " ";
+        }
+        file << pnps.str() << "   " << pnpk.str() << "   " << ss.str() << "   " << ss1.str() << "\n";
+    }
+
+    cv::KalmanFilter& kf_pnp = model_tracker_->kalman_pose_pnp_;
+    cv::KalmanFilter& kf_flow = model_tracker_->kalman_pose_flow_;
+
+    file << "target pnp pose \n" << endl;
+
+    file << t.pnp_pose.str() << "\n";
+    file << t.flow_pose.str() << "\n";
+
+    cv::Mat pre_t, post_t;
+    //cv::transpose(kf_pnp.statePre, pre_t);
+    //cv::transpose(kf_pnp.statePost, post_t);
+
+    //file << "pre " << toString<float>(pre_t);
+    //file << "post " << toString<float>(post_t);
+
+    file.close();
+
   }
 
   void rgbCallback(const sensor_msgs::ImageConstPtr &rgb_msg,
@@ -441,7 +513,7 @@ class SyntheticRenderer {
                Eigen::AngleAxisd(r.at(2), Eigen::Vector3d::UnitY()) *
                Eigen::AngleAxisd(r.at(0), Eigen::Vector3d::UnitX());
 
-    Eigen::MatrixXd proj_mat(4, 4);
+    Eigen::Matrix4d proj_mat(4, 4);
 
     for (int i = 0; i < 3; ++i) {
       for (int j = 0; j < 3; ++j) {
@@ -452,17 +524,19 @@ class SyntheticRenderer {
     }
     proj_mat(3, 3) = 1;
 
-    upd_pose_ = proj_mat * upd_pose_;
+    upd_pose_.transform(proj_mat);
 
     //    cout << "updated pose " << endl;
     //    cout << fixed << setprecision(3) << upd_pose_ << endl;
 
-    for (int i = 0; i < 3; ++i) {
-      for (int j = 0; j < 3; ++j) {
-        rotation.at<double>(i, j) = upd_pose_(i, j);
-      }
-      translation.at<float>(i) = upd_pose_(i, 3);
-    }
+//    for (int i = 0; i < 3; ++i) {
+//      for (int j = 0; j < 3; ++j) {
+//        rotation.at<double>(i, j) = upd_pose_(i, j);
+//      }
+//      translation.at<float>(i) = upd_pose_(i, 3);
+//    }
+
+    pair<cv::Mat, cv::Mat> cv_pose = upd_pose_.toCV();
 
     //    cout << fixed << setprecision(3) << "translation " << translation <<
     //    endl;
@@ -470,7 +544,7 @@ class SyntheticRenderer {
 
     cv::Point3f center(0, 0, 0);
 
-    fato::drawObjectPose(center, camera_matrix_, rotation, translation, out);
+    fato::drawObjectPose(center, camera_matrix_, cv_pose.first, cv_pose.second, out);
   }
 
   bool serviceCallback(fato_tracker_tests::RenderService::Request &req,
@@ -497,6 +571,7 @@ class SyntheticRenderer {
       ROS_INFO("reset requested");
       initialize_tracking(rgb, depth_buffer);
       model_tracker_->resetTarget();
+      printTrackerStatus();
       // TODO: reset tracker as well
       return true;
     }
@@ -510,6 +585,7 @@ class SyntheticRenderer {
 
     calculateFlow(gray, next_pts);
     model_tracker_->computeNextSequential(rgb);
+    printTrackerStatus();
 
     uniform_real_distribution<double> distribution(-1.5, 1.5);
 
@@ -608,17 +684,20 @@ class SyntheticRenderer {
                Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) *
                Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
 
-    upd_pose_ = Eigen::MatrixXd(4, 4);
+    vector<double> beta = {0,0,0.5,M_PI,0,0};
 
-    for (int i = 0; i < 3; ++i) {
-      for (int j = 0; j < 3; ++j) {
-        upd_pose_(i, j) = rot_view(i, j);
-      }
-      upd_pose_(i, 3) = 0;
-      upd_pose_(3, i) = 0;
-    }
-    upd_pose_(3, 3) = 1;
-    upd_pose_(2, 3) = 0.5;
+    upd_pose_ = Pose(beta);
+//    upd_pose_ = Eigen::MatrixXd(4, 4);
+
+//    for (int i = 0; i < 3; ++i) {
+//      for (int j = 0; j < 3; ++j) {
+//        upd_pose_(i, j) = rot_view(i, j);
+//      }
+//      upd_pose_(i, 3) = 0;
+//      upd_pose_(3, i) = 0;
+//    }
+//    upd_pose_(3, 3) = 1;
+//    upd_pose_(2, 3) = 0.5;
 
     keypoints_extracted_ = true;
 
@@ -676,6 +755,7 @@ class SyntheticRenderer {
         if (!target.target_found_) {
           cout << "Finding object using PnP ransac" << endl;
           model_tracker_->computeNextSequential(res);
+          printTrackerStatus();
         }
 
         cv::Mat pose_img = res.clone();
@@ -685,8 +765,16 @@ class SyntheticRenderer {
             cam.at<double>(i, j) = camera_matrix_.at<double>(i, j);
           }
         }
+
+        vector<cv::Scalar> axis;
+        axis.push_back(cv::Scalar(255,255,0));
+        axis.push_back(cv::Scalar(0,255,255));
+        axis.push_back(cv::Scalar(255,0,255));
+
         drawObjectPose(target.centroid_, cam, target.rotation,
                        target.translation, pose_img);
+        drawObjectPose(target.centroid_, cam, target.rotation_kalman, target.translation_kalman,
+                       axis, pose_img);
 
         cv::Mat flow_output = res.clone();
         cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
@@ -701,6 +789,20 @@ class SyntheticRenderer {
 
         drawObjectPose(target.centroid_, cam, rotation, translation,
                        flow_output);
+
+
+        cv::Mat rot_kalman = cv::Mat(3, 3, CV_64FC1, 0.0f);
+        cv::Mat tr_kalman = cv::Mat(1, 3, CV_32FC1, 0.0f);
+
+        for (int i = 0; i < 3; ++i) {
+          for (int j = 0; j < 3; ++j) {
+            rot_kalman.at<double>(i, j) = target.kalman_pose_(i, j);
+          }
+          tr_kalman.at<float>(i) = target.kalman_pose_(i, 3);
+        }
+
+        drawObjectPose(target.centroid_, cam, rot_kalman, tr_kalman, axis, flow_output);
+
         for (auto pt : target.active_points) {
           cv::circle(flow_output, pt, 2, cv::Scalar(0, 255, 0), 1);
         }
@@ -775,7 +877,7 @@ class SyntheticRenderer {
   int width_, height_;
   bool keypoints_extracted_;
 
-  Eigen::MatrixXd upd_pose_;
+  fato::Pose upd_pose_;
 
   bool add_flow_noise_;
 

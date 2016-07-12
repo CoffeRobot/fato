@@ -36,6 +36,7 @@
 #include <opencv2/core/core.hpp>
 #include <vector>
 #include <Eigen/Dense>
+#include <utility>
 
 #include "../../utilities/include/constants.h"
 
@@ -121,6 +122,61 @@ void rotatePoint(const cv::Vec3f& point, const cv::Mat& rotation,
                  cv::Point3f& updatedPoint);
 
 void rotationVecToMat(const cv::Mat& vec, cv::Mat& mat);
+
+class Pose{
+
+public:
+
+    Pose();
+
+    /**
+     * @brief Pose
+     * @param r_mat 3x3 rotation matrix
+     * @param t_vect rotation vector
+     */
+    Pose(cv::Mat& r_mat, cv::Mat& t_vect);
+
+    /**
+     * @brief Pose
+     * @param pose eigen projection matrix 4x4
+     */
+    Pose(Eigen::Matrix4d& pose);
+
+    /**
+     * @brief Pose
+     * @param beta 6x1 vector [tx,ty,tz,rx,ry,rz]
+     */
+    Pose(std::vector<double>& beta);
+
+    /**
+     * @brief toCV pose to opencv rotation matrix and translation vector
+     * @return a pair of Mat, [rotaion,translation]
+     */
+    std::pair<cv::Mat,cv::Mat> toCV();
+
+    /**
+     * @brief getBeta
+     * @return 6x1 vector [tx,ty,tz,rx,ry,rz]
+     */
+    std::vector<double> getBeta();
+
+    void transform(Eigen::Matrix4d& transform);
+
+    void transform(std::vector<double>& beta);
+
+    std::string str() const;
+
+private:
+
+    Eigen::MatrixX4d pose_;
+
+    std::vector<double> init_beta_;
+    cv::Mat init_rot, init_tr;
+
+
+
+
+};
 
 }  // end namespace
 

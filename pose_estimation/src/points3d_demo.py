@@ -7,6 +7,8 @@ import warnings
 import transformations as tf
 import pose_estimation as pose_estimate
 import utilities as ut
+import kalman_pose as kpose
+
 
 def randrange(n, vmin, vmax):
     return (vmax - vmin)*np.random.rand(n) + vmin
@@ -156,6 +158,10 @@ class test_data:
     ransac_noise_beta = []
     ransac_noise_pose = []
 
+    kf_pose_ls = kpose.init_filter(1)
+    kf_pose_me = kpose.init_filter(1)
+    kf_pose_ran = kpose.init_filter(1)
+
     fx = 649.6468505859375
     fy = 649.00091552734375
     cx = 322.32084374845363
@@ -267,10 +273,10 @@ class test_data:
         self.next_pts_2d = self.next_pts_2d / self.next_pts_3d[2,:]
         self.next_noise_2d = self.next_pts_2d.copy()
 
-        print('prev')
-        print(ut.to_string(self.prev_pts_2d))
-        print('next')
-        print(ut.to_string(self.next_pts_2d))
+        # print('prev')
+        # print(ut.to_string(self.prev_pts_2d))
+        # print('next')
+        # print(ut.to_string(self.next_pts_2d))
 
         self.x_flow = self.next_pts_2d[0,:] - self.prev_pts_2d[0,:]
         self.y_flow = self.next_pts_2d[1,:] - self.prev_pts_2d[1,:]
@@ -338,18 +344,35 @@ class test_data:
         self.me_noise_pose = tf.get_projection_matrix(self.me_noise_beta)
         self.m_position_noise = self.me_noise_pose.dot(self.m_position_noise)
 
-        init_beta = pose_estimate.ransac_ls(self.X,self.Y,50,3)
-        self.ransac_noise_beta = pose_estimate.m_estimator(self.X_n, self.Y_n, iters, init_beta)
-        self.ransac_noise_pose = tf.get_projection_matrix(self.ransac_noise_beta)
-        self.r_position_noise = self.ransac_noise_pose.dot(self.r_position_noise)
+        # init_beta = pose_estimate.ransac_ls(self.X,self.Y,50,3)
+        # self.ransac_noise_beta = pose_estimate.m_estimator(self.X_n, self.Y_n, iters, init_beta)
+        # self.ransac_noise_pose = tf.get_projection_matrix(self.ransac_noise_beta)
+        # self.r_position_noise = self.ransac_noise_pose.dot(self.r_position_noise)
+
+        bp = tf.pose_to_beta(self.me_pose)
+        self.kf_pose_ls.predict()
+        self.kf_pose_ls.update(bp.T)
+        print('-----')
+        print(ut.to_string(bp))
+        print(ut.to_string(self.kf_pose_ls.x.T))
+        print('-----')
+        # self.kf_pose_me.predict()
+        # self.kf_pose_me.update(self.me_noise_beta)
 
 
     def print_poses(self):
 
         print('gt pose\n' + ut.to_string(self.projection))
-        print('ls pose\n' + ut.to_string(self.ls_pose))
+        #print('ls pose\n' + ut.to_string(self.ls_pose))
         print('m pose\n' + ut.to_string(self.me_pose))
-        print('r pose\n' + ut.to_string(self.ransac_pose))
+        #fprint('r pose\n' + ut.to_string(self.ransac_pose))
+
+        k_pose = self.kf_pose_ls.x
+        tmp = np.array([k_pose[0,0],k_pose[1,0],k_pose[2,0],k_pose[9,0],k_pose[10,0],k_pose[11,0]])
+        k_pose = tf.get_projection_matrix(tmp)
+
+        print(ut.to_string(self.kf_pose_ls.x.T))
+        print('k pose\n' + ut.to_string(k_pose))
 
     def plot_data(self):
 
@@ -422,90 +445,6 @@ class test_data:
 
         self.add_noise = True
         self.noise_percentage = percentage
-
-
-# num_points = 10
-# [im1_points, pts_d] = create_image_points(num_points, 640, 480)
-#
-# im2_points = im1_points.copy()
-# im2_points[0,:] = im2_points[0,:] + 5
-#
-# camera = get_camera_matrix()
-# camera_inv = np.linalg.inv(camera[0:3,0:3])
-#
-# pts1 = np.dot(camera_inv, im1_points[0:3,:]) * pts_d
-# pts2 = np.dot(camera_inv, im2_points[0:3,:]) * pts_d
-#
-# X,Y = get_lq_data(im1_points, im2_points, pts_d, camera)
-#
-# print(to_string(X))
-# print(to_string(Y))
-#
-# beta = least_square(X,Y)
-# beta_m = m_estimator(X,Y,10)
-#
-# print(to_string(beta))
-# print(to_string(beta_m))
-#
-# print(to_string(pts2-pts1))
-#
-# print('projection 3d rather than 2d')
-# projection = tf.get_projection_matrix(np.array([0.00384,0,0,0,0,0]))
-# pts1 = np.vstack([pts1, np.ones(num_points)])
-# pts3 = np.dot(projection, pts1)
-#
-# print("pts3")
-# print(to_string(pts3))
-# print("pts1 - pts3")
-# print(to_string(pts1 - pts3))
-# im3_points = camera.dot(pts3) / pts3[2,:]
-# print("im3pts")
-# print(to_string(im3_points))
-# print("im1pts")
-# print(to_string(im1_points))
-# print("im1pts - im3pts")
-# print(to_string(im1_points - im3_points))
-#
-# X,Y = get_lq_data(im1_points, im3_points, pts_d, camera)
-#
-# beta = least_square(X,Y)
-# beta_m = m_estimator(X,Y,10)
-#
-# print(to_string(beta))
-# print(to_string(beta_m))
-
-
-# for c, m, zl, zh in [('r', 'o', -50, -25), ('b', '^', -30, -5)]:
-#     xs = randrange(n, 23, 32)
-#     ys = randrange(n, 0, 100)
-#     zs = randrange(n, zl, zh)
-#     ax.scatter(xs, ys, zs, c=c, marker=m)
-
-
-# data = test_data()
-#
-# data.gen_data()
-# data.move_points(1,0,0,0,0,0)
-# data.calculate_ls(10)
-# data.calculate_distance()
-#
-# data.plot_data()
-
-# print(d_pts)
-# [fx,fy,cx,cy] = get_camera_params()
-# [X,Y] = get_matrices(pts_2d, proj_2d, d_pts, fx,fy,cx,cy)
-#
-# beta = least_square(X,Y)
-# beta_m = m_estimator(X,Y,0)
-#
-# proj_b = tf.get_projection_matrix(beta)
-# proj_mb = tf.get_projection_matrix(beta_m)
-# print(to_string(proj_b))
-# print(to_string(proj_mb))
-#
-# ls_pts = np.dot(proj_b,pts)
-# m_pts = np.dot(proj_mb,pts)
-
 
 def plot_errors(ls_err, m_err, r_err, lsn_err, mn_err, rn_err):
 
@@ -582,8 +521,8 @@ def run_esperiment():
     data.get_fixed_data(5)
 
     angle = np.deg2rad(2)
-    gt_tr = np.array([0.0,0.01,0.01,0,angle,0])
-    num_iterations = 10
+    gt_tr = np.array([0.02,0.00,0.00,0,0,0])
+    num_iterations = 3
 
     ls_errors = np.zeros([6,10])
     m_errors = np.zeros([6,10])
@@ -592,6 +531,8 @@ def run_esperiment():
     lsn_errors = np.zeros([6,10])
     mn_errors = np.zeros([6,10])
     rn_errors = np.zeros([6,10])
+
+
 
     for i in range(0,num_iterations):
 
@@ -603,23 +544,21 @@ def run_esperiment():
 
         lsn_errors[:,i] = abs(gt_tr - data.ls_noise_beta)
         mn_errors[:,i] = abs(gt_tr - data.me_noise_beta)
-        rn_errors[:,i] = abs(gt_tr - data.ransac_noise_beta)
+        #rn_errors[:,i] = abs(gt_tr - data.ransac_noise_beta)
 
         precision = 5
-        print('gt   ' + ut.to_string(gt_tr))
-        print('lsq  ' + ut.to_string(data.ls_beta,precision))
-        print('m    ' + ut.to_string(data.me_beta,precision))
-        print('r    ' + ut.to_string(data.ransac_beta,precision))
-        print('lssn ' + ut.to_string(data.ls_noise_beta,precision))
-        print('mn   ' + ut.to_string(data.me_noise_beta,precision))
-        print('rn   ' + ut.to_string(data.ransac_noise_beta,precision))
-        print('\n')
+        # print('gt   ' + ut.to_string(gt_tr))
+        # print('lsq  ' + ut.to_string(data.ls_beta,precision))
+        # print('m    ' + ut.to_string(data.me_beta,precision))
+        # print('r    ' + ut.to_string(data.ransac_beta,precision))
+        # print('lssn ' + ut.to_string(data.ls_noise_beta,precision))
+        # print('mn   ' + ut.to_string(data.me_noise_beta,precision))
+        # #print('rn   ' + ut.to_string(data.ransac_noise_beta,precision))
+        # print('\n')
 
+        data.print_poses()
 
-
-        #data.print_poses()
-
-    plot_errors(ls_errors, m_errors, r_errors, lsn_errors, mn_errors, rn_errors)
+    #plot_errors(ls_errors, m_errors, r_errors, lsn_errors, mn_errors, rn_errors)
 
     return data
 

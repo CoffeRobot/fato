@@ -33,10 +33,7 @@ def get_normal_equations(prev_pts, next_pts, pts_z, camera):
     cy = camera[1,2]
     focal = (fx + fy)/2.0
 
-    print('fx ' + str(fx) + ' fy ' + str(fy) + ' cx ' + str(cx) + ' cy ' + str(cy) + ' f ' + str(focal))
-
-
-
+    #print('fx ' + str(fx) + ' fy ' + str(fy) + ' cx ' + str(cx) + ' cy ' + str(cy) + ' f ' + str(focal))
     for i in range(0, num_pts):
 
         prev_pt = prev_pts[i]
@@ -72,6 +69,7 @@ def get_normal_equations(prev_pts, next_pts, pts_z, camera):
         Y = np.append(Y, yv)
 
     return X,Y
+
 
 def ransac_ls(X,Y,num_iters, min_inliers):
 
@@ -128,6 +126,7 @@ def ransac_ls(X,Y,num_iters, min_inliers):
 def least_square(X,Y):
 
     return np.linalg.inv(X.T.dot(X)).dot(X.T).dot(Y)
+
 
 def m_estimator(X,Y, num_iters, beta=None):
 
@@ -415,10 +414,14 @@ class PoseEstimation:
 
     def get_projection_matrix(self, t, r):
 
-        proj = tf.rotation(r[0], r[1], r[2])
-        t.shape = (3, 1)
-        proj = np.append(proj, t, 1)
-        proj = np.vstack([proj, np.array([0, 0, 0, 1])])
+        # proj = tf.rotation(r[0], r[1], r[2])
+        # t.shape = (3, 1)
+        # proj = np.append(proj, t, 1)
+        # proj = np.vstack([proj, np.array([0, 0, 0, 1])])
+        proj = tf.euler_matrix(r[0], r[1], r[2])
+        proj[0,3] = t[0]
+        proj[1,3] = t[1]
+        proj[2,3] = t[2]
 
         return proj
 
@@ -738,7 +741,6 @@ class PoseEstimation:
             self.move_object(tx_acc, ty_acc, tz_acc, rx_acc, ry_acc, rz_acc)
             self.read_data()
 
-            beta = self.compute_pose()
             # res = 'beta '
             self.check_position_error()
             # for num in beta:

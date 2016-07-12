@@ -35,6 +35,8 @@
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
+#include <opencv2/video/tracking.hpp>
+
 #include <vector>
 #include <queue>
 #include <memory>
@@ -118,6 +120,12 @@ class TrackerMB {
 
   bool stop_matcher;
 
+  /****************************************************************************/
+  /*                       KALMAN POSE                                        */
+  /****************************************************************************/
+  cv::KalmanFilter kalman_pose_pnp_;
+  cv::KalmanFilter kalman_pose_flow_;
+
  private:
   int runTracker();
 
@@ -159,6 +167,12 @@ class TrackerMB {
 
   void projectPointsDepth(std::vector<cv::Point3f>& points, Eigen::MatrixXd& projection,
                           std::vector<float>& projected_depth);
+
+  void initFilter(cv::KalmanFilter& filter, Eigen::MatrixXd &projection);
+
+  void predictPose();
+
+  void predictPoseFlow(std::vector<float>& t, std::vector<float> r);
 
   int m_height, m_width;
 
@@ -226,6 +240,9 @@ class TrackerMB {
   /*                       TARGETS TO TRACK                                   */
   /****************************************************************************/
   Target target_object_;
+
+  std::ofstream debug_file;
+
 
 };
 
