@@ -51,6 +51,8 @@
 #include "../include/epnp.h"
 #include "../include/utilities.h"
 
+#define VERBOSE_DEBUG
+
 using namespace std;
 using namespace cv;
 
@@ -60,11 +62,14 @@ TrackerMB::TrackerMB() : matcher_confidence_(0.75), matcher_ratio_(0.75) {}
 
 TrackerMB::TrackerMB(Config& params, int descriptor_type,
                      unique_ptr<FeatureMatcher> matcher)
-    : matcher_confidence_(0.75), matcher_ratio_(0.75) {
+    : matcher_confidence_(0.75),
+      matcher_ratio_(0.75),
+      file_name_pose("/home/alessandro/debug/object_pose.txt") {
   feature_detector_ = std::move(matcher);
   stop_matcher = false;
 
-  debug_file.open("/home/alessandro/debug/object_pose.txt");
+  // open the file in write mode to refresh its content
+  ofstream file(file_name_pose);
 }
 
 TrackerMB::~TrackerMB() { taskFinished(); }
@@ -108,6 +113,18 @@ void TrackerMB::addModel(const string& h5_file) {
 
 void TrackerMB::setCameraMatrix(Mat& camera_matrix) {
   camera_matrix_ = camera_matrix.clone();
+}
+
+void TrackerMB::initSynthTracking(const string& object_model, double fx,
+                                  double fy, double cx, double cy,
+                                  int img_width, int img_height) {
+  rendering_engine_ = unique_ptr<pose::MultipleRigidModelsOgre>(
+      new pose::MultipleRigidModelsOgre(img_width, img_height, fx, fy, cx, cy,
+                                        0.01, 10.0));
+  rendering_engine_->addModel(object_model);
+
+  synth_track_.init(cx, cy, fx, fy, img_width, img_height,
+                    rendering_engine_.get());
 }
 
 void TrackerMB::learnBackground(const Mat& rgb) {
@@ -192,6 +209,7 @@ void TrackerMB::taskFinished() {
 }
 
 void TrackerMB::trackSequential(Mat& next) {
+  ofstream debug_file(file_name_pose, ofstream::out | ofstream::app);
   // cout << "Track target " << endl;
   /*************************************************************************************/
   /*                       LOADING IMAGES */
@@ -216,20 +234,53 @@ void TrackerMB::trackSequential(Mat& next) {
   }
 
   if (model_pts.size() > 4) {
-    vector<int> inliers;
-    poseFromPnP(model_pts, inliers);
-    target_object_.pnp_pose =
-        Pose(target_object_.rotation, target_object_.translation);
-    auto inliers_count = inliers.size();
-    removeOutliers(inliers);
-    validateInliers(inliers);
-
     if (!target_object_.target_found_) {
       // removing outliers using pnp ransac
+
+      vector<int> inliers;
+      poseFromPnP(model_pts, inliers);
+      target_object_.pnp_pose =
+          Pose(target_object_.rotation, target_object_.translation);
+
+      // initializing the synth pose with PNP
+      target_object_.synth_pose = target_object_.pnp_pose;
+      target_object_.weighted_pose = target_object_.pnp_pose;
+
+      auto inliers_count = inliers.size();
+      removeOutliers(inliers);
+      validateInliers(inliers);
+
+//      debug_file << "Object pose initialized with PNP ransac \n";
+
+//      stringstream ss;
+//      ss << fixed << setprecision(3);
+//      for (int i = 0; i < 3; ++i) {
+//        for (int j = 0; j < 3; ++j) {
+//          ss << target_object_.rotation.at<double>(i, j) << " ";
+//        }
+//        ss << target_object_.translation.at<double>(i) << "\n";
+//      }
+//      ss << "\n";
+//      debug_file << ss.str();
+
+//      debug_file << "Pose initialization \n";
+//      debug_file << target_object_.pnp_pose.str() << endl;
 
       // cout << "object found!" << endl;
       Eigen::MatrixXd projection_matrix = getProjectionMatrix(
           target_object_.rotation, target_object_.translation);
+
+//      debug_file << "Pojection matrix \n";
+
+//      for (int i = 0; i < 4; ++i) {
+//        for (int j = 0; j < 4; ++j) {
+//          debug_file << projection_matrix(i, j) << " ";
+//        }
+//        debug_file << "\n";
+//      }
+//      debug_file << "\n";
+
+//      debug_file.close();
 
       model_pts.clear();
       for (int i = 0; i < target_object_.active_points.size(); ++i) {
@@ -254,18 +305,70 @@ void TrackerMB::trackSequential(Mat& next) {
       target_object_.flow_pose =
           Pose(target_object_.rotation, target_object_.translation);
 
-      initFilter(kalman_pose_pnp_, projection_matrix);
-      initFilter(kalman_pose_flow_, projection_matrix);
-
-      target_object_.rotation_kalman = target_object_.rotation.clone();
-      target_object_.translation_kalman = target_object_.translation.clone();
+      //initFilter(kalman_pose_pnp_, projection_matrix);
+      //initFilter(kalman_pose_flow_, projection_matrix);
 
     } else {
-      predictPose();
-      poseFromFlow();
+
+
+      //cout << "1";
+
+      //predictPose(); // kalman filter on pnp, not very useful
+
+      pair<bool,vector<double>> synth_beta =
+          synth_track_.poseFromSynth(target_object_.weighted_pose, next);
+
+      //cout << "2";
+
+      vector<double> beta = poseFromFlow();
+      target_object_.flow_pose.transform(beta);
+      vector<double> weigthed_beta(6,0);
+
+
+      double w = 0;
+      if(synth_beta.first)// pose estimated by synth should be valid
+      {
+          w = 0.5;
+          target_object_.synth_pose.transform(synth_beta.second);
+      }
+
+      //cout << "3";
+
+//      stringstream ss,ss1,ss2;
+
+//      ss << fixed << setprecision(3) << "synth: ";
+//      ss1 << fixed << setprecision(3) << "flow : ";
+//      ss2 << fixed << setprecision(3) << "weigh: ";
+
+      for(auto i = 0; i < 6; ++i)
+      {
+        weigthed_beta[i] = (w * synth_beta.second[i] + (1-w) * beta[i]);
+//        ss << synth_beta.second[i] << " ";
+//        ss1 << beta[i] << " ";
+//        ss2 << weigthed_beta[i] << " ";
+      }
+
+//      debug_file << ss.str() << "\n" << ss1.str() << "\n" << ss2.str() << "\n";
+
+//      debug_file << target_object_.synth_pose.str() << "\n";
+//      debug_file << target_object_.flow_pose.str() << "\n";
+//      debug_file << target_object_.weighted_pose.str() << "\n";
+
+      target_object_.weighted_pose.transform(weigthed_beta);
+
+      //cout << "4";
+
+      updatePointsDepth(target_object_, target_object_.weighted_pose);
+
+//      if(target_object_.active_points.size() < 4)
+//      {
+//          target_object_.target_found_ = false;
+//          cout << "object lost!" << endl;
+//      }
+
+      //cout << "5\n";
     }
   } else {
-    // cout << "object lost" << endl;
     target_object_.rotation = Mat(3, 3, CV_64FC1, 0.0f);
     setIdentity(target_object_.rotation);
     target_object_.translation = Mat(1, 3, CV_64FC1, 0.0f);
@@ -430,7 +533,7 @@ void TrackerMB::poseFromPnP(vector<Point3f>& model_pts, vector<int>& inliers) {
   }
 }
 
-void TrackerMB::poseFromFlow() {
+vector<double> TrackerMB::poseFromFlow() {
   vector<Point2f> prev_points;
   vector<Point2f> curr_points;
   vector<float> depths;
@@ -467,47 +570,33 @@ void TrackerMB::poseFromFlow() {
                         focal_x, focal_y, 10, t, r, outliers);
   //  cout << "outliers size " << outliers.size() << endl;
 
-  //  target_object_.removeInvalidPoints(outliers);
+  target_object_.removeInvalidPoints(outliers);
 
-  Eigen::Matrix3d rot_view;
-  rot_view = Eigen::AngleAxisd(r.at(2), Eigen::Vector3d::UnitZ()) *
-             Eigen::AngleAxisd(r.at(1), Eigen::Vector3d::UnitY()) *
-             Eigen::AngleAxisd(r.at(0), Eigen::Vector3d::UnitX());
+//  Eigen::Matrix3d rot_view;
+//  rot_view = Eigen::AngleAxisd(r.at(2), Eigen::Vector3d::UnitZ()) *
+//             Eigen::AngleAxisd(r.at(1), Eigen::Vector3d::UnitY()) *
+//             Eigen::AngleAxisd(r.at(0), Eigen::Vector3d::UnitX());
 
-  Eigen::Matrix4d proj_mat(4, 4);
+//  Eigen::Matrix4d proj_mat(4, 4);
 
-  for (int i = 0; i < 3; ++i) {
-    for (int j = 0; j < 3; ++j) {
-      proj_mat(i, j) = rot_view(i, j);
-    }
-    proj_mat(i, 3) = t[i];
-    proj_mat(3, i) = 0;
-  }
-  proj_mat(3, 3) = 1;
+//  for (int i = 0; i < 3; ++i) {
+//    for (int j = 0; j < 3; ++j) {
+//      proj_mat(i, j) = rot_view(i, j);
+//    }
+//    proj_mat(i, 3) = t[i];
+//    proj_mat(3, i) = 0;
+//  }
+//  proj_mat(3, 3) = 1;
 
-  // cout << "z check " << target_object_.pose_(2,3) << " " <<
-  // target_object_.kalman_pose_(2,3) << endl;
+//  // cout << "z check " << target_object_.pose_(2,3) << " " <<
+//  // target_object_.kalman_pose_(2,3) << endl;
 
-  predictPoseFlow(t, r);
+//  //predictPoseFlow(t, r);
 
-  target_object_.pose_ = proj_mat * target_object_.pose_;
-  // cout << "z check2 " << target_object_.pose_(2,3) << " " <<
-  // target_object_.kalman_pose_(2,3) << endl;
+//  target_object_.pose_ = proj_mat * target_object_.pose_;
 
-  vector<Point3f> model_pts;
-  for (int i = 0; i < target_object_.active_points.size(); ++i) {
-    const int& id = target_object_.active_to_model_.at(i);
-    model_pts.push_back(target_object_.model_points_.at(id));
-  }
-  vector<float> projected_depth;
-  projectPointsDepth(model_pts, target_object_.pose_, projected_depth);
+  return vector<double>{t[0], t[1], t[2], r[0], r[1], r[2]};
 
-  // cout << "FLOW POSE" << endl;
-  for (auto i = 0; i < target_object_.active_points.size(); ++i) {
-    const int& id = target_object_.active_to_model_.at(i);
-    target_object_.projected_depth_.at(id) = projected_depth.at(i);
-    // cout << setprecision(3) << fixed << projected_depth.at(i) << " " << endl;
-  }
 }
 
 void TrackerMB::projectPointsDepth(std::vector<Point3f>& points,
@@ -539,6 +628,7 @@ void TrackerMB::initFilter(KalmanFilter& filter, Eigen::MatrixXd& projection) {
   double dt = 1 / 30.0;
 
   cout << "initializing kalman filter" << endl;
+  ofstream debug_file(file_name_pose, ofstream::out | ofstream::app);
 
   for (auto i = 0; i < 9; ++i) {
     auto id_vel = i + 3;
@@ -562,15 +652,15 @@ void TrackerMB::initFilter(KalmanFilter& filter, Eigen::MatrixXd& projection) {
   filter.measurementMatrix.at<float>(5, 11) = 1;
 
   setIdentity(filter.processNoiseCov, Scalar::all(1e-4));
-  setIdentity(filter.measurementNoiseCov, Scalar::all(1e-2));
-  setIdentity(filter.errorCovPost, Scalar::all(.1));
+  setIdentity(filter.measurementNoiseCov, Scalar::all(1e-4));
+  setIdentity(filter.errorCovPost, Scalar::all(1e-1));
 
-  filter.measurementNoiseCov.at<float>(0, 0) = 0.01;
-  filter.measurementNoiseCov.at<float>(1, 1) = 0.01;
-  filter.measurementNoiseCov.at<float>(2, 2) = 0.01;
-  filter.measurementNoiseCov.at<float>(3, 3) = 0.01;
-  filter.measurementNoiseCov.at<float>(4, 4) = 0.01;
-  filter.measurementNoiseCov.at<float>(5, 5) = 0.01;
+  //  filter.measurementNoiseCov.at<float>(0, 0) = 0.001;
+  //  filter.measurementNoiseCov.at<float>(1, 1) = 0.001;
+  //  filter.measurementNoiseCov.at<float>(2, 2) = 0.001;
+  //  filter.measurementNoiseCov.at<float>(3, 3) = 0.001;
+  //  filter.measurementNoiseCov.at<float>(4, 4) = 0.001;
+  //  filter.measurementNoiseCov.at<float>(5, 5) = 0.001;
 
   //  ofstream file("/home/alessandro/debug/object_pose.txt",
   //                ofstream::out | ofstream::app);
@@ -589,16 +679,8 @@ void TrackerMB::initFilter(KalmanFilter& filter, Eigen::MatrixXd& projection) {
   filter.statePre.at<float>(7) = 0;
   filter.statePre.at<float>(8) = 0;
 
-  //  Eigen::Matrix3d tmp_mat(3, 3);
-
-  //  for (auto i = 0; i < 3; ++i) {
-  //    for (auto j = 0; j < 3; ++j) tmp_mat(i, j) = projection(i, j);
-  //  }
-
-  //  Eigen::Vector3d angles = tmp_mat.eulerAngles(2, 1, 0);
-
-  //  file << "pnp kalman init angle \n" << angles(0) << " " << angles(1) << " "
-  //       << angles(2) << "\n";
+  debug_file << "PnP kalman filter initialization \n";
+  debug_file << "beta parameters for the filter \n";
 
   filter.statePre.at<float>(9) = beta.at(3);   // angles(2);
   filter.statePre.at<float>(10) = beta.at(4);  // angles(1);
@@ -610,16 +692,58 @@ void TrackerMB::initFilter(KalmanFilter& filter, Eigen::MatrixXd& projection) {
   filter.statePre.at<float>(16) = 0;
   filter.statePre.at<float>(17) = 0;
 
-  //  kalman_pose_flow_.transitionMatrix =
-  //      kalman_pose_pnp_.transitionMatrix.clone();
-  //  kalman_pose_flow_.statePre = kalman_pose_pnp_.statePre.clone();
-  //  kalman_pose_flow_.measurementMatrix =
-  //      kalman_pose_pnp_.measurementMatrix.clone();
-  //  kalman_pose_flow_.measurementNoiseCov =
-  //      kalman_pose_pnp_.measurementNoiseCov.clone();
-  //  kalman_pose_flow_.processNoiseCov =
-  //  kalman_pose_pnp_.processNoiseCov.clone();
-  //  kalman_pose_flow_.errorCovPost = kalman_pose_pnp_.errorCovPost.clone();
+  for (auto b : beta) debug_file << fixed << setprecision(3) << b << " ";
+  debug_file << "\n";
+
+  Pose tmp_debug(beta);
+
+  debug_file << "PnP pose consistency check \n";
+  debug_file << tmp_debug.str() << "\n";
+
+  debug_file << "kalman pose prediction consistency check \n";
+
+  Mat_<float> measurement(6, 1);
+  measurement(0) = beta.at(0);  // target_object_.translation.at<double>(0);
+  measurement(1) = beta.at(1);  // target_object_.translation.at<double>(1);
+  measurement(2) = beta.at(2);  // target_object_.translation.at<double>(2);
+  measurement(3) = beta.at(3);  //;
+  measurement(4) = beta.at(4);  //;
+  measurement(5) = beta.at(5);  //
+  // file << "pnp meas \n";
+  // file << toString(measurement) << "\n";
+
+  auto toString = [](cv::Mat& mat) {
+    stringstream ss;
+    ss << fixed << setprecision(5);
+    for (auto i = 0; i < mat.rows; ++i) {
+      ss << mat.at<float>(i, 0) << " ";
+    }
+    return ss.str();
+  };
+
+  for (int i = 0; i < 1; ++i) {
+    Mat predicted = filter.predict();
+    Mat estimated = filter.correct(measurement);
+
+    debug_file << "predicted measurements \n";
+    debug_file << toString(predicted) << "\n";
+    debug_file << "corrected measurements \n";
+    debug_file << toString(estimated) << "\n";
+
+    beta = {estimated.at<float>(0),  estimated.at<float>(1),
+            estimated.at<float>(2),  estimated.at<float>(9),
+            estimated.at<float>(10), estimated.at<float>(11)};
+
+    debug_file << "predicted beta \n";
+
+    for (auto b : beta) debug_file << b << " ";
+    debug_file << "\n";
+
+    Pose p(beta);
+
+    debug_file << "pose from beta \n";
+    debug_file << p.str() << "\n";
+  }
 
   //  for (auto i = 0; i < A.rows; ++i) {
   //    for (auto j = 0; j < A.cols; ++j)
@@ -662,12 +786,12 @@ void TrackerMB::initFilter(KalmanFilter& filter, Eigen::MatrixXd& projection) {
   //  file << "\n initialization done \n\n";
   //  file.close();
 
-  cout <<  "initialization done " << endl;
+  cout << "initialization done " << endl;
 }
 
 void TrackerMB::predictPose() {
-  ofstream file("/home/alessandro/debug/object_pose.txt",
-                ofstream::out | ofstream::app);
+  //  ofstream file("/home/alessandro/debug/object_pose.txt",
+  //                ofstream::out | ofstream::app);
 
   // file << "----------------- PNP PREDICTION ---------------- \n\n";
 
@@ -685,28 +809,16 @@ void TrackerMB::predictPose() {
   Mat prediction = kalman_pose_pnp_.predict();
 
   // file << "pnp pred \n";
-  file << "pred: " << prediction.at<float>(9) << " " << prediction.at<float>(10)
-       << " " << prediction.at<float>(11) << "\n";
+  //  file << "pred: " << prediction.at<float>(9) << " " <<
+  //  prediction.at<float>(10)
+  //       << " " << prediction.at<float>(11) << "\n";
 
   Pose& pnp_pose = target_object_.pnp_pose;
-
-  Eigen::Matrix3d tmp_mat(3, 3);
-
-  // file << "rotation matrix \n";
-  for (auto i = 0; i < 3; ++i) {
-    for (auto j = 0; j < 3; ++j) {
-      tmp_mat(i, j) = target_object_.rotation.at<double>(i, j);
-      // file << tmp_mat(i, j) << " ";
-    }
-    // file << "\n";
-  }
-
-  Eigen::Vector3d angles = tmp_mat.eulerAngles(2, 1, 0);
-
   vector<double> beta = pnp_pose.getBeta();
 
-  file << "euler angles " << angles(0) << " " << angles(1) << " " << angles(2)
-       << "\n";
+  //  file << "euler angles " << angles(0) << " " << angles(1) << " " <<
+  //  angles(2)
+  //       << "\n";
 
   Mat_<float> measurement(6, 1);
   measurement(0) = beta.at(0);  // target_object_.translation.at<double>(0);
@@ -739,49 +851,50 @@ void TrackerMB::predictPose() {
 
   target_object_.kal_pnp_pose = Pose(tmp);
 
-  target_object_.translation_kalman = tr;
+  // target_object_.translation_kalman = tr;
 
-  file << "corr: " << estimated.at<float>(9) << " " << estimated.at<float>(10)
-       << " " << estimated.at<float>(11) << "\n\n";
+  //  file << "corr: " << estimated.at<float>(9) << " " <<
+  //  estimated.at<float>(10)
+  //       << " " << estimated.at<float>(11) << "\n\n";
 
-  Eigen::Matrix3f m1;
-  m1 = Eigen::AngleAxisf(angles(0), Eigen::Vector3f::UnitZ()) *
-       Eigen::AngleAxisf(angles(1), Eigen::Vector3f::UnitY()) *
-       Eigen::AngleAxisf(angles(2), Eigen::Vector3f::UnitX());
+  //  Eigen::Matrix3f m1;
+  //  m1 = Eigen::AngleAxisf(angles(0), Eigen::Vector3f::UnitZ()) *
+  //       Eigen::AngleAxisf(angles(1), Eigen::Vector3f::UnitY()) *
+  //       Eigen::AngleAxisf(angles(2), Eigen::Vector3f::UnitX());
 
-  Eigen::Matrix3f m;
-  m = Eigen::AngleAxisf(rot(2), Eigen::Vector3f::UnitZ()) *
-      Eigen::AngleAxisf(rot(1), Eigen::Vector3f::UnitY()) *
-      Eigen::AngleAxisf(rot(0), Eigen::Vector3f::UnitX());
+  //  Eigen::Matrix3f m;
+  //  m = Eigen::AngleAxisf(rot(2), Eigen::Vector3f::UnitZ()) *
+  //      Eigen::AngleAxisf(rot(1), Eigen::Vector3f::UnitY()) *
+  //      Eigen::AngleAxisf(rot(0), Eigen::Vector3f::UnitX());
 
-  // file << "matrices original - euler - kalman \n";
-  for (auto i = 0; i < 3; ++i) {
-    stringstream ss, ss1, ss2;
-    ss << fixed << setprecision(3);
-    ss1 << fixed << setprecision(3);
-    ss2 << fixed << setprecision(3);
-    for (auto j = 0; j < 3; ++j) {
-      ss << tmp_mat(i, j) << " ";
-      ss1 << m1(i, j) << " ";
-      ss2 << m(i, j) << " ";
-    }
-    // file << ss.str() << " - " << ss1.str() << " - " << ss2.str() << "\n";
-    // file << "\n";
-  }
-
-  for (auto i = 0; i < 3; ++i) {
-    for (auto j = 0; j < 3; ++j) {
-      target_object_.rotation_kalman.at<double>(i, j) = m(i, j);
-    }
-  }
-
-  // file << "\n\n--------------------------------- \n\n";
-
-  //  try {
-  //    Rodrigues(rot, target_object_.rotation_kalman);
-  //  } catch (cv::Exception& e) {
-  //    cout << "Error estimating ransac rotation: " << e.what() << endl;
+  //  // file << "matrices original - euler - kalman \n";
+  //  for (auto i = 0; i < 3; ++i) {
+  //    stringstream ss, ss1, ss2;
+  //    ss << fixed << setprecision(3);
+  //    ss1 << fixed << setprecision(3);
+  //    ss2 << fixed << setprecision(3);
+  //    for (auto j = 0; j < 3; ++j) {
+  //      ss << tmp_mat(i, j) << " ";
+  //      ss1 << m1(i, j) << " ";
+  //      ss2 << m(i, j) << " ";
+  //    }
+  //    // file << ss.str() << " - " << ss1.str() << " - " << ss2.str() << "\n";
+  //    // file << "\n";
   //  }
+
+  //  for (auto i = 0; i < 3; ++i) {
+  //    for (auto j = 0; j < 3; ++j) {
+  //      target_object_.rotation_kalman.at<double>(i, j) = m(i, j);
+  //    }
+  //  }
+
+  //  // file << "\n\n--------------------------------- \n\n";
+
+  //  //  try {
+  //  //    Rodrigues(rot, target_object_.rotation_kalman);
+  //  //  } catch (cv::Exception& e) {
+  //  //    cout << "Error estimating ransac rotation: " << e.what() << endl;
+  //  //  }
 }
 
 void TrackerMB::predictPoseFlow(std::vector<float>& t, std::vector<float> r) {
@@ -789,52 +902,11 @@ void TrackerMB::predictPoseFlow(std::vector<float>& t, std::vector<float> r) {
   //                ofstream::out | ofstream::app);
 
   Pose tmp_pose = target_object_.flow_pose;
-  vector<double> tmp_bt = {t[0],t[1],t[2],r[0],r[1],r[2]};
+  vector<double> tmp_bt = {
+      static_cast<double>(t[0]), static_cast<double>(t[1]),
+      static_cast<double>(t[2]), static_cast<double>(r[0]),
+      static_cast<double>(r[1]), static_cast<double>(r[2])};
   tmp_pose.transform(tmp_bt);
-
-  Eigen::Matrix3d rot_view;
-  rot_view = Eigen::AngleAxisd(r.at(2), Eigen::Vector3d::UnitZ()) *
-             Eigen::AngleAxisd(r.at(1), Eigen::Vector3d::UnitY()) *
-             Eigen::AngleAxisd(r.at(0), Eigen::Vector3d::UnitX());
-
-  Eigen::Matrix3d tmp_rot = rot_view;
-
-  Eigen::Matrix4d proj_mat(4, 4);
-
-  for (int i = 0; i < 3; ++i) {
-    for (int j = 0; j < 3; ++j) {
-      proj_mat(i, j) = rot_view(i, j);
-    }
-    proj_mat(i, 3) = t[i];
-    proj_mat(3, i) = 0;
-  }
-  proj_mat(3, 3) = 1;
-
-  Eigen::Matrix4d tmp = proj_mat * target_object_.kalman_pose_;
-
-  for (auto i = 0; i < 3; ++i) {
-    for (auto j = 0; j < 3; ++j) rot_view(i, j) = tmp(i, j);
-  }
-
-  Eigen::Vector3d rot_vect = rot_view.eulerAngles(2, 1, 0);
-
-  Eigen::Matrix3d rot_view1;
-  rot_view1 = Eigen::AngleAxisd(rot_vect(0), Eigen::Vector3d::UnitZ()) *
-              Eigen::AngleAxisd(rot_vect(1), Eigen::Vector3d::UnitY()) *
-              Eigen::AngleAxisd(rot_vect(2), Eigen::Vector3d::UnitX());
-
-  // file << "rotation " << endl;
-  for (auto i = 0; i < 3; ++i) {
-    stringstream ss, ss1;
-    ss << fixed << setprecision(5);
-    ss1 << fixed << setprecision(5);
-    for (auto j = 0; j < 3; ++j) {
-      ss << rot_view(i, j) << " ";
-      ss1 << rot_view1(i, j) << " ";
-    }
-    // file << ss.str() << "   " << ss1.str() << "\n";
-  }
-  // file << "\n";
 
   auto toString = [](cv::Mat& mat) {
     stringstream ss;
@@ -845,21 +917,16 @@ void TrackerMB::predictPoseFlow(std::vector<float>& t, std::vector<float> r) {
     return ss.str();
   };
 
-  //  file << "rot vector \n" << rot_vect(0) << " " << rot_vect(1) << " "
-  //       << rot_vect(2) << " "
-  //       << "\n";
   Mat prediction = kalman_pose_flow_.predict();
-  // file << "flow prediction \n" << toString(prediction) << "\n";
-
   vector<double> beta = tmp_pose.getBeta();
 
   Mat_<float> measurement(6, 1);
-  measurement(0) = beta[0];//tmp(0, 3);
-  measurement(1) = beta[1];//tmp(1, 3);
-  measurement(2) = beta[2];//tmp(2, 3);
-  measurement(3) = beta[3];//rot_vect(2);
-  measurement(4) = beta[4];//rot_vect(1);
-  measurement(5) = beta[5];//rot_vect(0);
+  measurement(0) = static_cast<float>(beta[0]);
+  measurement(1) = static_cast<float>(beta[1]);
+  measurement(2) = static_cast<float>(beta[2]);
+  measurement(3) = static_cast<float>(beta[3]);
+  measurement(4) = static_cast<float>(beta[4]);
+  measurement(5) = static_cast<float>(beta[5]);
   // file << "flow measurement \n" << toString(measurement) << "\n";
   Mat estimated = kalman_pose_flow_.correct(measurement);
   // file << "flow estimated \n" << toString(estimated) << "\n";
@@ -871,24 +938,113 @@ void TrackerMB::predictPoseFlow(std::vector<float>& t, std::vector<float> r) {
   //  cout << fixed << setprecision(2) << estimated.at<float>(0) << " "
   //       << estimated.at<float>(1) << " " << estimated.at<float>(2) << endl;
 
+  beta = {static_cast<double>(estimated.at<float>(0)),
+          static_cast<double>(estimated.at<float>(1)),
+          static_cast<double>(estimated.at<float>(2)),
+          static_cast<double>(estimated.at<float>(9)),
+          static_cast<double>(estimated.at<float>(10)),
+          static_cast<double>(estimated.at<float>(11))};
 
-  beta = {estimated.at<float>(0),  estimated.at<float>(1),
-                        estimated.at<float>(2),  estimated.at<float>(9),
-                        estimated.at<float>(10), estimated.at<float>(11)};
+  Pose updated_pose(beta);
 
-  target_object_.flow_pose.transform(beta);
+#ifdef VERBOSE_DEBUG
+  ofstream file(file_name_pose, ofstream::app);
 
-  rot_view =
-      Eigen::AngleAxisd(estimated.at<float>(11), Eigen::Vector3d::UnitZ()) *
-      Eigen::AngleAxisd(estimated.at<float>(10), Eigen::Vector3d::UnitY()) *
-      Eigen::AngleAxisd(estimated.at<float>(9), Eigen::Vector3d::UnitX());
+  file << "--------- flow prediction --------- \n";
+  //  file << "pose \n" << fixed << setprecision(3);
+  //  for(auto i = 0; i < 4; ++i)
+  //  {
+  //      for(int j = 0; j < 4; ++j)
+  //      {
+  //          file << target_object_.pose_(i,j) << " ";
+  //      }
+  //      file << "\n";
+  //  }
+  //  file << "\n";
+  //  file << "pose kf \n";
+  //  file << target_object_.flow_pose.str();
 
-  for (int i = 0; i < 3; ++i) {
-    for (int j = 0; j < 3; ++j) {
-      target_object_.kalman_pose_(i, j) = rot_view(i, j);
+  file << "beta \n";
+  for (auto b : tmp_bt) file << fixed << setprecision(5) << b << " ";
+  file << "\n";
+
+  //  file << "updated pose \n";
+  //  file << tmp_pose.str();
+
+  tmp_bt = target_object_.flow_pose.getBeta();
+  file << "flow beta \n";
+  for (auto b : tmp_bt) file << fixed << setprecision(5) << b << " ";
+  file << "\n";
+
+  file << "estimated beta \n";
+  for (auto b : beta) file << fixed << setprecision(5) << b << " ";
+  file << "\n";
+
+  bool check = false;
+
+  for (auto i = 0; i < beta.size(); ++i) {
+    if (abs(beta.at(i) - tmp_bt.at(i)) > 0.01) {
+      check = true;
+      break;
     }
-    target_object_.kalman_pose_(i, 3) = estimated.at<float>(i);
   }
+
+  if (check) {
+    file << "!!!!!!!! INCONSISTENCY !!!!!!!"
+         << "\n";
+    file << "measurements \n";
+    file << toString(measurement) << "\n";
+    file << "full estimated \n";
+    file << toString(estimated) << "\n";
+  }
+
+#endif
+
+  //target_object_.flow_pose = updated_pose;
+
+  //  rot_view =
+  //      Eigen::AngleAxisd(estimated.at<float>(11), Eigen::Vector3d::UnitZ()) *
+  //      Eigen::AngleAxisd(estimated.at<float>(10), Eigen::Vector3d::UnitY()) *
+  //      Eigen::AngleAxisd(estimated.at<float>(9), Eigen::Vector3d::UnitX());
+
+  //  for (int i = 0; i < 3; ++i) {
+  //    for (int j = 0; j < 3; ++j) {
+  //      target_object_.kalman_pose_(i, j) = rot_view(i, j);
+  //    }
+  //    target_object_.kalman_pose_(i, 3) = estimated.at<float>(i);
+  //  }
+}
+
+void TrackerMB::updatePointsDepth(Target &t, Pose &p)
+{
+    vector<Point3f> model_pts;
+    for (int i = 0; i < t.active_points.size(); ++i) {
+      const int& id = t.active_to_model_.at(i);
+      model_pts.push_back(t.model_points_.at(id));
+    }
+    vector<float> projected_depth;
+    // projectPointsDepth(model_pts, target_object_.pose_, projected_depth);
+
+    Eigen::MatrixXd pose(4, 4);
+    //Eigen::Matrix4d tmp_pose = target_object_.flow_pose.getPose();
+    Eigen::Matrix4d tmp_pose = p.getPose();
+
+    for (auto i = 0; i < 4; ++i) {
+      for (auto j = 0; j < 4; ++j) pose(i, j) = tmp_pose(i, j);
+    }
+
+    projectPointsDepth(model_pts, pose, projected_depth);
+
+    for (auto i = 0; i < t.active_points.size(); ++i) {
+      const int& id = t.active_to_model_.at(i);
+      t.projected_depth_.at(id) = projected_depth.at(i);
+    }
+}
+
+void TrackerMB::getRenderedPose(const Pose &p, Mat &out)
+{
+    std::vector<float> z_buffer;
+    synth_track_.renderObject(p, out, z_buffer);
 }
 
 }  // end namespace pinot

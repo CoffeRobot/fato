@@ -165,7 +165,7 @@ void getPoseFromFlow(const std::vector<cv::Point2f>& prev_pts,
   rotation[2] = Y[5];
 }
 
-void getPoseFromFlowRobust(const std::vector<cv::Point2f>& prev_pts,
+Eigen::VectorXf getPoseFromFlowRobust(const std::vector<cv::Point2f>& prev_pts,
                            const std::vector<float>& prev_depth,
                            const std::vector<cv::Point2f>& next_pts,
                            float nodal_x, float nodal_y, float focal_x,
@@ -207,6 +207,9 @@ void getPoseFromFlowRobust(const std::vector<cv::Point2f>& prev_pts,
     else
       residual_scale = res_vector.at(res_vector.size() / 2) +
                        res_vector.at(res_vector.size() / 2 + 1) / 2.0f;
+
+    // avoid division by 0
+    residual_scale = max(residual_scale, 0.0001f);
 
     residual_scale *=
         6.9460;  // constant defined in the IRLS and bisquare distance
@@ -252,6 +255,8 @@ void getPoseFromFlowRobust(const std::vector<cv::Point2f>& prev_pts,
   rotation[0] = beta[3];
   rotation[1] = beta[4];
   rotation[2] = beta[5];
+
+  return beta;
 }
 
 void getPose2D(const std::vector<cv::Point2f*>& model_points,
@@ -575,7 +580,38 @@ Pose::Pose(std::vector<double>& beta) {
   init_beta_ = beta;
 }
 
-std::pair<cv::Mat, cv::Mat> Pose::toCV() {
+Pose::Pose(VectorXf &beta)
+{
+    if (beta.rows() != 6) {
+      throw std::runtime_error("Pose: bad parameters size, should be 6");
+    }
+
+    init_beta_.resize(6,0);
+
+    for(auto i = 0; i < 6; ++i)
+        init_beta_[i] = static_cast<double>(beta[i]);
+
+    pose_ = Matrix4d(4, 4);
+
+    Eigen::Matrix3d rot_view;
+    rot_view = Eigen::AngleAxisd(init_beta_.at(5), Eigen::Vector3d::UnitZ()) *
+               Eigen::AngleAxisd(init_beta_.at(4), Eigen::Vector3d::UnitY()) *
+               Eigen::AngleAxisd(init_beta_.at(3), Eigen::Vector3d::UnitX());
+
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j) {
+        pose_(i, j) = rot_view(i, j);
+      }
+      pose_(3, i) = 0;
+    }
+    pose_(3, 3) = 1;
+
+    pose_(0, 3) = init_beta_.at(0);
+    pose_(1, 3) = init_beta_.at(1);
+    pose_(2, 3) = init_beta_.at(2);
+}
+
+std::pair<cv::Mat, cv::Mat> Pose::toCV() const {
   cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
   cv::Mat translation = cv::Mat(1, 3, CV_64FC1, 0.0f);
 
@@ -587,6 +623,22 @@ std::pair<cv::Mat, cv::Mat> Pose::toCV() {
   }
 
   return pair<cv::Mat, cv::Mat>(rotation, translation);
+}
+
+std::pair<Eigen::Matrix3d, Eigen::Vector3d> Pose::toEigen() const
+{
+    Eigen::Matrix3d rotation_temp;
+    Eigen::Vector3d translation_vect;
+    for(auto i = 0; i < 3; ++i)
+    {
+        for(auto j = 0; j < 3; ++j)
+        {
+          rotation_temp(i,j) = pose_(i,j);
+        }
+        translation_vect(i) = pose_(i,3);
+    }
+
+    return pair<Eigen::Matrix3d, Eigen::Vector3d>(rotation_temp, translation_vect);
 }
 
 void Pose::transform(Eigen::Matrix4d& transform) { pose_ = transform * pose_; }

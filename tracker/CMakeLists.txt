@@ -5,6 +5,7 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
   clustering
   utilities
+  fato_rendering
   image_geometry
   roscpp
 )
@@ -19,7 +20,7 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native")
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS image_geometry utilities clustering
+  CATKIN_DEPENDS image_geometry utilities clustering fato_rendering
 )
 
 message("Project source dir: " ${PROJECT_SOURCE_DIR})
@@ -53,6 +54,7 @@ add_library(${PROJECT_NAME}
   src/model.cpp
   src/config.cpp
   src/epnp.cpp
+  src/synthetic_track.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

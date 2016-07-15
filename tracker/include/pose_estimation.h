@@ -87,7 +87,7 @@ void getPoseFromFlow(const std::vector<cv::Point2f>& prev_pts,
  * @param translation
  * @param rotation
  */
-void getPoseFromFlowRobust(const std::vector<cv::Point2f>& prev_pts,
+Eigen::VectorXf getPoseFromFlowRobust(const std::vector<cv::Point2f>& prev_pts,
                            const std::vector<float>& prev_depth,
                            const std::vector<cv::Point2f>& next_pts,
                            float nodal_x, float nodal_y, float focal_x,
@@ -149,16 +149,31 @@ public:
     Pose(std::vector<double>& beta);
 
     /**
+     * @brief Pose
+     * @param beta 6x1 vector [tx,ty,tz,rx,ry,rz]
+     */
+    Pose(Eigen::VectorXf &beta);
+
+    /**
      * @brief toCV pose to opencv rotation matrix and translation vector
      * @return a pair of Mat, [rotaion,translation]
      */
-    std::pair<cv::Mat,cv::Mat> toCV();
+    std::pair<cv::Mat,cv::Mat> toCV() const;
+
+
+    /**
+     * @brief toEigen pose to eigen rotation matrix and translation vector
+     * @return pair [matrix3d,vector3d>
+     */
+    std::pair<Eigen::Matrix3d,Eigen::Vector3d> toEigen() const;
 
     /**
      * @brief getBeta
      * @return 6x1 vector [tx,ty,tz,rx,ry,rz]
      */
     std::vector<double> getBeta();
+
+    Eigen::Matrix4d getPose(){return pose_;}
 
     void transform(Eigen::Matrix4d& transform);
 
@@ -172,9 +187,6 @@ private:
 
     std::vector<double> init_beta_;
     cv::Mat init_rot, init_tr;
-
-
-
 
 };
 

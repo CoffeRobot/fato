@@ -48,7 +48,6 @@
 #include <hdf5_file.h>
 #include <multiple_rigid_models_ogre.h>
 
-
 #include "../../fato_rendering/include/multiple_rigid_models_ogre.h"
 #include "../../fato_rendering/include/windowless_gl_context.h"
 #include "../../utilities/include/hdf5_file.h"
@@ -88,10 +87,10 @@ TrackerModel::TrackerModel(string model_file, string obj_file)
       nh_.advertise<sensor_msgs::Image>("fato_tracker/render", 1);
 
   flow_publisher_ =
-          nh_.advertise<sensor_msgs::Image>("fato_tracker/output_flow", 1);
+      nh_.advertise<sensor_msgs::Image>("fato_tracker/output_flow", 1);
 
-  service_server_ = nh_.advertiseService(
-      "tracker_service", &TrackerModel::serviceCallback, this);
+  service_server_ = nh_.advertiseService("tracker_service",
+                                         &TrackerModel::serviceCallback, this);
 
   getTrackerParameters();
 
@@ -129,21 +128,19 @@ void TrackerModel::rgbCallback(
   img_updated_ = true;
 }
 
-bool TrackerModel::serviceCallback(fato_tracker_nodes::TrackerService::Request &req,
-                     fato_tracker_nodes::TrackerService::Response &res) {
+bool TrackerModel::serviceCallback(
+    fato_tracker_nodes::TrackerService::Request &req,
+    fato_tracker_nodes::TrackerService::Response &res) {
+  res.result = true;
+  if (req.stop_matcher) {
+    stop_matcher = true;
+    cout << "Matcher stopped!" << endl;
+  } else {
+    cout << "Matcher restarted" << endl;
+    stop_matcher = false;
+  }
 
-    res.result = true;
-    if (req.stop_matcher) {
-        stop_matcher = true;
-        cout << "Matcher stopped!" << endl;
-    }
-    else
-    {
-        cout << "Matcher restarted" << endl;
-        stop_matcher = false;
-    }
-
-    return true;
+  return true;
 }
 
 void TrackerModel::getTrackerParameters() {
@@ -167,7 +164,7 @@ void TrackerModel::run(string model_file) {
   // Create dummy GL context before cudaGL init
   render::WindowLessGLContext dummy(10, 10);
   // setup the engines
-  unique_ptr<pose::MultipleRigidModelsOgre> rendering_engine;
+  // unique_ptr<pose::MultipleRigidModelsOgre> rendering_engine;
 
   spinner_.start();
 
@@ -218,7 +215,7 @@ void TrackerModel::run(string model_file) {
     double tra_render[3];
     double rot_render[9];
     Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
-    Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor> > rot_render_eig(
+    Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
         rot_render);
     tra_render_eig = pose.translation();
     rot_render_eig = pose.rotation();
@@ -244,9 +241,14 @@ void TrackerModel::run(string model_file) {
   stop_matcher = false;
 
   vector<cv::Scalar> axis;
-  axis.push_back(cv::Scalar(255,255,0));
-  axis.push_back(cv::Scalar(0,255,255));
-  axis.push_back(cv::Scalar(255,0,255));
+  axis.push_back(cv::Scalar(255, 255, 0));
+  axis.push_back(cv::Scalar(0, 255, 255));
+  axis.push_back(cv::Scalar(255, 0, 255));
+
+  vector<cv::Scalar> axis2;
+  axis2.push_back(cv::Scalar(125, 125, 0));
+  axis2.push_back(cv::Scalar(0, 125, 125));
+  axis2.push_back(cv::Scalar(125, 0, 125));
 
   while (ros::ok()) {
     if (img_updated_) {
@@ -260,14 +262,10 @@ void TrackerModel::run(string model_file) {
           }
         }
         tracker.setCameraMatrix(cam);
-
-        rendering_engine = unique_ptr<pose::MultipleRigidModelsOgre>(
-            new pose::MultipleRigidModelsOgre(
-                rgb_image_.cols, rgb_image_.rows, cam.at<double>(0, 0),
-                cam.at<double>(1, 1), cam.at<double>(0, 2),
-                cam.at<double>(1, 2), 0.01, 10.0));
-        rendering_engine->addModel(obj_file_);
-
+        tracker.initSynthTracking(obj_file_, cam.at<double>(0, 0),
+                                  cam.at<double>(1, 1), cam.at<double>(0, 2),
+                                  cam.at<double>(1, 2), rgb_image_.cols,
+                                  rgb_image_.rows);
         camera_is_set = true;
       }
 
@@ -297,91 +295,67 @@ void TrackerModel::run(string model_file) {
 
       const Target &target = tracker.getTarget();
 
-      //cout << target.active_points.size() << " " << target.prev_points_.size() << endl;
-
-      cv::Point3f center(0, 0, 0);
-      for (auto i = 0; i < target.active_points.size(); ++i) {
-        int id = target.active_to_model_.at(i);
-
-        Scalar color;
-
-        if (target.point_status_.at(id) == fato::KpStatus::MATCH)
-          color = Scalar(255, 0, 0);
-        else if (target.point_status_.at(id) == fato::KpStatus::TRACK)
-        {
-          color = Scalar(0, 255, 0);
-          //circle(rgb_image_, target.prev_points_.at(i), 1, color);
-          line(rgb_image_, target.prev_points_.at(i), target.active_points.at(i), Scalar(255,0,0), 1);
-        }
-
-        //circle(rgb_image_, target.prev_points_.at(i), 3, color);
-        circle(rgb_image_, target.active_points.at(i), 1, color);
-        //line(rgb_image_, target.prev_points_.at(i), target.active_points.at(i), Scalar(255,0,0), 1);
-        // center += model_points.at(i);
-      }
-
       flow_output = rgb_image_.clone();
-
 
       drawObjectPose(target.centroid_, cam, target.rotation, target.translation,
                      rgb_image_);
 
-      Pose p_k =target.kal_pnp_pose;
+      Pose p_k = target.kal_pnp_pose;
 
-      pair<Mat,Mat> pcv = p_k.toCV();
+      pair<Mat, Mat> pcv = p_k.toCV();
 
-      drawObjectPose(target.centroid_, cam, pcv.first, pcv.second,
-                     axis, rgb_image_);
+      drawObjectPose(target.centroid_, cam, pcv.first, pcv.second, axis,
+                     rgb_image_);
 
       cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
       cv::Mat translation = cv::Mat(1, 3, CV_32FC1, 0.0f);
 
-      for(int i = 0; i < 3; ++i)
-      {
-          for(int j = 0; j < 3; ++j)
-          {
-              rotation.at<double>(i,j) = target.pose_(i,j);
-          }
-          translation.at<float>(i) = target.pose_(i,3);
+      for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+          rotation.at<double>(i, j) = target.pose_(i, j);
+        }
+        translation.at<float>(i) = target.pose_(i, 3);
       }
 
-//      drawObjectPose(target.centroid_, cam, target.rotation_kalman, target.translation_kalman,
-//                     flow_output);
+      //      drawObjectPose(target.centroid_, cam, target.rotation_kalman,
+      //      target.translation_kalman,
+      //                     flow_output);
 
-      if(target.target_found_)
-        drawObjectPose(target.centroid_, cam, rotation, translation, flow_output);
+      if (target.target_found_) {
+//        auto flow_pose = target.flow_pose.toCV();
+//        drawObjectPose(target.centroid_, cam, flow_pose.first, flow_pose.second,
+//                       flow_output);
 
-      for(int i = 0; i < 3; ++i)
-      {
-          for(int j = 0; j < 3; ++j)
-          {
-              rotation.at<double>(i,j) = target.kalman_pose_(i,j);
+//        auto synth_pose = target.synth_pose.toCV();
+//        drawObjectPose(target.centroid_, cam, synth_pose.first,
+//                       synth_pose.second, axis2, flow_output);
+
+        auto w_pose = target.weighted_pose.toCV();
+        drawObjectPose(target.centroid_, cam, w_pose.first, w_pose.second, axis,
+                       flow_output);
+
+        for (auto i = 0; i < target.active_points.size(); ++i) {
+          int id = target.active_to_model_.at(i);
+
+          Scalar color(0,0,255);
+
+          if (target.point_status_.at(id) == fato::KpStatus::MATCH)
+            color = Scalar(255, 0, 0);
+          else if (target.point_status_.at(id) == fato::KpStatus::TRACK) {
+            color = Scalar(0, 255, 0);
+            // circle(rgb_image_, target.prev_points_.at(i), 1, color);
+            line(flow_output, target.prev_points_.at(i),
+                 target.active_points.at(i), Scalar(255, 0, 0), 1);
           }
-          translation.at<float>(i) = target.kalman_pose_(i,3);
+
+          // circle(rgb_image_, target.prev_points_.at(i), 3, color);
+          circle(flow_output, target.active_points.at(i), 1, color);
+          // line(rgb_image_, target.prev_points_.at(i),
+          // target.active_points.at(i), Scalar(255,0,0), 1);
+          // center += model_points.at(i);
+        }
       }
 
-      p_k = target.flow_pose;
-      cout << p_k.str() << endl;
-      pcv = p_k.toCV();
-      drawObjectPose(target.centroid_, cam, pcv.first, pcv.second, axis, flow_output);
-
-
-//      for(int i = 0; i < 3; ++i)
-//      {
-//        cout << setprecision(2) << fixed
-//             << rotation.at<double>(i,0 ) << "," << rotation.at<double>(i,1) << ","
-//             << rotation.at<double>(i,2) << "   "
-//             << target.rotation.at<double>(i,0) << "," << target.rotation.at<double>(i,1) << ","
-//             << target.rotation.at<double>(i,2) << "\n";
-//      }
-//      cout <<"\n";
-
-//      for(int i = 0; i < 3; ++i)
-//      {
-//        cout << setprecision(2) << fixed
-//             << translation.at<float>(i) << "  " << target.translation.at<float>(i) << "\n";
-//      }
-//      cout <<"\n";
 
       if (target.active_to_model_.size()) {
         std::vector<Point3f> model_pts;
@@ -401,83 +375,74 @@ void TrackerModel::run(string model_file) {
         projectPoints(rel_pts, target.rotation, target.translation, cam, Mat(),
                       rel_2d);
 
-        for (auto i = 0; i < model_2d.size(); ++i) {
-          //line(rgb_image_, model_2d.at(i), rel_2d.at(i), Scalar(255, 0, 0), 1);
-          //cout << model_2d.at(i) << " " << rel_2d.at(i) << "\n";
-        }
-      }
-
-//      const Mat &tvec = target.translation;
-//      const Mat &rvec = target.rotation_vec;
-
-//      double T[] = {tvec.at<double>(0, 0), tvec.at<double>(0, 1),
-//                    tvec.at<double>(0, 2)};
-//      double R[] = {rvec.at<double>(0, 0), rvec.at<double>(0, 1),
-//                    rvec.at<double>(0, 2)};
-
-
-      double T[] = {target.pose_(0,3), target.pose_(1,3), target.pose_(2,3)};
-      Eigen::Matrix3d rotation_temp;
-      Eigen::Vector3d translation_vect;
-      for(auto i = 0; i < 3; ++i)
-      {
-          for(auto j = 0; j < 3; ++j)
-          {
-            rotation_temp(i,j) = target.pose_(i,j);
+        double T[] = {target.pose_(0, 3), target.pose_(1, 3),
+                      target.pose_(2, 3)};
+        Eigen::Matrix3d rotation_temp;
+        Eigen::Vector3d translation_vect;
+        for (auto i = 0; i < 3; ++i) {
+          for (auto j = 0; j < 3; ++j) {
+            rotation_temp(i, j) = target.pose_(i, j);
           }
-          translation_vect(i) = target.pose_(i,3);
+          translation_vect(i) = target.pose_(i, 3);
+        }
+
+        double tra_render[3];
+        double rot_render[9];
+        Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
+        Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
+            rot_render);
+        tra_render_eig = translation_vect;
+        rot_render_eig = rotation_temp;
+
+        std::vector<pose::TranslationRotation3D> TR(1);
+        TR.at(0).setT(tra_render);
+        TR.at(0).setR_mat(rot_render);
+
+        Mat rend_mat;
+        tracker.getRenderedPose(target.weighted_pose, rend_mat);
+
+//         cout << target.active_points.size() << " " <<
+//         target.prev_points_.size() << endl;
+
+
+
+        // rendering_engine->render(TR);
+
+        //      std::vector<uchar4> h_texture(480 * 640);
+        //      downloadRenderedImg(*rendering_engine, h_texture);
+
+        //      cv::Mat img_rgba(480, 640, CV_8UC4, h_texture.data());
+        //      cv::Mat img_rgb;
+        //      cv::cvtColor(img_rgba, img_rgb, CV_RGBA2BGR);
+
+        cv_bridge::CvImage cv_img, cv_rend, cv_flow;
+        cv_img.image = rgb_image_;
+        cv_img.encoding = sensor_msgs::image_encodings::BGR8;
+        publisher_.publish(cv_img.toImageMsg());
+
+        cv_rend.image = rend_mat;
+        cv_rend.encoding = sensor_msgs::image_encodings::BGR8;
+        render_publisher_.publish(cv_rend.toImageMsg());
+
+        cv_flow.image = flow_output;
+        cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
+        flow_publisher_.publish(cv_flow.toImageMsg());
+
+        // Size sz1 = flow_output.size();
+        // Size sz2 = img_rgb.size();
+        // Mat im3(sz1.height, sz1.width+sz2.width, CV_8UC3);
+        // flow_output.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
+        // img_rgb.copyTo(im3(Rect(sz1.width, 0, sz2.width, sz2.height)));
+
+        // video_writer.write(im3);
+        img_updated_ = false;
+        r.sleep();
       }
-
-
-      double tra_render[3];
-      double rot_render[9];
-      Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
-      Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
-          rot_render);
-      tra_render_eig = translation_vect;
-      rot_render_eig = rotation_temp;
-
-      std::vector<pose::TranslationRotation3D> TR(1);
-      TR.at(0).setT(tra_render);
-      TR.at(0).setR_mat(rot_render);
-
-      rendering_engine->render(TR);
-
-      std::vector<uchar4> h_texture(480 * 640);
-      downloadRenderedImg(*rendering_engine, h_texture);
-
-      cv::Mat img_rgba(480, 640, CV_8UC4, h_texture.data());
-      cv::Mat img_rgb;
-      cv::cvtColor(img_rgba, img_rgb, CV_RGBA2BGR);
-
-      cv_bridge::CvImage cv_img, cv_rend, cv_flow;
-      cv_img.image = rgb_image_;
-      cv_img.encoding = sensor_msgs::image_encodings::BGR8;
-      publisher_.publish(cv_img.toImageMsg());
-
-      cv_rend.image = img_rgb;
-      cv_rend.encoding = sensor_msgs::image_encodings::BGR8;
-      render_publisher_.publish(cv_rend.toImageMsg());
-
-
-      cv_flow.image = flow_output;
-      cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
-      flow_publisher_.publish(cv_flow.toImageMsg());
-
-
-      Size sz1 = flow_output.size();
-      Size sz2 = img_rgb.size();
-      Mat im3(sz1.height, sz1.width+sz2.width, CV_8UC3);
-      flow_output.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
-      img_rgb.copyTo(im3(Rect(sz1.width, 0, sz2.width, sz2.height)));
-
-      video_writer.write(im3);
-      r.sleep();
     }
-  }
 
-  video_writer.stopRecording();
-  cv::destroyAllWindows();
+    video_writer.stopRecording();
+    //cv::destroyAllWindows();
+  }
 }
 
 }  // end namespace

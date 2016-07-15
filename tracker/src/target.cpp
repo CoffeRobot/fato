@@ -78,9 +78,6 @@ void Target::resetPose() {
   rotation_vec = Mat(1, 3, CV_64FC1, 0.0f);
   translation = Mat(1, 3, CV_64FC1, 0.0f);
   translation_custom = Mat(1, 3, CV_64FC1, 0.0f);
-  rotation_kalman = Mat(3, 3, CV_64FC1, 0.0f);
-  setIdentity(rotation_kalman);
-  translation_kalman = Mat(1, 3, CV_64FC1, 0.0f);
 
 
   target_found_ = false;

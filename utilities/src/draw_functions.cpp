@@ -416,7 +416,7 @@ void drawObjectPose(const Point3f& centroid, Mat& camera_matrix,
               3);
   arrowedLine(out, projected_points[0], projected_points[3], Scalar(255, 0, 0),
               3);
-}
+    }
 
 void drawObjectPose(const Point3f& centroid, Mat& camera_matrix,
                     const Mat& rotation, const Mat& translation,

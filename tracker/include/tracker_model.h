@@ -46,12 +46,14 @@
 #include <fstream>
 #include <set>
 #include <memory>
+#include <string>
 
 #include "target.hpp"
 #include "matcher.h"
 #include "config.h"
 #include "feature_matcher.hpp"
 #include "tracker_2d_v2.h"
+#include "synthetic_track.hpp"
 
 namespace fato {
 
@@ -59,17 +61,24 @@ class TrackerMB {
  public:
   TrackerMB();
 
-  TrackerMB(const Config& params, const cv::Mat& camera_matrix, std::unique_ptr<FeatureMatcher> matcher);
+  TrackerMB(const Config& params, const cv::Mat& camera_matrix,
+            std::unique_ptr<FeatureMatcher> matcher);
 
-  TrackerMB(Config &params, int descriptor_type, std::unique_ptr<FeatureMatcher> matcher);
+  TrackerMB(Config& params, int descriptor_type,
+            std::unique_ptr<FeatureMatcher> matcher);
 
   ~TrackerMB();
 
-  void addModel(const cv::Mat& descriptors, const std::vector<cv::Point3f>& points);
+  void addModel(const cv::Mat& descriptors,
+                const std::vector<cv::Point3f>& points);
 
   void addModel(const std::string& h5_file);
 
   void setCameraMatrix(cv::Mat& camera_matrix);
+  // TODO: merge the initialization to force order of init things, synth depends
+  // from camera
+  void initSynthTracking(const std::string& object_model, double fx, double fy,
+                         double cx, double cy, int img_width, int img_height);
 
   void learnBackground(const cv::Mat& rgb);
 
@@ -89,10 +98,10 @@ class TrackerMB {
 
   const std::vector<cv::Point2f>* getInitPoints() { return &m_points; }
 
+  const Target& getTarget() { return target_object_; }
 
-  const Target& getTarget(){return target_object_;}
+  void getRenderedPose(const Pose& p, cv::Mat& out);
 
-  bool isNewPose() { return m_learn_new_pose; }
 
   void taskFinished();
 
@@ -104,9 +113,6 @@ class TrackerMB {
     return m_detectorTime / static_cast<float>(m_detectorFrameCount);
   }
 
-  float getAngle() { return m_angle; }
-
-  float getScale() { return m_scale; }
 
   bool isLost() { return m_is_object_lost; }
 
@@ -131,9 +137,7 @@ class TrackerMB {
 
   int runDetector();
 
-  void getOpticalFlow(const cv::Mat& prev,
-                      const cv::Mat& next,
-                      Target& target);
+  void getOpticalFlow(const cv::Mat& prev, const cv::Mat& next, Target& target);
 
   void projectPointsToModel(const cv::Point2f& model_centroid,
                             const cv::Point2f& upd_centroid, const float angle,
@@ -161,18 +165,22 @@ class TrackerMB {
 
   void detectSequential(cv::Mat& next);
 
-  void poseFromPnP(std::vector<cv::Point3f> &model_pts, std::vector<int> &inliers);
+  void poseFromPnP(std::vector<cv::Point3f>& model_pts,
+                   std::vector<int>& inliers);
 
-  void poseFromFlow();
+  std::vector<double> poseFromFlow();
 
-  void projectPointsDepth(std::vector<cv::Point3f>& points, Eigen::MatrixXd& projection,
+  void projectPointsDepth(std::vector<cv::Point3f>& points,
+                          Eigen::MatrixXd& projection,
                           std::vector<float>& projected_depth);
 
-  void initFilter(cv::KalmanFilter& filter, Eigen::MatrixXd &projection);
+  void initFilter(cv::KalmanFilter& filter, Eigen::MatrixXd& projection);
 
   void predictPose();
 
   void predictPoseFlow(std::vector<float>& t, std::vector<float> r);
+
+  void updatePointsDepth(Target& t, Pose& p);
 
   int m_height, m_width;
 
@@ -209,17 +217,7 @@ class TrackerMB {
   /****************************************************************************/
   std::vector<cv::Point2f> m_relativeDistances;
 
-  /****************************************************************************/
-  /*                       LEARN MODEL                                        */
-  /****************************************************************************/
-  std::set<std::pair<float, float>> m_learned_poses;
-  bool m_learn_new_pose;
-  float m_scale_old;
-  float m_angle_old;
-  cv::Point2f m_centroid_old;
-  std::deque<float> m_scale_history;
-  std::deque<float> m_angle_history;
-  std::deque<cv::Point2f> m_center_history;
+
   /****************************************************************************/
   /*                       PROFILINGVARIABLES                                 */
   /****************************************************************************/
@@ -241,11 +239,12 @@ class TrackerMB {
   /****************************************************************************/
   Target target_object_;
 
-  std::ofstream debug_file;
+  SyntheticTrack synth_track_;
+  std::unique_ptr<pose::MultipleRigidModelsOgre> rendering_engine_;
 
-
+  std::string file_name_pose;
 };
 
-} // end namespace
+}  // end namespace
 
 #endif  // TRACKER_H

@@ -12,12 +12,14 @@
 
   <build_depend>utilities</build_depend>
   <build_depend>clustering</build_depend>
+  <build_depend>fato_rendering</build_depend>
   <build_depend>cmake_modules</build_depend>
   <build_depend>pcl_ros</build_depend>
   <build_depend>image_geometry</build_depend>
 
   <run_depend>utilities</run_depend>
   <run_depend>clustering</run_depend>
+  <run_depend>fato_rendering</run_depend>
   <run_depend>cmake_modules</run_depend>
   <run_depend>pcl_ros</run_depend>
   <run_depend>image_geometry</run_depend>

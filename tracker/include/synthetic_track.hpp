@@ -29,63 +29,55 @@
 /*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
-#ifndef TARGET_HPP
-#define TARGET_HPP
+#ifndef SYNTHETIC_TRACK_HPP
+#define SYNTHETIC_TRACK_HPP
 
-#include <vector>
+#include <memory>
 #include <opencv2/core/core.hpp>
-#include <Eigen/Core>
+#include <opencv2/features2d/features2d.hpp>
+#include <opencv2/video/tracking.hpp>
 
-#include "constants.h"
-#include "pose_estimation.h"
+#include <string>
+
+#include "../../fato_rendering/include/multiple_rigid_models_ogre.h"
+#include "../../fato_rendering/include/windowless_gl_context.h"
+#include "../include/pose_estimation.h"
 
 namespace fato {
 
-class Target {
+class SyntheticTrack {
  public:
-  Target() {}
+  SyntheticTrack();
 
-  ~Target() {}
+  void init(double nodal_x, double nodal_y, double focal_x,
+            double focal_y, int img_w, int img_h, pose::MultipleRigidModelsOgre* rendering_engine);
 
-  void init(std::vector<cv::Point3f>& points, cv::Mat& descriptors);
+  std::pair<bool, std::vector<double> > poseFromSynth(Pose prev_pose, cv::Mat &curr_img);
 
-  void resetPose();
+  void renderObject(Pose prev_pose, cv::Mat &rendered_image,
+                    std::vector<float> &z_buffer);
 
-  void removeInvalidPoints(const std::vector<int>& ids);
+ private:
 
-  bool isConsistent();
+  void blendImage();
 
-  void projectVectors(cv::Mat& camera, cv::Mat& out);
+  void downloadRenderedImage(std::vector<uchar4> &h_texture);
 
-  std::vector<cv::Point3f> model_points_;
-  std::vector<cv::Point3f> rel_distances_;
-  std::vector<cv::Point2f> active_points;
-  std::vector<cv::Point2f> prev_points_;
-  std::vector<float> projected_depth_;
-  std::vector<KpStatus> point_status_;
+  void downloadZBuffer(std::vector<float> &buffer);
 
-  cv::Mat descriptors_;
+  void trackCorners(cv::Mat &rendered_image, cv::Mat &next_img,
+                    std::vector<cv::Point2f> &prev_pts,
+                    std::vector<cv::Point2f> &next_pts);
 
-  cv::Point3f centroid_;
+  void debug(cv::Mat& rendered_img, cv::Mat& next_img, std::vector<cv::Point2f>& prev_pts,
+             std::vector<cv::Point2f>& next_pts, Pose& prev_pose, Pose& next_pose);
 
-  std::vector<int> active_to_model_;
+  pose::MultipleRigidModelsOgre* rendering_engine_;
 
-  cv::Mat rotation, rotation_custom;
-  cv::Mat translation, translation_custom;
-  cv::Mat rotation_vec;
-
-  Pose pnp_pose, kal_pnp_pose;
-  Pose flow_pose, synth_pose, weighted_pose;
-
-  // position of points in previous frame, used for structure from motion pose
-  // estimation
-  std::vector<cv::Point3f> last_frame_points_;
-
-  Eigen::MatrixXd pose_, kalman_pose_;
-
-  bool target_found_;
-
+  int img_w_, img_h_;
+  double nodal_x_, nodal_y_, focal_x_, focal_y_;
 };
-}
 
-#endif  // TARGET_HPP
+}  // end namespace
+
+#endif  // SYNTHETIC_TRACK_HPP

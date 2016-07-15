@@ -55,6 +55,7 @@
 #include <opencv2/video/tracking.hpp>
 #include <fstream>
 #include <random>
+#include <chrono>
 
 #include "fato_tracker_tests/RenderService.h"
 
@@ -72,12 +73,15 @@
 #include "../../tracker/include/target.hpp"
 #include "../../utilities/include/draw_functions.h"
 #include "../../tracker/include/pose_estimation.h"
+#include "../../tracker/include/synthetic_track.hpp"
 
 #include <utility_kernels.h>
 #include <utility_kernels_pose.h>
 
 using namespace std;
 using namespace fato;
+
+typedef chrono::high_resolution_clock my_clock;
 
 ros::Publisher pose_publisher, rendering_publisher, disparity_publisher,
     flow_publisher;
@@ -98,7 +102,7 @@ auto downloadRenderedImg = [](pose::MultipleRigidModelsOgre &model_ogre,
 };
 
 template <typename T>
-string toString(cv::Mat& mat) {
+string toString(cv::Mat &mat) {
   stringstream ss;
   ss << fixed << setprecision(3);
   for (auto i = 0; i < mat.rows; ++i) {
@@ -114,47 +118,43 @@ string toString(cv::Mat& mat) {
 class SyntheticRenderer {
  public:
   SyntheticRenderer() : initialized_(false), next_frame_requested_(false) {
-    t_req_ = Eigen::Vector3d(0, 0, 0.5);
-    r_req_ = Eigen::Vector3d(M_PI, 0, 0);
+    t_req_ = Eigen::Vector3d(0, 0, 0.7);
+    r_req_ = Eigen::Vector3d(M_PI, 1.3962634015954636, 0);
   }
 
-  void printTrackerStatus()
-  {
+  void printTrackerStatus() {
     const Target &t = model_tracker_->getTarget();
 
-    ofstream file("/home/alessandro/debug/object_pose.txt", ofstream::out | ofstream::app);
+    ofstream file("/home/alessandro/debug/object_pose.txt",
+                  ofstream::out | ofstream::app);
 
     file << "pnp - kalman - flow - kalman \n";
 
-    for(int i = 0; i < 3; ++i)
-    {
-        stringstream ss,ss1,pnps, pnpk;
+    for (int i = 0; i < 3; ++i) {
+      stringstream ss, ss1, pnps, pnpk;
 
-        pnps << setprecision(3) << fixed;
-        pnpk << setprecision(3) << fixed;
-        ss << setprecision(3) << fixed;
-        ss1 << setprecision(3) << fixed;
+      pnps << setprecision(3) << fixed;
+      pnpk << setprecision(3) << fixed;
+      ss << setprecision(3) << fixed;
+      ss1 << setprecision(3) << fixed;
 
-        for(int j = 0; j < 4;++j)
-        {
-            if(i < 3 && j < 3 )
-            {
-                pnps << t.rotation.at<double>(i,j) << " ";
-                pnpk << t.rotation_kalman.at<double>(i,j) << " ";
-            }
-            else if(i < 3 && j == 3)
-            {
-                pnps << t.translation.at<double>(i) << " ";
-                pnpk << t.translation_kalman.at<double>(i) << " ";
-            }
-            ss << t.pose_(i,j) << " ";
-            ss1 << t.kalman_pose_(i,j) << " ";
+      for (int j = 0; j < 4; ++j) {
+        if (i < 3 && j < 3) {
+          pnps << t.rotation.at<double>(i, j) << " ";
+          // pnpk << t.rotation_kalman.at<double>(i,j) << " ";
+        } else if (i < 3 && j == 3) {
+          pnps << t.translation.at<double>(i) << " ";
+          // pnpk << t.translation_kalman.at<double>(i) << " ";
         }
-        file << pnps.str() << "   " << pnpk.str() << "   " << ss.str() << "   " << ss1.str() << "\n";
+        ss << t.pose_(i, j) << " ";
+        ss1 << t.kalman_pose_(i, j) << " ";
+      }
+      file << pnps.str() << "   " << pnpk.str() << "   " << ss.str() << "   "
+           << ss1.str() << "\n";
     }
 
-    cv::KalmanFilter& kf_pnp = model_tracker_->kalman_pose_pnp_;
-    cv::KalmanFilter& kf_flow = model_tracker_->kalman_pose_flow_;
+    cv::KalmanFilter &kf_pnp = model_tracker_->kalman_pose_pnp_;
+    cv::KalmanFilter &kf_flow = model_tracker_->kalman_pose_flow_;
 
     file << "target pnp pose \n" << endl;
 
@@ -162,14 +162,13 @@ class SyntheticRenderer {
     file << t.flow_pose.str() << "\n";
 
     cv::Mat pre_t, post_t;
-    //cv::transpose(kf_pnp.statePre, pre_t);
-    //cv::transpose(kf_pnp.statePost, post_t);
+    // cv::transpose(kf_pnp.statePre, pre_t);
+    // cv::transpose(kf_pnp.statePost, post_t);
 
-    //file << "pre " << toString<float>(pre_t);
-    //file << "post " << toString<float>(post_t);
+    // file << "pre " << toString<float>(pre_t);
+    // file << "post " << toString<float>(post_t);
 
     file.close();
-
   }
 
   void rgbCallback(const sensor_msgs::ImageConstPtr &rgb_msg,
@@ -205,6 +204,10 @@ class SyntheticRenderer {
       width_ = camera_image.cols;
       height_ = camera_image.rows;
 
+      synth_track_.init(nodal_point_x, nodal_point_y, focal_length_x,
+                        focal_length_y, width_, height_, rendering_engine.get());
+
+
       initialized_ = true;
     }
 
@@ -236,8 +239,6 @@ class SyntheticRenderer {
     double R[] = {r_req_[0], r_req_[1], r_req_[2]};
     std::vector<pose::TranslationRotation3D> TR(1);
     TR.at(0) = pose::TranslationRotation3D(T, R);
-
-    Eigen::Matrix3d rot = TR.at(0).eigenRotation();
 
     rendering_engine->render(TR);
   }
@@ -501,8 +502,9 @@ class SyntheticRenderer {
               << t[2] << " " << r[0] << " " << r[1] << " " << r[2] << std::endl;
 
     std::cout << std::fixed << std::setprecision(3)
-              << "The solution using robust pose is:\n" << t1[0] << " " << t1[1] << " "
-              << t1[2] << " " << r1[0] << " " << r1[1] << " " << r1[2] << std::endl;
+              << "The solution using robust pose is:\n" << t1[0] << " " << t1[1]
+              << " " << t1[2] << " " << r1[0] << " " << r1[1] << " " << r1[2]
+              << std::endl;
     std::cout << "outliers: " << outliers.size() << endl;
 
     cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
@@ -529,12 +531,12 @@ class SyntheticRenderer {
     //    cout << "updated pose " << endl;
     //    cout << fixed << setprecision(3) << upd_pose_ << endl;
 
-//    for (int i = 0; i < 3; ++i) {
-//      for (int j = 0; j < 3; ++j) {
-//        rotation.at<double>(i, j) = upd_pose_(i, j);
-//      }
-//      translation.at<float>(i) = upd_pose_(i, 3);
-//    }
+    //    for (int i = 0; i < 3; ++i) {
+    //      for (int j = 0; j < 3; ++j) {
+    //        rotation.at<double>(i, j) = upd_pose_(i, j);
+    //      }
+    //      translation.at<float>(i) = upd_pose_(i, 3);
+    //    }
 
     pair<cv::Mat, cv::Mat> cv_pose = upd_pose_.toCV();
 
@@ -544,7 +546,8 @@ class SyntheticRenderer {
 
     cv::Point3f center(0, 0, 0);
 
-    fato::drawObjectPose(center, camera_matrix_, cv_pose.first, cv_pose.second, out);
+    fato::drawObjectPose(center, camera_matrix_, cv_pose.first, cv_pose.second,
+                         out);
   }
 
   bool serviceCallback(fato_tracker_tests::RenderService::Request &req,
@@ -571,7 +574,7 @@ class SyntheticRenderer {
       ROS_INFO("reset requested");
       initialize_tracking(rgb, depth_buffer);
       model_tracker_->resetTarget();
-      printTrackerStatus();
+      // printTrackerStatus();
       // TODO: reset tracker as well
       return true;
     }
@@ -585,7 +588,7 @@ class SyntheticRenderer {
 
     calculateFlow(gray, next_pts);
     model_tracker_->computeNextSequential(rgb);
-    printTrackerStatus();
+    // printTrackerStatus();
 
     uniform_real_distribution<double> distribution(-1.5, 1.5);
 
@@ -680,24 +683,15 @@ class SyntheticRenderer {
     }
 
     Eigen::Matrix3d rot_view;
-    rot_view = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) *
-               Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) *
-               Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
+    rot_view =
+        Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) *
+        Eigen::AngleAxisd(0.52359877559829882, Eigen::Vector3d::UnitY()) *
+        Eigen::AngleAxisd(1.3962634015954636, Eigen::Vector3d::UnitX());
 
-    vector<double> beta = {0,0,0.5,M_PI,0,0};
+    vector<double> beta = {0,                  0,                   0.5,
+                           1.3962634015954636, 0.52359877559829882, 0};
 
     upd_pose_ = Pose(beta);
-//    upd_pose_ = Eigen::MatrixXd(4, 4);
-
-//    for (int i = 0; i < 3; ++i) {
-//      for (int j = 0; j < 3; ++j) {
-//        upd_pose_(i, j) = rot_view(i, j);
-//      }
-//      upd_pose_(i, 3) = 0;
-//      upd_pose_(3, i) = 0;
-//    }
-//    upd_pose_(3, 3) = 1;
-//    upd_pose_(2, 3) = 0.5;
 
     keypoints_extracted_ = true;
 
@@ -721,6 +715,10 @@ class SyntheticRenderer {
 
     cv::Mat prev;
 
+    float pos_x = 0;       // current x_position
+    float speed_x = 0.02;  // 1 cm per second
+    bool inverted = false;
+
     while (ros::ok()) {
       if (!tracker_initialized && initialized_) {
         model_tracker_->setCameraMatrix(camera_matrix_);
@@ -728,6 +726,12 @@ class SyntheticRenderer {
       }
 
       if (image_updated && initialized_) {
+        auto time_point = my_clock::now();
+
+        float dt = chrono::duration_cast<chrono::milliseconds>(
+                       time_point - last_time).count() /
+                   1000.0;
+
         renderObject();
 
         std::vector<uchar4> h_texture(camera_image.rows * camera_image.cols);
@@ -755,7 +759,30 @@ class SyntheticRenderer {
         if (!target.target_found_) {
           cout << "Finding object using PnP ransac" << endl;
           model_tracker_->computeNextSequential(res);
-          printTrackerStatus();
+          last_time = my_clock::now();
+          // printTrackerStatus();
+        } else {
+
+          Pose pnp_pose = target.pnp_pose;
+          blendWithCamera(res);
+
+          synth_track_.poseFromSynth(pnp_pose, res);
+
+          model_tracker_->computeNextSequential(res);
+
+          last_time = time_point;
+
+          pos_x += (speed_x * dt);
+
+          if (pos_x > 0.1 && !inverted) {
+            speed_x = -0.01;
+            inverted = true;
+          } else if (pos_x < -0.1 && inverted) {
+            speed_x = 0.01;
+            inverted = false;
+          }
+
+          t_req_[0] = pos_x;
         }
 
         cv::Mat pose_img = res.clone();
@@ -767,13 +794,18 @@ class SyntheticRenderer {
         }
 
         vector<cv::Scalar> axis;
-        axis.push_back(cv::Scalar(255,255,0));
-        axis.push_back(cv::Scalar(0,255,255));
-        axis.push_back(cv::Scalar(255,0,255));
+        axis.push_back(cv::Scalar(255, 255, 0));
+        axis.push_back(cv::Scalar(0, 255, 255));
+        axis.push_back(cv::Scalar(255, 0, 255));
 
         drawObjectPose(target.centroid_, cam, target.rotation,
                        target.translation, pose_img);
-        drawObjectPose(target.centroid_, cam, target.rotation_kalman, target.translation_kalman,
+        //        drawObjectPose(target.centroid_, cam, target.rotation_kalman,
+        //        target.translation_kalman,
+        //                       axis, pose_img);
+
+        pair<cv::Mat, cv::Mat> tmp_pose = target.kal_pnp_pose.toCV();
+        drawObjectPose(target.centroid_, cam, tmp_pose.first, tmp_pose.second,
                        axis, pose_img);
 
         cv::Mat flow_output = res.clone();
@@ -790,18 +822,9 @@ class SyntheticRenderer {
         drawObjectPose(target.centroid_, cam, rotation, translation,
                        flow_output);
 
-
-        cv::Mat rot_kalman = cv::Mat(3, 3, CV_64FC1, 0.0f);
-        cv::Mat tr_kalman = cv::Mat(1, 3, CV_32FC1, 0.0f);
-
-        for (int i = 0; i < 3; ++i) {
-          for (int j = 0; j < 3; ++j) {
-            rot_kalman.at<double>(i, j) = target.kalman_pose_(i, j);
-          }
-          tr_kalman.at<float>(i) = target.kalman_pose_(i, 3);
-        }
-
-        drawObjectPose(target.centroid_, cam, rot_kalman, tr_kalman, axis, flow_output);
+        tmp_pose = target.flow_pose.toCV();
+        drawObjectPose(target.centroid_, cam, tmp_pose.first, tmp_pose.second,
+                       axis, flow_output);
 
         for (auto pt : target.active_points) {
           cv::circle(flow_output, pt, 2, cv::Scalar(0, 255, 0), 1);
@@ -879,9 +902,13 @@ class SyntheticRenderer {
 
   fato::Pose upd_pose_;
 
+  fato::SyntheticTrack synth_track_;
+
   bool add_flow_noise_;
 
   unique_ptr<TrackerMB> model_tracker_;
+
+  chrono::time_point<my_clock> last_time;
 
   default_random_engine dre_;
   random_device rd_;
