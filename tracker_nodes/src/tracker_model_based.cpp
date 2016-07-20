@@ -175,8 +175,13 @@ void TrackerModel::run(string model_file) {
 
   util::HDF5File in_file(model_file);
 
-  VideoWriter video_writer("/home/alessandro/Downloads/", "pose_estimation.avi",
-                           1280, 480, 1, 30);
+  //  VideoWriter video_writer("/home/alessandro/Downloads/",
+  //  "pose_estimation.avi",
+  //                           1280, 480, 1, 30);
+
+  cv::VideoWriter video_writer("/home/alessandro/Downloads/pose_estimation.avi",
+                               CV_FOURCC('D', 'I', 'V', 'X'), 30,
+                               cv::Size(1280, 480), true);
 
   TrackerMB tracker(params, BRISK, std::move(derived));
   ROS_INFO("TrackerMB: setting model...");
@@ -261,7 +266,7 @@ void TrackerModel::run(string model_file) {
             cam.at<double>(i, j) = camera_matrix_.at<double>(i, j);
           }
         }
-        tracker.setCameraMatrix(cam);
+        tracker.setParameters(cam, rgb_image_.cols, rgb_image_.rows);
         tracker.initSynthTracking(obj_file_, cam.at<double>(0, 0),
                                   cam.at<double>(1, 1), cam.at<double>(0, 2),
                                   cam.at<double>(1, 2), rgb_image_.cols,
@@ -317,18 +322,9 @@ void TrackerModel::run(string model_file) {
         translation.at<float>(i) = target.pose_(i, 3);
       }
 
-      //      drawObjectPose(target.centroid_, cam, target.rotation_kalman,
-      //      target.translation_kalman,
-      //                     flow_output);
 
       if (target.target_found_) {
-//        auto flow_pose = target.flow_pose.toCV();
-//        drawObjectPose(target.centroid_, cam, flow_pose.first, flow_pose.second,
-//                       flow_output);
 
-//        auto synth_pose = target.synth_pose.toCV();
-//        drawObjectPose(target.centroid_, cam, synth_pose.first,
-//                       synth_pose.second, axis2, flow_output);
 
         auto w_pose = target.weighted_pose.toCV();
         drawObjectPose(target.centroid_, cam, w_pose.first, w_pose.second, axis,
@@ -337,16 +333,19 @@ void TrackerModel::run(string model_file) {
         for (auto i = 0; i < target.active_points.size(); ++i) {
           int id = target.active_to_model_.at(i);
 
-          Scalar color(0,0,255);
+          Scalar color(0, 0, 255);
 
           if (target.point_status_.at(id) == fato::KpStatus::MATCH)
             color = Scalar(255, 0, 0);
           else if (target.point_status_.at(id) == fato::KpStatus::TRACK) {
             color = Scalar(0, 255, 0);
+
             // circle(rgb_image_, target.prev_points_.at(i), 1, color);
             line(flow_output, target.prev_points_.at(i),
                  target.active_points.at(i), Scalar(255, 0, 0), 1);
           }
+          else if (target.point_status_.at(id) == fato::KpStatus::PNP) color =
+              Scalar(0, 255, 255);
 
           // circle(rgb_image_, target.prev_points_.at(i), 3, color);
           circle(flow_output, target.active_points.at(i), 1, color);
@@ -355,7 +354,6 @@ void TrackerModel::run(string model_file) {
           // center += model_points.at(i);
         }
       }
-
 
       if (target.active_to_model_.size()) {
         std::vector<Point3f> model_pts;
@@ -401,20 +399,6 @@ void TrackerModel::run(string model_file) {
         Mat rend_mat;
         tracker.getRenderedPose(target.weighted_pose, rend_mat);
 
-//         cout << target.active_points.size() << " " <<
-//         target.prev_points_.size() << endl;
-
-
-
-        // rendering_engine->render(TR);
-
-        //      std::vector<uchar4> h_texture(480 * 640);
-        //      downloadRenderedImg(*rendering_engine, h_texture);
-
-        //      cv::Mat img_rgba(480, 640, CV_8UC4, h_texture.data());
-        //      cv::Mat img_rgb;
-        //      cv::cvtColor(img_rgba, img_rgb, CV_RGBA2BGR);
-
         cv_bridge::CvImage cv_img, cv_rend, cv_flow;
         cv_img.image = rgb_image_;
         cv_img.encoding = sensor_msgs::image_encodings::BGR8;
@@ -428,20 +412,20 @@ void TrackerModel::run(string model_file) {
         cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
         flow_publisher_.publish(cv_flow.toImageMsg());
 
-        // Size sz1 = flow_output.size();
-        // Size sz2 = img_rgb.size();
-        // Mat im3(sz1.height, sz1.width+sz2.width, CV_8UC3);
-        // flow_output.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
-        // img_rgb.copyTo(im3(Rect(sz1.width, 0, sz2.width, sz2.height)));
+        Size sz1 = flow_output.size();
+        Size sz2 = rend_mat.size();
+        Mat im3(sz1.height, sz1.width + sz2.width, CV_8UC3);
+        flow_output.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
+        rend_mat.copyTo(im3(Rect(sz1.width, 0, sz2.width, sz2.height)));
 
-        // video_writer.write(im3);
+        video_writer.write(im3);
         img_updated_ = false;
         r.sleep();
       }
     }
 
-    video_writer.stopRecording();
-    //cv::destroyAllWindows();
+    // video_writer.stopRecording();
+    // cv::destroyAllWindows();
   }
 }
 

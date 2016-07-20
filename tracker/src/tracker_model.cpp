@@ -111,8 +111,10 @@ void TrackerMB::addModel(const string& h5_file) {
             << std::endl;
 }
 
-void TrackerMB::setCameraMatrix(Mat& camera_matrix) {
+void TrackerMB::setParameters(Mat& camera_matrix, int image_w, int image_h) {
   camera_matrix_ = camera_matrix.clone();
+  image_w_ = image_w;
+  image_h_ = image_h;
 }
 
 void TrackerMB::initSynthTracking(const string& object_model, double fx,
@@ -177,7 +179,7 @@ void TrackerMB::getOpticalFlow(const Mat& prev, const Mat& next,
     if (prev_status[i] == 1 && error < 5) {
       // const int& id = ids[i];
 
-      if (s == KpStatus::MATCH) s = KpStatus::PNP;
+      if (s == KpStatus::MATCH) s = KpStatus::TRACK;
 
       // saving previous location of the point, needed to compute pose from
       // motion
@@ -250,37 +252,9 @@ void TrackerMB::trackSequential(Mat& next) {
       removeOutliers(inliers);
       validateInliers(inliers);
 
-//      debug_file << "Object pose initialized with PNP ransac \n";
-
-//      stringstream ss;
-//      ss << fixed << setprecision(3);
-//      for (int i = 0; i < 3; ++i) {
-//        for (int j = 0; j < 3; ++j) {
-//          ss << target_object_.rotation.at<double>(i, j) << " ";
-//        }
-//        ss << target_object_.translation.at<double>(i) << "\n";
-//      }
-//      ss << "\n";
-//      debug_file << ss.str();
-
-//      debug_file << "Pose initialization \n";
-//      debug_file << target_object_.pnp_pose.str() << endl;
-
       // cout << "object found!" << endl;
       Eigen::MatrixXd projection_matrix = getProjectionMatrix(
           target_object_.rotation, target_object_.translation);
-
-//      debug_file << "Pojection matrix \n";
-
-//      for (int i = 0; i < 4; ++i) {
-//        for (int j = 0; j < 4; ++j) {
-//          debug_file << projection_matrix(i, j) << " ";
-//        }
-//        debug_file << "\n";
-//      }
-//      debug_file << "\n";
-
-//      debug_file.close();
 
       model_pts.clear();
       for (int i = 0; i < target_object_.active_points.size(); ++i) {
@@ -305,68 +279,48 @@ void TrackerMB::trackSequential(Mat& next) {
       target_object_.flow_pose =
           Pose(target_object_.rotation, target_object_.translation);
 
-      //initFilter(kalman_pose_pnp_, projection_matrix);
-      //initFilter(kalman_pose_flow_, projection_matrix);
+      // initFilter(kalman_pose_pnp_, projection_matrix);
+      // initFilter(kalman_pose_flow_, projection_matrix);
 
     } else {
+      // cout << "1";
 
+      // predictPose(); // kalman filter on pnp, not very useful
 
-      //cout << "1";
-
-      //predictPose(); // kalman filter on pnp, not very useful
-
-      pair<bool,vector<double>> synth_beta =
+      pair<int, vector<double>> synth_beta =
           synth_track_.poseFromSynth(target_object_.weighted_pose, next);
 
-      //cout << "2";
+      // cout << "2";
 
-      vector<double> beta = poseFromFlow();
-      target_object_.flow_pose.transform(beta);
-      vector<double> weigthed_beta(6,0);
+      std::pair<int, vector<double>> beta = poseFromFlow();
+      target_object_.flow_pose.transform(beta.second);
+      vector<double> weigthed_beta(6, 0);
 
+      float total_features = static_cast<float>(beta.first + synth_beta.first);
 
-      double w = 0;
-      if(synth_beta.first)// pose estimated by synth should be valid
-      {
-          w = 0.5;
+      if (total_features == 0)
+        target_object_.target_found_ = false;
+      else {
+        float ratio = beta.first / total_features;
+
+        if (synth_beta.first > 0)  // pose estimated by synth should be valid
+        {
           target_object_.synth_pose.transform(synth_beta.second);
+        }
+
+        cout << "estimation: " << beta.first << " " << synth_beta.first << " "
+             << ratio << endl;
+
+        for (auto i = 0; i < 6; ++i) {
+          weigthed_beta[i] =
+              ((1 - ratio) * synth_beta.second[i] + ratio * beta.second[i]);
+        }
+
+        target_object_.weighted_pose.transform(weigthed_beta);
+        // updatePointsDepth(target_object_, target_object_.weighted_pose);
+        updatePointsDepthFromZBuffer(target_object_,
+                                     target_object_.weighted_pose);
       }
-
-      //cout << "3";
-
-//      stringstream ss,ss1,ss2;
-
-//      ss << fixed << setprecision(3) << "synth: ";
-//      ss1 << fixed << setprecision(3) << "flow : ";
-//      ss2 << fixed << setprecision(3) << "weigh: ";
-
-      for(auto i = 0; i < 6; ++i)
-      {
-        weigthed_beta[i] = (w * synth_beta.second[i] + (1-w) * beta[i]);
-//        ss << synth_beta.second[i] << " ";
-//        ss1 << beta[i] << " ";
-//        ss2 << weigthed_beta[i] << " ";
-      }
-
-//      debug_file << ss.str() << "\n" << ss1.str() << "\n" << ss2.str() << "\n";
-
-//      debug_file << target_object_.synth_pose.str() << "\n";
-//      debug_file << target_object_.flow_pose.str() << "\n";
-//      debug_file << target_object_.weighted_pose.str() << "\n";
-
-      target_object_.weighted_pose.transform(weigthed_beta);
-
-      //cout << "4";
-
-      updatePointsDepth(target_object_, target_object_.weighted_pose);
-
-//      if(target_object_.active_points.size() < 4)
-//      {
-//          target_object_.target_found_ = false;
-//          cout << "object lost!" << endl;
-//      }
-
-      //cout << "5\n";
     }
   } else {
     target_object_.rotation = Mat(3, 3, CV_64FC1, 0.0f);
@@ -524,7 +478,7 @@ void TrackerMB::poseFromPnP(vector<Point3f>& model_pts, vector<int>& inliers) {
   solvePnPRansac(model_pts, target_object_.active_points, camera_matrix_,
                  Mat::zeros(1, 8, CV_64F), target_object_.rotation_vec,
                  target_object_.translation, true, num_iters, ransac_error,
-                 model_pts.size(), inliers, CV_EPNP);
+                 model_pts.size(), inliers, CV_ITERATIVE);
 
   try {
     Rodrigues(target_object_.rotation_vec, target_object_.rotation);
@@ -533,7 +487,7 @@ void TrackerMB::poseFromPnP(vector<Point3f>& model_pts, vector<int>& inliers) {
   }
 }
 
-vector<double> TrackerMB::poseFromFlow() {
+pair<int, vector<double>> TrackerMB::poseFromFlow() {
   vector<Point2f> prev_points;
   vector<Point2f> curr_points;
   vector<float> depths;
@@ -542,17 +496,18 @@ vector<double> TrackerMB::poseFromFlow() {
   curr_points.reserve(target_object_.active_points.size());
   depths.reserve(target_object_.active_points.size());
 
-  // cout << "BEFORE POSE" << endl;
-
   for (auto i = 0; i < target_object_.active_points.size(); ++i) {
     int id = target_object_.active_to_model_.at(i);
     if (!is_nan(target_object_.projected_depth_.at(id))) {
       prev_points.push_back(target_object_.prev_points_.at(i));
       curr_points.push_back(target_object_.active_points.at(i));
       depths.push_back(target_object_.projected_depth_.at(id));
-      // cout << setprecision(3) << fixed <<
-      // target_object_.projected_depth_.at(id) << " " << endl;
     }
+  }
+
+  if (prev_points.size() == 0) {
+    vector<double> bad_pose{0, 0, 0, 0, 0, 0};
+    return pair<bool, vector<double>>(false, bad_pose);
   }
 
   float nodal_x = camera_matrix_.at<double>(0, 2);
@@ -560,43 +515,26 @@ vector<double> TrackerMB::poseFromFlow() {
   float focal_x = camera_matrix_.at<double>(0, 0);
   float focal_y = camera_matrix_.at<double>(1, 1);
 
-  vector<float> t, r;
-  //  getPoseFromFlow(prev_points, depths, curr_points, nodal_x, nodal_y,
-  //  focal_x,
-  //                  focal_y, t, r);
+  vector<double> std_beta(6, 0);
 
-  vector<int> outliers;
-  getPoseFromFlowRobust(prev_points, depths, curr_points, nodal_x, nodal_y,
-                        focal_x, focal_y, 10, t, r, outliers);
-  //  cout << "outliers size " << outliers.size() << endl;
+  if (prev_points.size() > 4) {
+    vector<float> t, r;
+    vector<int> outliers;
+    Eigen::VectorXf beta;
+    beta = getPoseFromFlowRobust(prev_points, depths, curr_points, nodal_x,
+                                 nodal_y, focal_x, focal_y, 10, t, r, outliers);
+    target_object_.removeInvalidPoints(outliers);
 
-  target_object_.removeInvalidPoints(outliers);
+    for (auto i = 0; i < 6; ++i) {
+      std_beta.at(i) = beta(i);
+    }
 
-//  Eigen::Matrix3d rot_view;
-//  rot_view = Eigen::AngleAxisd(r.at(2), Eigen::Vector3d::UnitZ()) *
-//             Eigen::AngleAxisd(r.at(1), Eigen::Vector3d::UnitY()) *
-//             Eigen::AngleAxisd(r.at(0), Eigen::Vector3d::UnitX());
+    cout << prev_points.size() << " " << outliers.size() << " "
+         << target_object_.active_points.size() << endl;
+  }
 
-//  Eigen::Matrix4d proj_mat(4, 4);
-
-//  for (int i = 0; i < 3; ++i) {
-//    for (int j = 0; j < 3; ++j) {
-//      proj_mat(i, j) = rot_view(i, j);
-//    }
-//    proj_mat(i, 3) = t[i];
-//    proj_mat(3, i) = 0;
-//  }
-//  proj_mat(3, 3) = 1;
-
-//  // cout << "z check " << target_object_.pose_(2,3) << " " <<
-//  // target_object_.kalman_pose_(2,3) << endl;
-
-//  //predictPoseFlow(t, r);
-
-//  target_object_.pose_ = proj_mat * target_object_.pose_;
-
-  return vector<double>{t[0], t[1], t[2], r[0], r[1], r[2]};
-
+  return pair<int, vector<double>>(target_object_.active_points.size(),
+                                   std_beta);
 }
 
 void TrackerMB::projectPointsDepth(std::vector<Point3f>& points,
@@ -1000,7 +938,7 @@ void TrackerMB::predictPoseFlow(std::vector<float>& t, std::vector<float> r) {
 
 #endif
 
-  //target_object_.flow_pose = updated_pose;
+  // target_object_.flow_pose = updated_pose;
 
   //  rot_view =
   //      Eigen::AngleAxisd(estimated.at<float>(11), Eigen::Vector3d::UnitZ()) *
@@ -1015,36 +953,66 @@ void TrackerMB::predictPoseFlow(std::vector<float>& t, std::vector<float> r) {
   //  }
 }
 
-void TrackerMB::updatePointsDepth(Target &t, Pose &p)
-{
-    vector<Point3f> model_pts;
-    for (int i = 0; i < t.active_points.size(); ++i) {
-      const int& id = t.active_to_model_.at(i);
-      model_pts.push_back(t.model_points_.at(id));
-    }
-    vector<float> projected_depth;
-    // projectPointsDepth(model_pts, target_object_.pose_, projected_depth);
+void TrackerMB::updatePointsDepth(Target& t, Pose& p) {
+  vector<Point3f> model_pts;
+  for (int i = 0; i < t.active_points.size(); ++i) {
+    const int& id = t.active_to_model_.at(i);
+    model_pts.push_back(t.model_points_.at(id));
+  }
+  vector<float> projected_depth;
+  // projectPointsDepth(model_pts, target_object_.pose_, projected_depth);
 
-    Eigen::MatrixXd pose(4, 4);
-    //Eigen::Matrix4d tmp_pose = target_object_.flow_pose.getPose();
-    Eigen::Matrix4d tmp_pose = p.getPose();
+  Eigen::MatrixXd pose(4, 4);
+  // Eigen::Matrix4d tmp_pose = target_object_.flow_pose.getPose();
+  Eigen::Matrix4d tmp_pose = p.getPose();
 
-    for (auto i = 0; i < 4; ++i) {
-      for (auto j = 0; j < 4; ++j) pose(i, j) = tmp_pose(i, j);
-    }
+  for (auto i = 0; i < 4; ++i) {
+    for (auto j = 0; j < 4; ++j) pose(i, j) = tmp_pose(i, j);
+  }
 
-    projectPointsDepth(model_pts, pose, projected_depth);
+  projectPointsDepth(model_pts, pose, projected_depth);
 
-    for (auto i = 0; i < t.active_points.size(); ++i) {
-      const int& id = t.active_to_model_.at(i);
-      t.projected_depth_.at(id) = projected_depth.at(i);
-    }
+  for (auto i = 0; i < t.active_points.size(); ++i) {
+    const int& id = t.active_to_model_.at(i);
+    t.projected_depth_.at(id) = projected_depth.at(i);
+  }
 }
 
-void TrackerMB::getRenderedPose(const Pose &p, Mat &out)
-{
-    std::vector<float> z_buffer;
-    synth_track_.renderObject(p, out, z_buffer);
+void TrackerMB::updatePointsDepthFromZBuffer(Target& t, Pose& p) {
+  std::vector<float> z_buffer;
+  Mat out;
+  synth_track_.renderObject(p, out, z_buffer);
+
+  vector<int> invalid_ids;
+
+  for (auto i = 0; i < t.active_points.size(); ++i) {
+    const int& id = t.active_to_model_.at(i);
+    Point2f& pt = t.active_points.at(i);
+
+    int x = floor(pt.x);
+    int y = floor(pt.y);
+
+    if (x < 0 || x > image_w_ || y < 0 || y > image_h_) {
+      invalid_ids.push_back(i);
+      continue;
+    }
+
+    float depth = z_buffer.at(x + y * image_w_);
+
+    if (is_nan(depth)) {
+      invalid_ids.push_back(i);
+      continue;
+    }
+
+    t.projected_depth_.at(id) = depth;
+  }
+
+  t.removeInvalidPoints(invalid_ids);
+}
+
+void TrackerMB::getRenderedPose(const Pose& p, Mat& out) {
+  std::vector<float> z_buffer;
+  synth_track_.renderObject(p, out, z_buffer);
 }
 
 }  // end namespace pinot

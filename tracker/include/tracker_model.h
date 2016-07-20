@@ -74,7 +74,7 @@ class TrackerMB {
 
   void addModel(const std::string& h5_file);
 
-  void setCameraMatrix(cv::Mat& camera_matrix);
+  void setParameters(cv::Mat& camera_matrix, int image_w, int image_h);
   // TODO: merge the initialization to force order of init things, synth depends
   // from camera
   void initSynthTracking(const std::string& object_model, double fx, double fy,
@@ -168,7 +168,7 @@ class TrackerMB {
   void poseFromPnP(std::vector<cv::Point3f>& model_pts,
                    std::vector<int>& inliers);
 
-  std::vector<double> poseFromFlow();
+  std::pair<int, std::vector<double> > poseFromFlow();
 
   void projectPointsDepth(std::vector<cv::Point3f>& points,
                           Eigen::MatrixXd& projection,
@@ -182,7 +182,9 @@ class TrackerMB {
 
   void updatePointsDepth(Target& t, Pose& p);
 
-  int m_height, m_width;
+  void updatePointsDepthFromZBuffer(Target& t, Pose& p);
+
+  int image_w_, image_h_;
 
   std::future<int> m_trackerStatus, m_detectorStatus;
 

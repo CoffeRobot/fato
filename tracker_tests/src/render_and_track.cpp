@@ -721,7 +721,7 @@ class SyntheticRenderer {
 
     while (ros::ok()) {
       if (!tracker_initialized && initialized_) {
-        model_tracker_->setCameraMatrix(camera_matrix_);
+        model_tracker_->setParameters(camera_matrix_, camera_image.cols, camera_image.rows);
         tracker_initialized = true;
       }
 

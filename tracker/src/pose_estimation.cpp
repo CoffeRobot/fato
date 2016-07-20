@@ -37,6 +37,7 @@
 #include <eigen3/Eigen/Geometry>
 #include <algorithm>
 #include <stdexcept>
+#include <iostream>
 
 using namespace std;
 using namespace cv;

@@ -60,7 +60,7 @@ void SyntheticTrack::init(double nodal_x, double nodal_y, double focal_x,
   namedWindow("synthetic_pose");
 }
 
-pair<bool,vector<double>> SyntheticTrack::poseFromSynth(Pose prev_pose, cv::Mat& curr_img) {
+pair<int,vector<double>> SyntheticTrack::poseFromSynth(Pose prev_pose, cv::Mat& curr_img) {
   Mat rendered_image;
   vector<float> z_buffer;
   renderObject(prev_pose, rendered_image, z_buffer);
@@ -85,33 +85,23 @@ pair<bool,vector<double>> SyntheticTrack::poseFromSynth(Pose prev_pose, cv::Mat&
     depth_pts.push_back(depth);
   }
 
-//   cout << "before debug" << endl;
-  // debug(rendered_gray, gray_next, prev_pts, next_pts, prev_pose, prev_pose);
-//  cout << "after debug" << endl;
-
   vector<float> translation;
   vector<float> rotation;
   vector<int> outliers;
 
-
   Eigen::VectorXf beta;
   vector<double> std_beta(6,0);
-  bool valid_pose = false;
+
   if(prev_pts.size() > 4)
   {
     beta = getPoseFromFlowRobust(prev_pts, depth_pts, next_pts, nodal_x_,
                                     nodal_y_, focal_x_, focal_y_, 10,
                                     translation, rotation, outliers);
-
     for(auto i = 0; i < 6; ++i)
         std_beta[i] = beta(i);
-
-    valid_pose = true;
   }
 
-
-
-  return pair<bool,vector<double>>(valid_pose, std_beta);
+  return pair<int,vector<double>>(prev_pts.size(), std_beta);
 }
 
 void SyntheticTrack::renderObject(Pose prev_pose, Mat& rendered_image,
@@ -181,8 +171,9 @@ void SyntheticTrack::trackCorners(cv::Mat& rendered_image, cv::Mat& next_img,
 
   for (int i = 0; i < tmp_prev_pts.size(); ++i) {
     float error = getDistance(backflow_pts[i], tmp_prev_pts[i]);
+    float speed = getDistance(tmp_prev_pts[i], tmp_next_pts[i]);
 
-    if (prev_status[i] == 1 && error < 5) {
+    if (prev_status[i] == 1 && error < 5 && speed < 50) {
       // const int& id = ids[i];
       prev_pts.push_back(tmp_prev_pts[i]);
       next_pts.push_back(tmp_next_pts[i]);
@@ -203,9 +194,10 @@ void SyntheticTrack::debug(Mat& rendered_img, Mat& next_img,
   for (auto i = 0; i < prev_pts.size(); ++i) {
     cv::circle(debug_img, prev_pts.at(i), 3, Scalar(0, 255, 0), 1);
     Point2f pt = next_pts.at(i);
-    pt.x += img_w_;
+    //pt.x += img_w_;
     cv::circle(debug_img, pt, 3, Scalar(0, 255, 0), 1);
-    line(debug_img, prev_pts.at(i), pt, Scalar(0, 255, 0), 1);
+    line(debug_img, prev_pts.at(i), pt, Scalar(255, 0, 0), 1);
+
   }
 
   imshow("synthetic_pose", debug_img);

@@ -52,7 +52,7 @@ class SyntheticTrack {
   void init(double nodal_x, double nodal_y, double focal_x,
             double focal_y, int img_w, int img_h, pose::MultipleRigidModelsOgre* rendering_engine);
 
-  std::pair<bool, std::vector<double> > poseFromSynth(Pose prev_pose, cv::Mat &curr_img);
+  std::pair<int, std::vector<double> > poseFromSynth(Pose prev_pose, cv::Mat &curr_img);
 
   void renderObject(Pose prev_pose, cv::Mat &rendered_image,
                     std::vector<float> &z_buffer);
