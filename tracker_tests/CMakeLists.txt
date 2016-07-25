@@ -49,6 +49,16 @@ find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 find_package(Boost COMPONENTS filesystem system REQUIRED)
 
+find_package(VisionWorks REQUIRED)
+
+if(VisionWorks_FOUND)
+  message("VisionWorks found!")
+  message("Vision works includes: ${VisionWorks_INCLUDE_DIRS}")
+  message("Vision works libraries: ${VisionWorks_LIBRARIES}")
+endif()
+
+
+
 add_service_files(
   DIRECTORY srv
   FILES RenderService.srv
@@ -95,6 +105,15 @@ if(TRACKER_WITH_GPU)
     ${OpenCV_INCLUDE_DIRS}
     ${EIGEN_INCLUDE_DIR}
     ${Boost_INCLUDE_DIRS}
+    ${CUDA_INCLUDE_DIRS}
+  )
+elseif(VisionWorks_FOUND)
+  include_directories(include
+    ${catkin_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}
+    ${EIGEN_INCLUDE_DIR}
+    ${Boost_INCLUDE_DIRS}
+    ${VisionWorks_INCLUDE_DIRS}
     ${CUDA_INCLUDE_DIRS}
   )
 else()
@@ -159,6 +178,19 @@ add_dependencies(
  synthetic_track
   ${PROJECT_NAME}_generate_messages_cpp
 )
+
+if(VisionWorks_FOUND)
+  add_executable(vw_integration
+    src/vw_integration.cpp)
+
+  target_link_libraries(vw_integration
+    ${catkin_LIBRARIES}
+    ${OPENCV_LIBS}
+    ${Boost_LIBRARIES}
+    ${VisionWorks_LIBRARIES}
+    ${CUDA_LIBRARIES})
+
+endif()
 
 
 

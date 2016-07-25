@@ -17,6 +17,10 @@ find_package(CUDA 6.5 REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 find_package(urdfdom REQUIRED)
+find_package(VisionWorks REQUIRED)
+
+message("Vision works includes: ${VisionWorks_INCLUDE_DIRS}")
+message("Vision works libraries: ${VisionWorks_LIBRARIES}")
 
 set(GENCODE_SM20 -gencode=arch=compute_20,code=sm_20)
 set(GENCODE_SM30 -gencode=arch=compute_30,code=sm_30)
@@ -122,6 +126,7 @@ catkin_package(
     include
     ${OGRE_OV_INCLUDE_DIRS}
     ${CUDA_INCLUDE_DIRS}
+    ${VisionWorks_INCLUDE_DIRS}
   DEPENDS
     libx11-dev
     opengl
@@ -149,6 +154,7 @@ include_directories(include
   ${EIGEN_INCLUDE_DIR}
   ${OGRE_OV_INCLUDE_DIRS}
   ${urdfdom_INCLUDE_DIRS}
+  ${VisionWorks_INCLUDE_DIRS}
 )
 
 cuda_add_library(${PROJECT_NAME}
@@ -163,5 +169,6 @@ target_link_libraries(${PROJECT_NAME}
   ${OGRE_OV_LIBRARIES_ABS}
   ${CUDA_LIBRARIES}
   ${urdfdom_LIBRARIES}
+  ${VisionWorks_LIBRARIES}
   assimp
 )
