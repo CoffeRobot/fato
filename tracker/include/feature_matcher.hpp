@@ -42,7 +42,6 @@
 #include "config.h"
 #include "matcher.h"
 
-
 namespace fato {
 
 enum FEATURE_TYPE {
@@ -59,7 +58,6 @@ enum FEATURE_TYPE {
 };
 
 struct Match {
-
   int query_id;
   int train_id;
   float confidence;  // score of the match
@@ -72,148 +70,136 @@ struct Match {
   }
 };
 
-static std::string featureId2Name(int id)
-{
-    switch (id) {
+static std::string featureId2Name(int id) {
+  switch (id) {
     case FEATURE_TYPE::BRISK:
-        return "brisk";
-        break;
+      return "brisk";
+      break;
     case FEATURE_TYPE::ORB:
-        return "orb";
-        break;
+      return "orb";
+      break;
     case FEATURE_TYPE::AKAZE:
-        return "akaze";
-        break;
+      return "akaze";
+      break;
     case FEATURE_TYPE::SURF:
-        return "surf";
-        break;
+      return "surf";
+      break;
     case FEATURE_TYPE::SIFT:
-        return "sift";
-        break;
+      return "sift";
+      break;
     case FEATURE_TYPE::AKAZE_CUS:
-        return "akazec";
-        break;
+      return "akazec";
+      break;
     case FEATURE_TYPE::CUDA_SIFT:
-        return "cuda_sift";
-        break;
+      return "cuda_sift";
+      break;
     case FEATURE_TYPE::CUDA_AKAZE:
-        return "cuda_akaze";
-        break;
+      return "cuda_akaze";
+      break;
     case FEATURE_TYPE::CUDA_ORB:
-        return "cuda_orb";
-        break;
+      return "cuda_orb";
+      break;
     default:
-        break;
-    }
+      break;
+  }
 }
 
 class FeatureMatcher {
-
  public:
-
   virtual ~FeatureMatcher() = 0;
 
   virtual void extractTarget(const cv::Mat& img) = 0;
 
   virtual void setTarget(const cv::Mat& descriptors) = 0;
 
-  virtual void match(const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
-             cv::Mat& query_descriptors,
-             std::vector<std::vector<cv::DMatch>>& matches) = 0;
+  virtual void match(const cv::Mat& img,
+                     std::vector<cv::KeyPoint>& query_keypoints,
+                     cv::Mat& query_descriptors,
+                     std::vector<std::vector<cv::DMatch>>& matches) = 0;
+
+  virtual void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
+               cv::Mat& descriptors) = 0;
 
   virtual std::vector<cv::KeyPoint>& getTargetPoints() = 0;
   virtual cv::Mat& getTargetDescriptors() = 0;
 
-protected:
+ protected:
   FeatureMatcher(){};
-
 };
 
-
 class BriskMatcher : public FeatureMatcher {
+ public:
+  BriskMatcher();
 
+  ~BriskMatcher();
 
-public:
+  void init(int feature_id);
 
-    BriskMatcher();
+  void extractTarget(const cv::Mat& img);
 
-    ~BriskMatcher();
+  void setTarget(const cv::Mat& descriptors);
 
-    void init(int feature_id);
+  void match(const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
+             cv::Mat& query_descriptors,
+             std::vector<std::vector<cv::DMatch>>& matches);
 
-    void extractTarget(const cv::Mat& img);
+  std::vector<cv::KeyPoint>& getTargetPoints();
 
-    void setTarget(const cv::Mat& descriptors);
+  cv::Mat& getTargetDescriptors();
 
-    void match(const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
-                 cv::Mat& query_descriptors,
-                 std::vector<std::vector<cv::DMatch>>& matches);
+  cv::Mat getTrainDescriptors();
 
-    std::vector<cv::KeyPoint>& getTargetPoints();
+  void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
+               cv::Mat& descriptors);
 
-    cv::Mat& getTargetDescriptors();
+ private:
+  cv::Ptr<cv::DescriptorMatcher> matcher_;
+  CustomMatcher matcher_custom_;
 
-private:
+  int feature_id_;
+  std::string feature_name;
+  cv::BRISK opencv_detector_;
 
-    cv::Ptr<cv::DescriptorMatcher> matcher_;
-    CustomMatcher matcher_custom_;
+  cv::Mat train_descriptors_;
+  std::vector<cv::KeyPoint> train_keypoints_;
 
-    int feature_id_;
-    std::string feature_name;
-    cv::BRISK opencv_detector_;
-
-    cv::Mat train_descriptors_;
-    std::vector<cv::KeyPoint> train_keypoints_;
-
-
-    void initExtractor();
-
-    void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
-                 cv::Mat& descriptors);
+  void initExtractor();
 };
 
 class OrbMatcher : public FeatureMatcher {
+ public:
+  OrbMatcher();
 
+  ~OrbMatcher();
 
-public:
+  void extractTarget(const cv::Mat& img);
 
-    OrbMatcher();
+  void setTarget(const cv::Mat& descriptors);
 
-    ~OrbMatcher();
+  void match(const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
+             cv::Mat& query_descriptors,
+             std::vector<std::vector<cv::DMatch>>& matches);
 
-    void extractTarget(const cv::Mat& img);
+  std::vector<cv::KeyPoint>& getTargetPoints();
 
-    void setTarget(const cv::Mat& descriptors);
+  cv::Mat& getTargetDescriptors();
 
-    void match(const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
-                 cv::Mat& query_descriptors,
-                 std::vector<std::vector<cv::DMatch>>& matches);
+  void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
+               cv::Mat& descriptors);
+ private:
+  CustomMatcher matcher_custom_;
 
-    std::vector<cv::KeyPoint>& getTargetPoints();
+  int feature_id_;
+  std::string feature_name;
+  cv::ORB opencv_detector_;
 
-    cv::Mat& getTargetDescriptors();
+  cv::Mat train_descriptors_;
+  std::vector<cv::KeyPoint> train_keypoints_;
 
-private:
-
-    CustomMatcher matcher_custom_;
-
-    int feature_id_;
-    std::string feature_name;
-    cv::ORB opencv_detector_;
-
-    cv::Mat train_descriptors_;
-    std::vector<cv::KeyPoint> train_keypoints_;
-
-
-    void initExtractor();
-
-    void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
-                 cv::Mat& descriptors);
+  void initExtractor();
 
 };
 
-
 }  // end namespace
-
 
 #endif  // FEATURE_MATCHER_HPP

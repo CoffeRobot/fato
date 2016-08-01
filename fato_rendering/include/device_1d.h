@@ -195,4 +195,6 @@ std::runtime_error Device1D<Type>::cudaException(std::string functionName,
   return (std::runtime_error(functionName +
                              std::string(cudaGetErrorString(error))));
 }
+
+
 }

@@ -33,6 +33,7 @@
 //#define UNROLL_INNER
 //#define IMUL(a, b) __mul24(a, b)
 #include "utility_kernels.h"
+#include <stdexcept>
 
 namespace vision {
 
@@ -55,10 +56,10 @@ __global__ void deInterleave_kernel(float *d_X_out, float *d_Y_out,
   unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if ((x < width) & (y < height)) { // are we in the image?
+  if ((x < width) & (y < height)) {  // are we in the image?
     float2 XY = *((float2 *)((char *)d_XY_in + y * pitch_in) + x);
-    *((float *)((char *)d_X_out + y *pitch_out) + x) = XY.x;
-    *((float *)((char *)d_Y_out + y *pitch_out) + x) = XY.y;
+    *((float *)((char *)d_X_out + y * pitch_out) + x) = XY.x;
+    *((float *)((char *)d_Y_out + y * pitch_out) + x) = XY.y;
   }
 }
 
@@ -68,10 +69,10 @@ __global__ void deInterleave_kernel2(float *d_X_out, float *d_Y_out,
   unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if ((x < width) & (y < height)) { // are we in the image?
+  if ((x < width) & (y < height)) {  // are we in the image?
     float *data = (float *)(d_XY_in + y * pitch_in) + 2 * x;
-    *((float *)((char *)d_X_out + y *pitch_out) + x) = data[0];
-    *((float *)((char *)d_Y_out + y *pitch_out) + x) = data[1];
+    *((float *)((char *)d_X_out + y * pitch_out) + x) = data[0];
+    *((float *)((char *)d_Y_out + y * pitch_out) + x) = data[1];
   }
 }
 
@@ -81,7 +82,7 @@ __global__ void IMOMask_kernel(float *d_IMOMask, float *d_IMO,
   unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if ((x < n_cols) & (y < n_rows)) // are we in the image?
+  if ((x < n_cols) & (y < n_rows))  // are we in the image?
   {
     unsigned int ind = x + y * n_cols;
     if (!(bool)(d_IMOMask[ind])) {
@@ -95,7 +96,7 @@ __global__ void matchValidity_kernel(float *d_flow, float *d_disparity,
   unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if ((x < n_cols) & (y < n_rows)) // are we in the image?
+  if ((x < n_cols) & (y < n_rows))  // are we in the image?
   {
     unsigned int ind = x + y * n_cols;
     bool valid = (isfinite(d_flow[ind]) && isfinite(d_disparity[ind]));
@@ -287,7 +288,6 @@ __global__ void convertFlowToRGBA_kernel(uchar4 *d_flowx_out,
 
     // first draw unmatched pixels in white
     if (!isfinite(ux) || (mag < minMag)) {
-
       tempx.x = 255;
       tempx.y = 255;
       tempx.z = 255;
@@ -298,7 +298,6 @@ __global__ void convertFlowToRGBA_kernel(uchar4 *d_flowx_out,
       tempy.w = 255;
 
     } else {
-
       // rescale value from [lowerLim,upperLim] to [0,1]
       ux -= lowerLim;
       ux /= (upperLim - lowerLim);
@@ -409,6 +408,66 @@ __global__ void convertFloatArrayToGrayRGBA_kernel(uchar4 *out_image, int width,
   }
 }
 
+// Convert float array to grayscale
+__global__ void convertFloatArrayToGray_kernel(uchar *out_image, int width,
+                                               int height, float lower_lim,
+                                               float upper_lim) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (x < width && y < height) {
+    float val = tex2D(d_float_texture0, (float)x + 0.5f, (float)y + 0.5f);
+
+    // rescale value from [lowerLim,upperLim] to [0,255]
+    val -= lower_lim;
+    val /= (upper_lim - lower_lim);
+    val *= 255.0;
+
+    out_image[y * width + x] = (uchar)val;
+  }
+}
+
+// Convert float array to grayscale
+__global__ void convertFloatArrayToGrayVX_kernel(uchar *out_image, int width,
+                                               int height, int step, float lower_lim,
+                                               float upper_lim) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (x < width && y < height) {
+    float val = tex2D(d_float_texture0, (float)x + 0.5f, (float)y + 0.5f);
+
+    uchar *dst_row = (uchar *)(out_image + y * step);
+
+    // rescale value from [lowerLim,upperLim] to [0,255]
+    val -= lower_lim;
+    val /= (upper_lim - lower_lim);
+    val *= 255.0;
+
+    dst_row[x] = (uchar)val;
+  }
+}
+
+// Convert pitched float to RGBA grayscale
+__global__ void convertPitchedFloatToGray_kernel(uchar *out_image, int width,
+                                                 int height, float lowerLim,
+                                                 float upperLim) {
+  const int x = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
+  const int y = __mul24(blockIdx.y, blockDim.y) + threadIdx.y;
+
+  if (x < width && y < height) {
+    //    float val = in_image[__mul24(y,pitch)+x];
+    float val = tex2D(d_float_texture0, (float)x + 0.5f, (float)y + 0.5f);
+
+    // rescale value from [lowerLim,upperLim] to [0,255]
+    val -= lowerLim;
+    val /= (upperLim - lowerLim);
+    val *= 255.0;
+
+    out_image[__mul24(y, width) + x] = val;
+  }
+}
+
 // Merge two grayscale images into RGBA anaglyph
 
 __global__ void createAnaglyph_kernel(uchar4 *out_image,
@@ -421,7 +480,6 @@ __global__ void createAnaglyph_kernel(uchar4 *out_image,
   uchar4 temp;
 
   if (x < width && y < height) {
-
     temp.x = left_image[__mul24(y, width) + x];
 
     if (x_right > 0 && x_right < width) {
@@ -448,7 +506,6 @@ __global__ void createAnaglyph_kernel(uchar4 *out_image,
   uchar4 temp;
 
   if (x < width && y < height) {
-
     temp.x = rgbaToGray(left_image[y * width + x]);
 
     if (x_right > 0 && x_right < width) {
@@ -609,7 +666,6 @@ __global__ void blendFloatImageFloatLabelToRGBA_kernel(
       temp.w = 255;
 
     } else {
-
       // blend
 
       temp.x = 0.6f * img;
@@ -658,7 +714,6 @@ __global__ void blendFloatImageRGBAArrayToRGBA_kernel(uchar4 *out_image,
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
   uchar4 temp;
   if (x < width && y < height) {
-
     float img = in_image[y * width + x];
     uchar4 t = tex2D(d_rgba_texture, (float)x + 0.5f, (float)y + 0.5f);
     float model = rgbaToGray(t);
@@ -669,13 +724,13 @@ __global__ void blendFloatImageRGBAArrayToRGBA_kernel(uchar4 *out_image,
     // increase image brightness
     unsigned char u_img = (unsigned char)(img);
 
-    if (t.w == 0) { // outside mask -> don't blend
+    if (t.w == 0) {  // outside mask -> don't blend
 
       temp.x = u_img;
       temp.y = u_img;
       temp.z = u_img;
 
-    } else { // blend
+    } else {  // blend
 
       temp.x = 0;
       temp.y = avg;
@@ -695,7 +750,6 @@ __global__ void blendFloatImageFloatArrayToRGBA_kernel(uchar4 *out_image,
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
   uchar4 temp;
   if (x < width && y < height) {
-
     float img = *((const float *)((const char *)in_image + y * pitch_in) + x);
     float model = tex2D(d_float_texture0, (float)x + 0.5f, (float)y + 0.5f);
     bool valid = (model != 0.0f);
@@ -708,13 +762,13 @@ __global__ void blendFloatImageFloatArrayToRGBA_kernel(uchar4 *out_image,
     // increase image brightness
     unsigned char u_img = (unsigned char)(img);
 
-    if (!valid) { // outside mask (or just black) -> don't blend
+    if (!valid) {  // outside mask (or just black) -> don't blend
 
       temp.x = u_img;
       temp.y = u_img;
       temp.z = u_img;
 
-    } else { // blend
+    } else {  // blend
 
       temp.x = 0;
       temp.y = avg;
@@ -731,7 +785,6 @@ __global__ void blendMultiColor_kernel(uchar4 *out_image, const float *in_image,
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
   uchar4 temp;
   if (x < width && y < height) {
-
     float img = in_image[y * width + x];
 
     // determine gl coord
@@ -750,15 +803,15 @@ __global__ void blendMultiColor_kernel(uchar4 *out_image, const float *in_image,
       temp.x = u_img;
       temp.y = u_img;
       temp.z = u_img;
-    } else if (segment_ind == 10) { // shelf
+    } else if (segment_ind == 10) {  // shelf
       temp.x = (unsigned char)(0.8f * img + 0.2f * model);
       temp.y = 0;
       temp.z = 0;
-    } else if (segment_ind >= 20) { // robot
+    } else if (segment_ind >= 20) {  // robot
       temp.x = 0;
       temp.y = 0;
       temp.z = (unsigned char)(0.8f * img + 0.2f * model);
-    } else { // object
+    } else {  // object
       temp.x = 0;
       temp.y = (unsigned char)(0.5f * img + 0.5f * model);
       temp.z = (unsigned char)(abs(img - model));
@@ -774,10 +827,9 @@ __global__ void augmentedReality_kernel(float *out_image, const float *in_image,
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (x < width && y < height) {
-
     float img_back = *((float *)((char *)in_image + y * pitch) + x);
     uchar4 img_front = tex2D(d_rgba_texture, (float)x + 0.5f, (float)y + 0.5f);
-    *((float *)((char *)out_image + y *pitch) + x) =
+    *((float *)((char *)out_image + y * pitch) + x) =
         (img_front.w == 255) ? rgbaToGray(img_front) : img_back;
   }
 }
@@ -790,13 +842,12 @@ __global__ void augmentedRealityFloatArray_kernel(float *out_image,
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (x < width && y < height) {
-
     float img_back = *((float *)((char *)in_image + y * pitch) + x);
     float img_front = tex2D(d_float_texture0, (float)x + 0.5f, (float)y + 0.5f);
     bool valid = (img_front != 0.0f);
     img_front = img_front - 1.0f;
     img_front *= 255.0;
-    *((float *)((char *)out_image + y *pitch) + x) =
+    *((float *)((char *)out_image + y * pitch) + x) =
         valid ? img_front : img_back;
   }
 }
@@ -808,7 +859,6 @@ __global__ void augmentedRealityFloatArraySelectiveBlend_kernel(
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (x < width && y < height) {
-
     float img_back = *((float *)((char *)in_image + y * pitch) + x);
 
     // determine gl coord
@@ -821,7 +871,7 @@ __global__ void augmentedRealityFloatArraySelectiveBlend_kernel(
     bool valid = (segment_ind > 0) && (segment_ind <= max_segment_ind);
     img_front = img_front - 1.0f;
     img_front *= 255.0;
-    *((float *)((char *)out_image + y *pitch) + x) =
+    *((float *)((char *)out_image + y * pitch) + x) =
         valid ? img_front : img_back;
   }
 }
@@ -832,7 +882,6 @@ __global__ void colorBlend_kernel(uchar4 *out_image, const uchar4 *in_image,
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (x < width && y < height) {
-
     uchar4 out;
     int IND = y * width + x;
 
@@ -840,7 +889,7 @@ __global__ void colorBlend_kernel(uchar4 *out_image, const uchar4 *in_image,
     uchar4 img_front = tex2D(d_rgba_texture, (float)x + 0.5f, (float)y + 0.5f);
 
     float alpha_front = alpha_scale * 0.0039215686274510f *
-                        (float)img_front.w; // divide by 255 and scale
+                        (float)img_front.w;  // divide by 255 and scale
     float alpha_back = 1.0f - alpha_front;
 
     out.x = alpha_front * img_front.x + alpha_back * img_back.x;
@@ -889,7 +938,7 @@ __global__ void colorInvalids_kernel(uchar4 *out_image, const float *in_image,
     uchar4 temp = out_image[ind];
     float value = in_image[ind];
 
-    if (!isfinite(value)) { // color
+    if (!isfinite(value)) {  // color
       temp.x *= 0.5f;
       temp.y *= 0.5f;
     }
@@ -905,7 +954,7 @@ __global__ void convertKinectDisparityToRegularDisparity_kernel(
   const int x = blockIdx.x * blockDim.x + threadIdx.x;
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if ((x < width) & (y < height)) { // are we in the image?
+  if ((x < width) & (y < height)) {  // are we in the image?
 
     float d_in =
         *((float *)((char *)d_KinectDisparity + y * d_KinectDisparityPitch) +
@@ -913,7 +962,7 @@ __global__ void convertKinectDisparityToRegularDisparity_kernel(
 
     float d_out = (d_in == 0.0f) ? nanf("") : -d_in;
 
-    *((float *)((char *)d_regularDisparity + y *d_regularDisparityPitch) + x) =
+    *((float *)((char *)d_regularDisparity + y * d_regularDisparityPitch) + x) =
         d_out;
   }
 }
@@ -925,7 +974,7 @@ __global__ void convertKinectDisparityInPlace_kernel(float *d_disparity,
   const int x = blockIdx.x * blockDim.x + threadIdx.x;
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if ((x < width) & (y < height)) { // are we in the image?
+  if ((x < width) & (y < height)) {  // are we in the image?
 
     float *d_in = (float *)((char *)d_disparity + y * pitch) + x;
     *d_in = (*d_in == 0.0f) ? nanf("") : (-depth_scale / *d_in);
@@ -941,7 +990,6 @@ __global__ void colorDistDiff_kernel(uchar4 *out_image, const float *disparity,
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (x < width && y < height) {
-
     int ind = y * width + x;
     uchar4 temp = out_image[ind];
     float disp = *((float *)((char *)disparity + y * disparity_pitch) + x);
@@ -949,7 +997,7 @@ __global__ void colorDistDiff_kernel(uchar4 *out_image, const float *disparity,
 
     // 3D reconstruct and measure Euclidian distance
     float xt = __fdividef((x - ox), f);
-    float yt = -__fdividef((y - oy), f); // coord. transform
+    float yt = -__fdividef((y - oy), f);  // coord. transform
 
     float Zm = -(f * b) / disp_model;
     float Xm = xt * Zm;
@@ -964,7 +1012,7 @@ __global__ void colorDistDiff_kernel(uchar4 *out_image, const float *disparity,
 
     bool color = (d_md > dist_thres) | (isfinite(disp) & ~isfinite(disp_model));
 
-    if (color) { // color
+    if (color) {  // color
       temp.x *= 0.5f;
       temp.y *= 0.5f;
     }
@@ -976,7 +1024,6 @@ __global__ void colorDistDiff_kernel(uchar4 *out_image, const float *disparity,
 // Calling functions
 void convertFloatToRGBA(uchar4 *d_out_image, const float *d_in_image, int width,
                         int height, float lowerLim, float upperLim) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -987,7 +1034,6 @@ void convertFloatToRGBA(uchar4 *d_out_image, const float *d_in_image, int width,
 void convertPitchedFloatToRGBA(uchar4 *d_out_image, const float *d_in_image,
                                int width, int height, int pitch, float lowerLim,
                                float upperLim) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -998,7 +1044,6 @@ void convertPitchedFloatToRGBA(uchar4 *d_out_image, const float *d_in_image,
 void convertKinectFloatToRGBA(uchar4 *d_out_image, const float *d_in_image,
                               int width, int height, int pitch, float lowerLim,
                               float upperLim) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1008,7 +1053,6 @@ void convertKinectFloatToRGBA(uchar4 *d_out_image, const float *d_in_image,
 
 void convertFloatToRGBA(uchar4 *d_out_image, const float *d_in_image, int width,
                         int height) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1020,7 +1064,6 @@ void convertFlowToRGBA(uchar4 *d_flowx_out, uchar4 *d_flowy_out,
                        const float *d_flowx_in, const float *d_flowy_in,
                        int width, int height, float lowerLim, float upperLim,
                        float minMag) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1032,7 +1075,6 @@ void convertFlowToRGBA(uchar4 *d_flowx_out, uchar4 *d_flowy_out,
 void convertPitchedFloatToGrayRGBA(uchar4 *d_out_image, const float *d_in_image,
                                    int width, int height, int pitch,
                                    float lowerLim, float upperLim) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1056,10 +1098,56 @@ void convertFloatArrayToGrayRGBA(uchar4 *d_out_image, cudaArray *in_array,
   cudaUnbindTexture(d_float_texture0);
 }
 
+void convertFloatArrayToGrayVX(uchar *d_out_image, cudaArray *in_array, int width,
+                               int height, int step, float lower_lim, float upper_lim)
+{
+    // Bind textures to arrays
+    cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
+    cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
+
+    dim3 dimBlock(16, 8, 1);
+    dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
+
+    convertFloatArrayToGrayVX_kernel << <dimGrid, dimBlock>>>
+        (d_out_image, width, height, step, lower_lim, upper_lim);
+
+    cudaUnbindTexture(d_float_texture0);
+}
+
+void convertFloatArrayToGray(uchar *d_out_image, cudaArray *in_array, int width,
+                             int height, float lower_lim, float upper_lim) {
+  // Bind textures to arrays
+  cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
+  cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
+
+  dim3 dimBlock(16, 8, 1);
+  dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
+
+  convertFloatArrayToGray_kernel << <dimGrid, dimBlock>>>
+      (d_out_image, width, height, lower_lim, upper_lim);
+
+  cudaUnbindTexture(d_float_texture0);
+}
+
+void convertPitchedFloatToGray(uchar *d_out_image, cudaArray *in_array,
+                               int width, int height, int pitch, float lowerLim,
+                               float upperLim) {
+  // Bind textures to arrays
+  cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
+  cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
+
+  dim3 dimBlock(16, 8, 1);
+  dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
+
+  convertPitchedFloatToGray_kernel << <dimGrid, dimBlock>>>
+      (d_out_image, width, height, lowerLim, upperLim);
+
+  cudaUnbindTexture(d_float_texture0);
+}
+
 void createAnaglyph(uchar4 *d_out_image, const float *d_left_image,
                     const float *d_right_image, int width, int height,
                     int pre_shift) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1070,7 +1158,6 @@ void createAnaglyph(uchar4 *d_out_image, const float *d_left_image,
 void createAnaglyph(uchar4 *d_out_image, const uchar4 *d_left_image,
                     const uchar4 *d_right_image, int width, int height,
                     int pre_shift) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1084,7 +1171,6 @@ void convert2DVectorToAngleMagnitude(uchar4 *d_angle_image,
                                      int width, int height, float lower_ang,
                                      float upper_ang, float lower_mag,
                                      float upper_mag) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1096,7 +1182,6 @@ void convert2DVectorToAngleMagnitude(uchar4 *d_angle_image,
 void convertFloatToRGBAbinary(uchar4 *out_image, const float *in_image,
                               int width, int height, float lowerLim,
                               float upperLim) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1137,7 +1222,6 @@ void applyIMOMask(float *d_IMOMask, float *d_IMO, const float *d_disparity,
 void blendFloatImageFloatLabelToRGBA(uchar4 *out_image, const float *in_image,
                                      const float *label, int width, int height,
                                      float lowerLim, float upperLim) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1148,7 +1232,6 @@ void blendFloatImageFloatLabelToRGBA(uchar4 *out_image, const float *in_image,
 void blendFloatImageRGBAArrayToRGBA(uchar4 *out_image, const float *in_image,
                                     cudaArray *in_array, int width, int height,
                                     float w_r, float w_g, float w_b) {
-
   // Bind textures to arrays
   cudaChannelFormatDesc channelUChar4 = cudaCreateChannelDesc<uchar4>();
   cudaBindTextureToArray(d_rgba_texture, in_array, channelUChar4);
@@ -1181,7 +1264,6 @@ void blendFloatImageFloatArrayToRGBA(uchar4 *out_image, const float *in_image,
 void blendMultiColor(uchar4 *out_image, const float *in_image,
                      cudaArray *in_texture, cudaArray *in_segment_index,
                      int width, int height) {
-
   // Bind textures to arrays
   cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
   cudaBindTextureToArray(d_float_texture0, in_texture, channelFloat);
@@ -1199,7 +1281,6 @@ void blendMultiColor(uchar4 *out_image, const float *in_image,
 
 void augmentedReality(float *out_image, const float *in_image,
                       cudaArray *in_array, int width, int height, int pitch) {
-
   // Bind textures to arrays
   cudaChannelFormatDesc channelUChar4 = cudaCreateChannelDesc<uchar4>();
   cudaBindTextureToArray(d_rgba_texture, in_array, channelUChar4);
@@ -1216,7 +1297,6 @@ void augmentedReality(float *out_image, const float *in_image,
 void augmentedRealityFloatArray(float *out_image, const float *in_image,
                                 cudaArray *in_array, int width, int height,
                                 int pitch) {
-
   // Bind textures to arrays
   cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
   cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
@@ -1253,7 +1333,6 @@ void augmentedRealityFloatArraySelectiveBlend(float *out_image,
 
 void colorBlend(uchar4 *out_image, const uchar4 *in_image, cudaArray *in_array,
                 int width, int height, float alpha_scale) {
-
   // Bind texture to array
   cudaChannelFormatDesc channelUChar4 = cudaCreateChannelDesc<uchar4>();
   cudaBindTextureToArray(d_rgba_texture, in_array, channelUChar4);
@@ -1270,7 +1349,6 @@ void colorBlend(uchar4 *out_image, const uchar4 *in_image, cudaArray *in_array,
 void invalidateFlow(float *modFlowX, float *modFlowY, const float *constFlowX,
                     const float *constFlowY, int width, int height,
                     float cons_thres) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1292,7 +1370,6 @@ void convertKinectDisparityToRegularDisparity(float *d_regularDisparity,
                                               const float *d_KinectDisparity,
                                               int d_KinectDisparityPitch,
                                               int width, int height) {
-
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
@@ -1322,4 +1399,4 @@ void colorDistDiff(uchar4 *out_image, const float *disparity,
        focal_length, baseline, nodal_point_x, nodal_point_y, dist_thres);
 }
 
-} // end namespace vision
+}  // end namespace vision

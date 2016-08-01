@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2015, Karl Pauwels                                         */
+/*  Copyright (c) 2016, Karl Pauwels, Alessandro Pieropan                    */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -36,6 +36,8 @@
 
 namespace vision {
 
+typedef unsigned char uchar;
+
 const float NAN_FLOAT = nanf("");
 
 // Round a / b to nearest higher integer value
@@ -56,10 +58,22 @@ void convertPitchedFloatToGrayRGBA(uchar4 *d_out_image, const float *d_in_image,
                                    int width, int height, int pitch,
                                    float lowerLim, float upperLim);
 
+void convertPitchedFloatToGray(uchar *d_out_image, cudaArray *in_array,
+                               int width, int height, int pitch,
+                               float lowerLim, float upperLim);
+
 // same but with array
 void convertFloatArrayToGrayRGBA(uchar4 *d_out_image, cudaArray *in_array,
                                  int width, int height, float lower_lim = 0.0f,
                                  float upper_lim = 1.0f);
+
+void convertFloatArrayToGray(uchar *d_out_image, cudaArray *in_array, int width,
+                             int height, float lower_lim = 0.0f,
+                             float upper_lim = 1.0f);
+
+void convertFloatArrayToGrayVX(uchar *d_out_image, cudaArray *in_array, int width,
+                               int height, int step, float lower_lim = 0.0f,
+                               float upper_lim = 1.0f);
 
 void convertKinectFloatToRGBA(uchar4 *d_out_image, const float *d_in_image,
                               int width, int height, int pitch, float lowerLim,
@@ -171,4 +185,4 @@ void colorDistDiff(uchar4 *out_image, const float *disparity,
                    int height, float focal_length, float baseline,
                    float nodal_point_x, float nodal_point_y, float dist_thres);
 
-} // end namespace vision
+}  // end namespace vision
