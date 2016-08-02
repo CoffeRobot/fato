@@ -29,8 +29,8 @@
 /*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
-#ifndef TRACKER_MODEL_BASED_H
-#define TRACKER_MODEL_BASED_H
+#ifndef TRACKER_MODEL_VX_H
+#define TRACKER_MODEL_VX_H
 
 #include <sensor_msgs/CameraInfo.h>
 #include <image_transport/image_transport.h>
@@ -44,15 +44,17 @@
 #include <opencv2/core/core.hpp>
 #include <string>
 
+#include <memory>
 
 #include "tracker_node.h"
+#include "../../tracker/include/tracker_model_vx.h"
 #include "fato_tracker_nodes/TrackerService.h"
 
 namespace fato{
 
-class TrackerModel : public TrackerNode {
+class TrackerModelVX : public TrackerNode {
  public:
-  TrackerModel(std::string model_file, std::string obj_file);
+  TrackerModelVX(std::string descriptor_file, std::string model_file);
 
  protected:
   void rgbCallback(const sensor_msgs::ImageConstPtr& rgb_msg,
@@ -67,11 +69,9 @@ class TrackerModel : public TrackerNode {
                   fato_tracker_nodes::TrackerService::Response &res);
 
  private:
-  void run(std::string model_file);
+  void run();
 
   void initRGB();
-
-  void getTrackerParameters();
 
   ros::NodeHandle nh_;
   // message filter
@@ -81,7 +81,6 @@ class TrackerModel : public TrackerNode {
 
   typedef message_filters::sync_policies::ApproximateTime<
       sensor_msgs::Image, sensor_msgs::CameraInfo> SyncPolicyRGB;
-
   typedef message_filters::Synchronizer<SyncPolicyRGB> SynchronizerRGB;
   boost::shared_ptr<SynchronizerRGB> sync_rgb_;
 
@@ -106,6 +105,9 @@ class TrackerModel : public TrackerNode {
   ros::ServiceServer service_server_;
 
   std::string obj_file_;
+
+  std::unique_ptr<fato::TrackerVX> vx_tracker_;
+  TrackerVX::Params params_;
 
   bool stop_matcher;
 };

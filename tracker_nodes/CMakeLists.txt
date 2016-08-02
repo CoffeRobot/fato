@@ -120,6 +120,16 @@ target_link_libraries(track_model
   ${OpenCV_LIBS}
 )
 
+add_executable(track_node_vx
+    src/tracker_node_vx.cpp
+    src/tracker_node.cpp)
+
+
+target_link_libraries(track_node_vx
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+)
+
 add_executable(render_synthetic_sequence
     src/render_synthetic_sequence.cpp)
 

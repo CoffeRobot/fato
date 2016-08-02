@@ -48,7 +48,6 @@
 #include "../include/profiler.h"
 #include "../include/DBScanClustering.h"
 #include "../../utilities/include/utilities.h"
-#include "../include/epnp.h"
 #include "../include/utilities.h"
 
 #define VERBOSE_DEBUG
@@ -58,24 +57,39 @@ using namespace cv;
 
 namespace fato {
 
-TrackerVX::TrackerVX() : matcher_confidence_(0.75), matcher_ratio_(0.75) {}
+TrackerVX::TrackerVX(const Params& params,
+                     std::unique_ptr<FeatureMatcher> matcher) {
+  params_ = params;
 
-TrackerVX::TrackerVX(Config& params, int descriptor_type,
-                     unique_ptr<FeatureMatcher> matcher)
-    : matcher_confidence_(0.75),
-      matcher_ratio_(0.75),
-      file_name_pose("/home/alessandro/debug/object_pose.txt") {
+  profile_ = Profile();
+
   feature_detector_ = std::move(matcher);
-  stop_matcher = false;
 
-  // open the file in write mode to refresh its content
-  ofstream file(file_name_pose);
+  if (params_.image_width == 0 || params_.image_height == 0)
+    throw runtime_error("image parameters not set");
+
+  loadDescriptors(params_.descriptors_file);
+
+  initSynthTracking(params_.model_file, params_.fx, params_.fy, params_.cx,
+                    params_.cy, params_.image_width, params_.image_height);
+
+  initializeContext();
+
+  // set camera matrix
+  camera_matrix_ = Mat(3, 3, CV_64FC1);
+  camera_matrix_.at<double>(0, 0) = params_.fx;
+  camera_matrix_.at<double>(1, 1) = params_.fy;
+  camera_matrix_.at<double>(0, 2) = params_.cx;
+  camera_matrix_.at<double>(1, 2) = params_.cy;
+  camera_matrix_.at<double>(2, 2) = 1;
+
+  image_w_ = params_.image_width;
+  image_h_ = params_.image_height;
 }
 
 TrackerVX::~TrackerVX() { taskFinished(); }
 
-
-void TrackerVX::addModel(const string& h5_file) {
+void TrackerVX::loadDescriptors(const string& h5_file) {
   util::HDF5File out_file(h5_file);
   std::vector<uchar> descriptors;
   std::vector<int> dscs_size, point_size;
@@ -96,15 +110,11 @@ void TrackerVX::addModel(const string& h5_file) {
 
   target_object_.init(pts, init_descriptors);
 
-  // initFilter();
-
   feature_detector_->setTarget(init_descriptors);
-}
 
-void TrackerVX::setParameters(Mat& camera_matrix, int image_w, int image_h) {
-  camera_matrix_ = camera_matrix.clone();
-  image_w_ = image_w;
-  image_h_ = image_h;
+  std::cout << "Model loaded with " << target_object_.model_points_.size()
+            << " key points and " << init_descriptors.rows << " descriptors "
+            << std::endl;
 }
 
 void TrackerVX::initSynthTracking(const string& object_model, double fx,
@@ -113,10 +123,23 @@ void TrackerVX::initSynthTracking(const string& object_model, double fx,
   rendering_engine_ = unique_ptr<pose::MultipleRigidModelsOgre>(
       new pose::MultipleRigidModelsOgre(img_width, img_height, fx, fy, cx, cy,
                                         0.01, 10.0));
+
   rendering_engine_->addModel(object_model);
 
   synth_track_.init(cx, cy, fx, fy, img_width, img_height,
                     rendering_engine_.get());
+}
+
+void TrackerVX::initializeContext() {
+  vx_context_ = vxCreateContext();
+
+  vx_image frameGray = vxCreateImage(vx_context_, params_.image_width,
+                                     params_.image_height, VX_DF_IMAGE_U8);
+
+  camera_img_delay_ = vxCreateDelay(vx_context_, (vx_reference)frameGray, 2);
+  renderer_img_delay_ = vxCreateDelay(vx_context_, (vx_reference)frameGray, 2);
+
+  vxReleaseImage(&frameGray);
 }
 
 void TrackerVX::learnBackground(const Mat& rgb) {
@@ -136,11 +159,6 @@ void TrackerVX::learnBackground(const Mat& rgb) {
 }
 
 void TrackerVX::resetTarget() { target_object_.resetPose(); }
-
-void TrackerVX::setMatcerParameters(float confidence, float second_ratio) {
-  matcher_confidence_ = confidence;
-  matcher_ratio_ = second_ratio;
-}
 
 void TrackerVX::getOpticalFlow(const Mat& prev, const Mat& next,
                                Target& target) {
@@ -190,8 +208,16 @@ void TrackerVX::getOpticalFlow(const Mat& prev, const Mat& next,
 }
 
 void TrackerVX::computeNextSequential(Mat& rgb) {
+  auto begin = chrono::high_resolution_clock::now();
   trackSequential(rgb);
+  auto end = chrono::high_resolution_clock::now();
+  profile_.track_time =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+  begin = chrono::high_resolution_clock::now();
   detectSequential(rgb);
+  end = chrono::high_resolution_clock::now();
+  profile_.match_time =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 }
 
 void TrackerVX::taskFinished() {
@@ -201,7 +227,6 @@ void TrackerVX::taskFinished() {
 }
 
 void TrackerVX::trackSequential(Mat& next) {
-  ofstream debug_file(file_name_pose, ofstream::out | ofstream::app);
   // cout << "Track target " << endl;
   /*************************************************************************************/
   /*                       LOADING IMAGES */
@@ -257,7 +282,6 @@ void TrackerVX::trackSequential(Mat& next) {
       for (auto i = 0; i < target_object_.active_points.size(); ++i) {
         const int& id = target_object_.active_to_model_.at(i);
         target_object_.projected_depth_.at(id) = projected_depth.at(i);
-        // cout << setprecision(3) << fixed << projected_depth.at(i) << endl;
       }
       if (inliers_count > 4) {
         target_object_.target_found_ = true;
@@ -277,9 +301,12 @@ void TrackerVX::trackSequential(Mat& next) {
 
       // predictPose(); // kalman filter on pnp, not very useful
 
+      auto begin = chrono::high_resolution_clock::now();
       pair<int, vector<double>> synth_beta =
           synth_track_.poseFromSynth(target_object_.weighted_pose, next);
-
+      auto end = chrono::high_resolution_clock::now();
+      profile_.render_time =
+          chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
       // cout << "2";
 
       std::pair<int, vector<double>> beta = poseFromFlow();
@@ -297,9 +324,6 @@ void TrackerVX::trackSequential(Mat& next) {
         {
           target_object_.synth_pose.transform(synth_beta.second);
         }
-
-        cout << "estimation: " << beta.first << " " << synth_beta.first << " "
-             << ratio << endl;
 
         for (auto i = 0; i < 6; ++i) {
           weigthed_beta[i] =
@@ -327,7 +351,7 @@ void TrackerVX::trackSequential(Mat& next) {
 }
 
 void TrackerVX::detectSequential(Mat& next) {
-  if (stop_matcher) return;
+  // if (stop_matcher) return;
 
   vector<KeyPoint> keypoints;
   Mat gray, descriptors;
@@ -344,6 +368,7 @@ void TrackerVX::detectSequential(Mat& next) {
   /*************************************************************************************/
   /*                       ADD FEATURES TO TRACKER */
   /*************************************************************************************/
+
   if (matches.size() < 2) return;
   if (matches.at(0).size() != 2) return;
 
@@ -675,7 +700,6 @@ void TrackerVX::predictPose() {
                         estimated.at<float>(10), estimated.at<float>(11)};
 
   target_object_.kal_pnp_pose = Pose(tmp);
-
 }
 
 void TrackerVX::predictPoseFlow(std::vector<float>& t, std::vector<float> r) {
@@ -856,6 +880,56 @@ void TrackerVX::updatePointsDepthFromZBuffer(Target& t, Pose& p) {
 void TrackerVX::getRenderedPose(const Pose& p, Mat& out) {
   std::vector<float> z_buffer;
   synth_track_.renderObject(p, out, z_buffer);
+}
+
+void TrackerVX::printProfile()
+{
+    cout << profile_.str() << endl;
+}
+
+TrackerVX::Params::Params() {
+  image_width = 0;
+  image_height = 0;
+
+  fx = 0;
+  fy = 0;
+  cx = 0;
+  cy = 0;
+
+  descriptors_file = "";
+  model_file = "";
+
+  confidence = 0;
+  ratio = 0;
+
+  // Parameters for optical flow node
+  pyr_levels = 6;
+  lk_num_iters = 5;
+  lk_win_size = 10;
+
+  // Common parameters for corner detector node
+  array_capacity = 2000;
+  detector_cell_size = 18;
+  use_harris_detector = true;
+
+  // Parameters for harris_track node
+  harris_k = 0.04f;
+  harris_thresh = 100.0f;
+
+  // Parameters for fast_track node
+  fast_type = 9;
+  fast_thresh = 25;
+}
+
+string TrackerVX::Profile::str() {
+  stringstream ss;
+
+  ss << "Tracker profile: \n";
+  ss << "\t matcher:  " << match_time / 1000000.0f << "\n";
+  ss << "\t tracker:  " << track_time / 1000000.0f << "\n";
+  ss << "\t renderer: " << render_time / 1000000.0f << "\n";
+
+  return ss.str();
 }
 
 }  // end namespace pinot

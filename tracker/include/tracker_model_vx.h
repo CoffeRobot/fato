@@ -47,6 +47,8 @@
 #include <set>
 #include <memory>
 #include <string>
+#include <NVX/nvxcu.h>
+#include <NVX/nvx_opencv_interop.hpp>
 
 #include "target.hpp"
 #include "matcher.h"
@@ -57,36 +59,69 @@
 namespace fato {
 
 class TrackerVX {
+
  public:
-  TrackerVX();
 
-  TrackerVX(const Config& params, const cv::Mat& camera_matrix,
-            std::unique_ptr<FeatureMatcher> matcher);
+    struct Params {
+      int image_width;
+      int image_height;
 
-  TrackerVX(Config& params, int descriptor_type,
-            std::unique_ptr<FeatureMatcher> matcher);
+      float fx;
+      float fy;
+      float cx;
+      float cy;
+
+      std::string descriptors_file;
+      std::string model_file;
+
+      float confidence;
+      float ratio;
+
+      // VISIONWORKS PARAMETERS
+      // parameters for optical flow node
+      vx_uint32 pyr_levels;
+      vx_uint32 lk_num_iters;
+      vx_uint32 lk_win_size;
+
+      // common parameters for corner detector node
+      vx_uint32 array_capacity;
+      vx_uint32 detector_cell_size;
+      bool use_harris_detector;
+
+      // parameters for harris_track node
+      vx_float32 harris_k;
+      vx_float32 harris_thresh;
+
+      // parameters for fast_track node
+      vx_uint32 fast_type;
+      vx_uint32 fast_thresh;
+
+      Params();
+    };
+
+    struct Profile{
+      float match_time;
+      float track_time;
+      float render_time;
+
+
+      Profile() :
+          match_time(0),
+          render_time(0),
+          track_time(0){}
+
+      std::string str();
+
+    };
+
+
+  TrackerVX(const Params& params, std::unique_ptr<FeatureMatcher> matcher);
 
   ~TrackerVX();
-
-  void addModel(const std::string& h5_file);
-
-  void setParameters(cv::Mat& camera_matrix, int image_w, int image_h);
-  // TODO: merge the initialization to force order of init things, synth depends
-  // from camera
-  void initSynthTracking(const std::string& object_model, double fx, double fy,
-                         double cx, double cy, int img_width, int img_height);
 
   void learnBackground(const cv::Mat& rgb);
 
   void resetTarget();
-
-  void setFeatureExtractionParameters(int num_features, float scale_factor,
-                                      int num_levels, int edge_threshold,
-                                      int first_level, int patch_size);
-
-  void setMatcerParameters(float confidence, float second_ratio);
-
-  void computeNext(const cv::Mat& rgb);
 
   void computeNextSequential(cv::Mat& rgb);
 
@@ -96,17 +131,9 @@ class TrackerVX {
 
   void getRenderedPose(const Pose& p, cv::Mat& out);
 
-
   void taskFinished();
 
-  float getTrackerTime() {
-    return m_trackerTime / static_cast<float>(m_trackerFrameCount);
-  }
-
-  float getDetectorTime() {
-    return m_detectorTime / static_cast<float>(m_detectorFrameCount);
-  }
-
+  void printProfile();
 
   bool isLost() { return m_is_object_lost; }
 
@@ -127,9 +154,29 @@ class TrackerVX {
   cv::KalmanFilter kalman_pose_flow_;
 
  private:
-  int runTracker();
+  /**
+   * @brief loadDescriptors load the descriptors extraced from the 3d model file
+   * @param h5_file
+   */
+  void loadDescriptors(const std::string& h5_file);
 
-  int runDetector();
+  /**
+   * @brief initSynthTracking initializes the rendering engine
+   * @param object_model model file save in obj format, need to render the object
+   * @param fx
+   * @param fy
+   * @param cx
+   * @param cy
+   * @param img_width
+   * @param img_height
+   */
+  void initSynthTracking(const std::string& object_model, double fx, double fy,
+                         double cx, double cy, int img_width, int img_height);
+
+  /**
+   * @brief initializeContext initializes visionworks context and variables
+   */
+  void initializeContext();
 
   void getOpticalFlow(const cv::Mat& prev, const cv::Mat& next, Target& target);
 
@@ -208,10 +255,7 @@ class TrackerVX {
   /****************************************************************************/
   /*                       PROFILINGVARIABLES                                 */
   /****************************************************************************/
-  float m_trackerTime;
-  float m_detectorTime;
-  float m_trackerFrameCount;
-  float m_detectorFrameCount;
+  Profile profile_;
   /****************************************************************************/
   /*                       PNP RANSAC REQUIREMENTS                            */
   /****************************************************************************/
@@ -225,6 +269,12 @@ class TrackerVX {
   /*                       TARGETS TO TRACK                                   */
   /****************************************************************************/
   Target target_object_;
+  /****************************************************************************/
+  /*                       VISION WORKS VARIABLES                             */
+  /****************************************************************************/
+  vx_delay camera_img_delay_, renderer_img_delay_;
+  vx_context vx_context_;
+  Params params_;
 
   SyntheticTrack synth_track_;
   std::unique_ptr<pose::MultipleRigidModelsOgre> rendering_engine_;

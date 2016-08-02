@@ -60,7 +60,8 @@ void SyntheticTrack::init(double nodal_x, double nodal_y, double focal_x,
   namedWindow("synthetic_pose");
 }
 
-pair<int,vector<double>> SyntheticTrack::poseFromSynth(Pose prev_pose, cv::Mat& curr_img) {
+pair<int, vector<double>> SyntheticTrack::poseFromSynth(Pose prev_pose,
+                                                        cv::Mat& curr_img) {
   Mat rendered_image;
   vector<float> z_buffer;
   renderObject(prev_pose, rendered_image, z_buffer);
@@ -90,18 +91,16 @@ pair<int,vector<double>> SyntheticTrack::poseFromSynth(Pose prev_pose, cv::Mat& 
   vector<int> outliers;
 
   Eigen::VectorXf beta;
-  vector<double> std_beta(6,0);
+  vector<double> std_beta(6, 0);
 
-  if(prev_pts.size() > 4)
-  {
+  if (prev_pts.size() > 4) {
     beta = getPoseFromFlowRobust(prev_pts, depth_pts, next_pts, nodal_x_,
-                                    nodal_y_, focal_x_, focal_y_, 10,
-                                    translation, rotation, outliers);
-    for(auto i = 0; i < 6; ++i)
-        std_beta[i] = beta(i);
+                                 nodal_y_, focal_x_, focal_y_, 10, translation,
+                                 rotation, outliers);
+    for (auto i = 0; i < 6; ++i) std_beta[i] = beta(i);
   }
 
-  return pair<int,vector<double>>(prev_pts.size(), std_beta);
+  return pair<int, vector<double>>(prev_pts.size(), std_beta);
 }
 
 void SyntheticTrack::renderObject(Pose prev_pose, Mat& rendered_image,
@@ -129,7 +128,6 @@ void SyntheticTrack::renderObject(Pose prev_pose, Mat& rendered_image,
   cv::Mat img_rgba(img_h_, img_w_, CV_8UC4, h_texture.data());
 
   cv::cvtColor(img_rgba, rendered_image, CV_RGBA2BGR);
-
 }
 
 void SyntheticTrack::downloadRenderedImage(std::vector<uchar4>& h_texture) {
@@ -194,13 +192,43 @@ void SyntheticTrack::debug(Mat& rendered_img, Mat& next_img,
   for (auto i = 0; i < prev_pts.size(); ++i) {
     cv::circle(debug_img, prev_pts.at(i), 3, Scalar(0, 255, 0), 1);
     Point2f pt = next_pts.at(i);
-    //pt.x += img_w_;
+    // pt.x += img_w_;
     cv::circle(debug_img, pt, 3, Scalar(0, 255, 0), 1);
     line(debug_img, prev_pts.at(i), pt, Scalar(255, 0, 0), 1);
-
   }
 
   imshow("synthetic_pose", debug_img);
   waitKey(10);
 }
+
+/***********************************************************************************/
+/*              VISION WORKS SYNTHETIC TRACKER */
+/***********************************************************************************/
+SyntheticTrackVX::SyntheticTrackVX() {}
+
+SyntheticTrackVX::~SyntheticTrackVX() {}
+
+void SyntheticTrackVX::init(double nodal_x, double nodal_y, double focal_x,
+                            double focal_y, int img_w, int img_h,
+                            pose::MultipleRigidModelsOgre* rendering_engine,
+                            vx_context& context,
+                            vx::FeatureTracker::Params& params) {
+  rendering_engine_ = rendering_engine;
+  tracker_graph_ = unique_ptr<vx::FeatureTrackerSynth>(
+      new vx::FeatureTrackerSynth(context, params));
+
+  img_w_ = img_w;
+  img_h_ = img_h;
+  nodal_x_ = nodal_x;
+  nodal_y_ = nodal_y;
+  focal_x_ = focal_x;
+  focal_y_ = focal_y;
+}
+
+std::pair<int, std::vector<double> > SyntheticTrackVX::poseFromSynth(Pose prev_pose,
+                                                   vx_image next_img)
+{
+
+}
+
 }
