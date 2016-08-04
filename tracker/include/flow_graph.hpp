@@ -37,6 +37,8 @@
 #include <vector>
 #include <opencv2/core.hpp>
 
+#include "target.hpp"
+
 namespace fato {
 
 namespace vx {
@@ -75,6 +77,8 @@ class FeatureTracker {
 
   void uploadPoints(const std::vector<nvx_keypointf_t>& prev_pts);
 
+  void uploadPoints(const std::vector<cv::Point2f>& prev_pts);
+
   void downloadPoints(std::vector<nvx_keypointf_t>& prev_pts,
                       std::vector<nvx_keypointf_t>& next_pts,
                       std::vector<nvx_keypointf_t>& back_pts);
@@ -83,15 +87,13 @@ class FeatureTracker {
                       std::vector<nvx_keypointf_t>& prev_pts,
                       std::vector<nvx_keypointf_t>& next_pts);
 
-  void getValidPoints(float distance_thresh,
-                      std::vector<cv::Point2f>& prev_pts,
+  void getValidPoints(float distance_thresh, std::vector<cv::Point2f>& prev_pts,
                       std::vector<cv::Point2f>& next_pts);
 
   void debugPoints(float distance_thresh, std::vector<cv::Point2f>& prev_pts,
-                   std::vector<cv::Point2f>& next_pts, cv::Mat &out);
+                   std::vector<cv::Point2f>& next_pts, cv::Mat& out);
 
  protected:
-
   vx_context context_;
   // Format for current frames
   vx_df_image format_;
@@ -118,16 +120,21 @@ class FeatureTrackerReal : public FeatureTracker {
   FeatureTrackerReal(vx_context context, const Params& params);
   ~FeatureTrackerReal();
 
-  void init(vx_image firstFrame, std::vector<nvx_keypointf_t>& points);
+  void init(vx_image init_frame);
   void track(vx_image newFrame, vx_image mask);
+  void track(std::vector<cv::Point2f>& prev_pts, vx_image next_frame);
+
+  void getValidPoints(Target& t, float distance_thresh);
 
   void printPerfs() const;
+
+  bool isInitialized(){return is_initialized;}
 
  private:
   void createDataObjects();
 
   void processFirstFrame(vx_image frame);
-  void createMainGraph(vx_image frame);
+  void createMainGraph();
 
   void release();
 
@@ -139,7 +146,6 @@ class FeatureTrackerReal : public FeatureTracker {
   vx_node pyr_node_;
   vx_node opt_flow_node_forward_;
   vx_node opt_flow_node_backward_;
-
 
 };
 

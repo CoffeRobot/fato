@@ -106,6 +106,7 @@ class TrackerVX {
     };
 
     struct Profile{
+      float img_load_time;
       float match_time;
       float track_time;
       float render_time;
@@ -119,6 +120,7 @@ class TrackerVX {
       float depth_update_time;
 
       Profile() :
+          img_load_time(0),
           match_time(0),
           render_time(0),
           track_time(0),
@@ -205,6 +207,8 @@ class TrackerVX {
   void initializeContext();
 
   void getOpticalFlow(const cv::Mat& prev, const cv::Mat& next, Target& target);
+
+  void getOpticalFlowVX(vx_image prev, vx_image next, Target& target);
 
   void projectPointsToModel(const cv::Point2f& model_centroid,
                             const cv::Point2f& upd_centroid, const float angle,
@@ -305,6 +309,8 @@ class TrackerVX {
   vx_delay camera_img_delay_, renderer_img_delay_;
   vx_context gpu_context_;
   std::unique_ptr<vx::FeatureTrackerSynth> synth_graph_;
+  std::unique_ptr<vx::FeatureTrackerReal> real_graph_;
+
   util::Device1D<float> rendered_depth_;
   std::vector<float> host_rendered_depth_;
 

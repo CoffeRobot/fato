@@ -226,7 +226,7 @@ void realgraph_test(vx_context& context) {
         next_points.push_back(nvx_kp);
       }
 
-      tracker.init(frameGray, nvx_kps);
+      tracker.init(frameGray);
 
       for (auto i = 0; i < 10; ++i)
         cout << (int)next_points[i].tracking_status << endl;
@@ -240,7 +240,7 @@ void realgraph_test(vx_context& context) {
       proc_ms = procTimer.toc();
       next_points.clear();
       // tracker.downloadPoints(prev_points,next_points, back_points);
-      tracker.getValidPoints(20, prev_points, next_points);
+      //tracker.getValidPoints(20, prev_points, next_points);
       tracker.printPerfs();
 
       for (auto pt : next_points)

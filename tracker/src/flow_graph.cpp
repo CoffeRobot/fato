@@ -213,79 +213,75 @@ void FeatureTracker::getValidPoints(float distance_thresh,
 void FeatureTracker::debugPoints(float distance_thresh,
                                  std::vector<cv::Point2f>& prev_pts,
                                  std::vector<cv::Point2f>& next_pts,
-                                 cv::Mat& out)
-{
-    distance_thresh = distance_thresh * distance_thresh;
+                                 cv::Mat& out) {
+  distance_thresh = distance_thresh * distance_thresh;
 
-    vx_size prev_size, next_size, back_size;
-    vx_size prev_stride, next_stride, back_stride = 0;
-    void* prev_data = NULL;
-    void* next_data = NULL;
-    void* back_data = NULL;
+  vx_size prev_size, next_size, back_size;
+  vx_size prev_stride, next_stride, back_stride = 0;
+  void* prev_data = NULL;
+  void* next_data = NULL;
+  void* back_data = NULL;
 
-    vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &prev_size,
-                 sizeof(prev_size));
-    vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &next_size,
-                 sizeof(next_size));
-    vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &back_size,
-                 sizeof(back_size));
+  vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &prev_size,
+               sizeof(prev_size));
+  vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &next_size,
+               sizeof(next_size));
+  vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &back_size,
+               sizeof(back_size));
 
-    prev_pts.reserve(prev_size);
-    next_pts.reserve(prev_size);
+  prev_pts.reserve(prev_size);
+  next_pts.reserve(prev_size);
 
-    vxAccessArrayRange(kp_prev_list_, 0, prev_size, &prev_stride, &prev_data,
-                       VX_READ_ONLY);
-    vxAccessArrayRange(kp_next_list_, 0, next_size, &next_stride, &next_data,
-                       VX_READ_ONLY);
-    vxAccessArrayRange(kp_back_list_, 0, back_size, &back_stride, &back_data,
-                       VX_READ_ONLY);
-    int lost_track = 0;
-    int dist_err = 0;
-    int correct = 0;
+  vxAccessArrayRange(kp_prev_list_, 0, prev_size, &prev_stride, &prev_data,
+                     VX_READ_ONLY);
+  vxAccessArrayRange(kp_next_list_, 0, next_size, &next_stride, &next_data,
+                     VX_READ_ONLY);
+  vxAccessArrayRange(kp_back_list_, 0, back_size, &back_stride, &back_data,
+                     VX_READ_ONLY);
+  int lost_track = 0;
+  int dist_err = 0;
+  int correct = 0;
 
-    for (auto i = 0; i < next_size; ++i) {
-      nvx_keypointf_t prev_kp =
-          vxArrayItem(nvx_keypointf_t, prev_data, i, prev_stride);
-      nvx_keypointf_t next_kp =
-          vxArrayItem(nvx_keypointf_t, next_data, i, next_stride);
-      nvx_keypointf_t back_kp =
-          vxArrayItem(nvx_keypointf_t, back_data, i, back_stride);
+  for (auto i = 0; i < next_size; ++i) {
+    nvx_keypointf_t prev_kp =
+        vxArrayItem(nvx_keypointf_t, prev_data, i, prev_stride);
+    nvx_keypointf_t next_kp =
+        vxArrayItem(nvx_keypointf_t, next_data, i, next_stride);
+    nvx_keypointf_t back_kp =
+        vxArrayItem(nvx_keypointf_t, back_data, i, back_stride);
 
-      float dx = prev_kp.x - back_kp.x;
-      float dy = prev_kp.y - back_kp.y;
+    float dx = prev_kp.x - back_kp.x;
+    float dy = prev_kp.y - back_kp.y;
 
-      cv::Scalar color(0,255,0);
+    cv::Scalar color(0, 255, 0);
 
-      if (next_kp.tracking_status == 0) {
-        lost_track++;
-        color = cv::Scalar(0,0,255);
-      }
-      else if (((dx * dx) + (dy * dy)) > distance_thresh) {
-        dist_err++;
-        color = cv::Scalar(255,0,0);
-      }
-      else
-          correct++;
+    if (next_kp.tracking_status == 0) {
+      lost_track++;
+      color = cv::Scalar(0, 0, 255);
+    } else if (((dx * dx) + (dy * dy)) > distance_thresh) {
+      dist_err++;
+      color = cv::Scalar(255, 0, 0);
+    } else
+      correct++;
 
-      cv::Point2f p_pt(prev_kp.x, prev_kp.y);
-      cv::Point2f n_pt(next_kp.x+640, next_kp.y);
-      prev_pts.push_back(p_pt);
-      next_pts.push_back(n_pt);
+    cv::Point2f p_pt(prev_kp.x, prev_kp.y);
+    cv::Point2f n_pt(next_kp.x + 640, next_kp.y);
+    prev_pts.push_back(p_pt);
+    next_pts.push_back(n_pt);
 
-      cv::circle(out, p_pt, 3, color, 1);
-      cv::circle(out, n_pt, 3, color, 1);
-      cv::line(out, p_pt, n_pt, color, 1);
+    cv::circle(out, p_pt, 3, color, 1);
+    cv::circle(out, n_pt, 3, color, 1);
+    cv::line(out, p_pt, n_pt, color, 1);
+  }
+  vxCommitArrayRange(kp_prev_list_, 0, prev_size, prev_data);
+  vxCommitArrayRange(kp_next_list_, 0, next_size, next_data);
+  vxCommitArrayRange(kp_back_list_, 0, back_size, back_data);
 
-    }
-    vxCommitArrayRange(kp_prev_list_, 0, prev_size, prev_data);
-    vxCommitArrayRange(kp_next_list_, 0, next_size, next_data);
-    vxCommitArrayRange(kp_back_list_, 0, back_size, back_data);
-
-    cout << "VX: total features " << prev_pts.size() << endl;
-    cout << "\t correct " << correct << " ratio " << correct/(float)prev_pts.size() << endl;
-    cout << "\t lost " << lost_track << endl;
-    cout << "\t dist " << dist_err << endl;
-
+  cout << "VX: total features " << prev_pts.size() << endl;
+  cout << "\t correct " << correct << " ratio "
+       << correct / (float)prev_pts.size() << endl;
+  cout << "\t lost " << lost_track << endl;
+  cout << "\t dist " << dist_err << endl;
 }
 
 void FeatureTracker::downloadPoints(std::vector<nvx_keypointf_t>& prev_pts,
@@ -374,6 +370,50 @@ void FeatureTracker::uploadPoints(
   }
 }
 
+void FeatureTracker::uploadPoints(
+    const std::vector<cv::Point2f>& prev_pts) {
+  vx_size size, max_capacity;
+
+  vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &size, sizeof(size));
+  vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_CAPACITY, &max_capacity,
+               sizeof(size));
+
+  vx_size new_size = prev_pts.size();
+
+  vx_size stride = 0;
+  void* data = NULL;
+  new_size = min(new_size, vx_size(max_capacity));
+  int elems_to_update;
+
+  if (new_size > size) {
+    NVXIO_CHECK_REFERENCE(kp_prev_list_);
+    vx_size to_add = new_size - size;
+    NVXIO_SAFE_CALL(vxAddArrayItems(kp_prev_list_, to_add,
+                                    prev_pts.data() + size,
+                                    sizeof(nvx_keypointf_t)));
+    elems_to_update = size;
+  } else {
+    vxTruncateArray(kp_prev_list_, new_size);
+    elems_to_update = new_size;
+  }
+
+  vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &size, sizeof(size));
+  vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_CAPACITY, &max_capacity,
+               sizeof(size));
+
+  // TODO: check speed of this, maybe there is faster way to transfer all the
+  // memory
+  for (auto i = 0; i < elems_to_update; ++i) {
+    nvx_keypointf_t* myptr = NULL;
+    vxAccessArrayRange(kp_prev_list_, i, i + 1, &stride, (void**)&myptr,
+                       VX_READ_AND_WRITE);
+    myptr->x = prev_pts.at(i).x;
+    myptr->y = prev_pts.at(i).y;
+    myptr->tracking_status = 1;
+    vxCommitArrayRange(kp_prev_list_, i, i + 1, (void*)myptr);
+  }
+}
+
 FeatureTrackerReal::FeatureTrackerReal(vx_context context, const Params& params)
     : params_(params) {
   context_ = context;
@@ -420,8 +460,7 @@ void FeatureTrackerReal::release() {
   vxReleaseGraph(&main_graph_);
 }
 
-void FeatureTrackerReal::init(vx_image first_frame,
-                              std::vector<nvx_keypointf_t>& points) {
+void FeatureTrackerReal::init(vx_image first_frame) {
   // Check input format
 
   vx_df_image format = VX_DF_IMAGE_VIRT;
@@ -445,14 +484,12 @@ void FeatureTrackerReal::init(vx_image first_frame,
 
     createDataObjects();
 
-    uploadPoints(points);
-
-    createMainGraph(first_frame);
+    createMainGraph();
   }
-
-  // Process first frame
-
   processFirstFrame(first_frame);
+
+  is_initialized = true;
+  // Process first frame 
 }
 
 //
@@ -463,6 +500,36 @@ void FeatureTrackerReal::init(vx_image first_frame,
 // vxSetParameterByIndex. Finally vxProcessGraph() is called to execute the
 // graph
 //
+
+void FeatureTrackerReal::track(std::vector<cv::Point2f>& prev_pts,
+                               vx_image next_frame)
+{
+    // Check input format
+
+    vx_df_image format = VX_DF_IMAGE_VIRT;
+    vx_uint32 width = 0;
+    vx_uint32 height = 0;
+
+    NVXIO_SAFE_CALL(vxQueryImage(next_frame, VX_IMAGE_ATTRIBUTE_FORMAT, &format,
+                                 sizeof(format)));
+    NVXIO_SAFE_CALL(
+        vxQueryImage(next_frame, VX_IMAGE_ATTRIBUTE_WIDTH, &width, sizeof(width)));
+    NVXIO_SAFE_CALL(vxQueryImage(next_frame, VX_IMAGE_ATTRIBUTE_HEIGHT, &height,
+                                 sizeof(height)));
+
+    NVXIO_ASSERT(format == format_);
+    NVXIO_ASSERT(width == width_);
+    NVXIO_ASSERT(height == height_);
+
+    // Age the delay objects (pyramid, points to track) before graph execution
+    NVXIO_SAFE_CALL(vxAgeDelay(pyr_delay_));
+
+    NVXIO_SAFE_CALL(vxSetParameterByIndex(pyr_node_, 0, (vx_reference)next_frame));
+    uploadPoints(prev_pts);
+
+    // Process graph
+    NVXIO_SAFE_CALL(vxProcessGraph(main_graph_));
+}
 
 void FeatureTrackerReal::track(vx_image newFrame, vx_image mask) {
   // Check input format
@@ -511,6 +578,94 @@ void FeatureTrackerReal::track(vx_image newFrame, vx_image mask) {
 
   // Process graph
   NVXIO_SAFE_CALL(vxProcessGraph(main_graph_));
+}
+
+void FeatureTrackerReal::getValidPoints(Target &t, float distance_thresh)
+{
+
+    t.prev_points_ = t.active_points;
+
+    std::vector<KpStatus>& prev_status = t.point_status_;
+    std::vector<cv::Point2f>& active_pts = t.active_points;
+    std::vector<int> to_remove;
+
+    vx_size prev_size, next_size, back_size;
+    vx_size prev_stride, next_stride, back_stride = 0;
+    void* prev_data = NULL;
+    void* next_data = NULL;
+    void* back_data = NULL;
+
+    vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &prev_size,
+                 sizeof(prev_size));
+    vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &next_size,
+                 sizeof(next_size));
+    vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &back_size,
+                 sizeof(back_size));
+
+    if(prev_size != active_pts.size())
+        throw std::runtime_error("device - host points count inconsistent!");
+
+    vxAccessArrayRange(kp_prev_list_, 0, prev_size, &prev_stride, &prev_data,
+                       VX_READ_ONLY);
+    vxAccessArrayRange(kp_next_list_, 0, next_size, &next_stride, &next_data,
+                       VX_READ_ONLY);
+    vxAccessArrayRange(kp_back_list_, 0, back_size, &back_stride, &back_data,
+                       VX_READ_ONLY);
+    int flag_counter = 0;
+    int distance_counter = 0;
+
+    for (auto i = 0; i < next_size; ++i) {
+      nvx_keypointf_t prev_kp =
+          vxArrayItem(nvx_keypointf_t, prev_data, i, prev_stride);
+      nvx_keypointf_t next_kp =
+          vxArrayItem(nvx_keypointf_t, next_data, i, next_stride);
+      nvx_keypointf_t back_kp =
+          vxArrayItem(nvx_keypointf_t, back_data, i, back_stride);
+
+      const int& id = t.active_to_model_.at(i);
+      KpStatus& s = prev_status.at(id);
+
+      if (next_kp.tracking_status == 0) {
+        flag_counter++;
+        to_remove.push_back(i);
+        continue;
+      }
+
+      float dx = prev_kp.x - back_kp.x;
+      float dy = prev_kp.y - back_kp.y;
+
+      if (((dx * dx) + (dy * dy)) > distance_thresh) {
+        distance_counter++;
+        to_remove.push_back(i);
+        continue;
+      }
+
+      if (s == KpStatus::MATCH) s = KpStatus::TRACK;
+
+      active_pts.at(i).x = next_kp.x;
+      active_pts.at(i).y = next_kp.y;
+    }
+    vxCommitArrayRange(kp_prev_list_, 0, prev_size, prev_data);
+    vxCommitArrayRange(kp_next_list_, 0, next_size, next_data);
+    vxCommitArrayRange(kp_back_list_, 0, back_size, back_data);
+
+//    cout << "valid points " << next_size << endl;
+//    cout << "\t flag " << flag_counter << " dist " << distance_counter << endl;
+
+//    cout << "removing invalid" << endl;
+//    cout << t.active_to_model_.size();
+//    cout << to_remove.size() << " of " << t.active_points.size() << endl;
+//    for(auto id : to_remove)
+//        cout << id << " ";
+//    cout << "\n";
+
+
+    t.removeInvalidPoints(to_remove);
+    //cout << "here" << endl;
+
+    if (!t.isConsistent())
+        throw std::runtime_error("target status inconsistent");
+
 }
 
 void FeatureTrackerReal::printPerfs() const {
@@ -604,7 +759,7 @@ void FeatureTrackerReal::processFirstFrame(vx_image frame) {
 // track() via the vxSetParameterByIndex()
 //
 
-void FeatureTrackerReal::createMainGraph(vx_image frame) {
+void FeatureTrackerReal::createMainGraph() {
   main_graph_ = vxCreateGraph(context_);
   NVXIO_CHECK_REFERENCE(main_graph_);
 
