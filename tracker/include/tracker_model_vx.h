@@ -55,6 +55,9 @@
 #include "config.h"
 #include "feature_matcher.hpp"
 #include "synthetic_track.hpp"
+#include "flow_graph.hpp"
+
+#include "../../utilities/include/device_1d.h"
 
 namespace fato {
 
@@ -74,14 +77,17 @@ class TrackerVX {
       std::string descriptors_file;
       std::string model_file;
 
-      float confidence;
-      float ratio;
+      float match_confidence;
+      float match_ratio;
+
+      float flow_threshold;
 
       // VISIONWORKS PARAMETERS
       // parameters for optical flow node
       vx_uint32 pyr_levels;
       vx_uint32 lk_num_iters;
       vx_uint32 lk_win_size;
+      vx_float32 lk_epsilon;
 
       // common parameters for corner detector node
       vx_uint32 array_capacity;
@@ -103,12 +109,28 @@ class TrackerVX {
       float match_time;
       float track_time;
       float render_time;
-
+      float synth_time;
+      float synth_time_vx;
+      float cam_flow_time;
+      float active_transf_time;
+      float corner_time;
+      float m_est_time;
+      float depth_to_host_time;
+      float depth_update_time;
 
       Profile() :
           match_time(0),
           render_time(0),
-          track_time(0){}
+          track_time(0),
+          synth_time(0),
+          synth_time_vx(0),
+          corner_time(0),
+          m_est_time(0),
+          depth_to_host_time(0),
+          depth_update_time(0),
+          cam_flow_time(0),
+          active_transf_time(0)
+      {}
 
       std::string str();
 
@@ -125,13 +147,17 @@ class TrackerVX {
 
   void computeNextSequential(cv::Mat& rgb);
 
+  void next(cv::Mat& rgb);
+
   std::vector<cv::Point2f> getActivePoints();
 
   const Target& getTarget() { return target_object_; }
 
-  void getRenderedPose(const Pose& p, cv::Mat& out);
+  cv::Mat getRenderedPose();
 
-  void taskFinished();
+  cv::Mat downloadImage(vx_image image);
+
+  void release();
 
   void printProfile();
 
@@ -202,14 +228,18 @@ class TrackerVX {
                         std::vector<cv::Point3f>& model_valid_pts,
                         std::vector<cv::Point2f>& current_valid_pts);
 
-  void trackSequential(cv::Mat& next);
+  void trackSequential(const cv::Mat& next);
 
-  void detectSequential(cv::Mat& next);
+  void detectSequential(const cv::Mat& next);
+
+  void renderPredictedPose();
 
   void poseFromPnP(std::vector<cv::Point3f>& model_pts,
                    std::vector<int>& inliers);
 
   std::pair<int, std::vector<double> > poseFromFlow();
+
+  std::pair<int, std::vector<double> > poseFromSynth();
 
   void projectPointsDepth(std::vector<cv::Point3f>& points,
                           Eigen::MatrixXd& projection,
@@ -270,10 +300,14 @@ class TrackerVX {
   /****************************************************************************/
   Target target_object_;
   /****************************************************************************/
-  /*                       VISION WORKS VARIABLES                             */
+  /*                       GPU VARIABLES                                      */
   /****************************************************************************/
   vx_delay camera_img_delay_, renderer_img_delay_;
-  vx_context vx_context_;
+  vx_context gpu_context_;
+  std::unique_ptr<vx::FeatureTrackerSynth> synth_graph_;
+  util::Device1D<float> rendered_depth_;
+  std::vector<float> host_rendered_depth_;
+
   Params params_;
 
   SyntheticTrack synth_track_;

@@ -37,6 +37,7 @@
 #include <utility_kernels_pose.h>
 #include <device_1d.h>
 #include <opencv2/highgui/highgui.hpp>
+#include <chrono>
 
 using namespace std;
 using namespace cv;
@@ -60,17 +61,14 @@ void SyntheticTrack::init(double nodal_x, double nodal_y, double focal_x,
   namedWindow("synthetic_pose");
 }
 
-pair<int, vector<double>> SyntheticTrack::poseFromSynth(Pose prev_pose,
-                                                        cv::Mat& curr_img) {
+pair<int, vector<double>> SyntheticTrack::poseFromSynth(
+    Pose prev_pose, const cv::Mat& gray_next) {
   Mat rendered_image;
   vector<float> z_buffer;
   renderObject(prev_pose, rendered_image, z_buffer);
 
   Mat rendered_gray;
   cvtColor(rendered_image, rendered_gray, CV_BGR2GRAY);
-
-  Mat gray_next;
-  cvtColor(curr_img, gray_next, CV_BGR2GRAY);
 
   vector<Point2f> prev_pts, next_pts;
 
@@ -99,6 +97,52 @@ pair<int, vector<double>> SyntheticTrack::poseFromSynth(Pose prev_pose,
                                  rotation, outliers);
     for (auto i = 0; i < 6; ++i) std_beta[i] = beta(i);
   }
+
+  return pair<int, vector<double>>(prev_pts.size(), std_beta);
+}
+
+pair<int, vector<double>> SyntheticTrack::poseFromSynth(
+    const cv::Mat& prev_rendered, std::vector<float>& prev_depth,
+    const cv::Mat& gray_next, float& corn_time, float& est_time) {
+  vector<Point2f> prev_pts, next_pts;
+
+  auto begin = chrono::high_resolution_clock::now();
+  trackCorners(prev_rendered, gray_next, prev_pts, next_pts);
+  auto end = chrono::high_resolution_clock::now();
+
+  corn_time =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+
+  vector<float> depth_pts;
+  depth_pts.reserve(prev_pts.size());
+  for (auto pt : prev_pts) {
+    int x = floor(pt.x);
+    int y = floor(pt.y);
+    float depth = prev_depth.at(x + y * img_w_);
+
+    depth_pts.push_back(depth);
+  }
+
+  vector<float> translation;
+  vector<float> rotation;
+  vector<int> outliers;
+
+  Eigen::VectorXf beta;
+  vector<double> std_beta(6, 0);
+
+  begin = chrono::high_resolution_clock::now();
+  if (prev_pts.size() > 4) {
+    beta = getPoseFromFlowRobust(prev_pts, depth_pts, next_pts, nodal_x_,
+                                 nodal_y_, focal_x_, focal_y_, 10, translation,
+                                 rotation, outliers);
+    for (auto i = 0; i < 6; ++i) std_beta[i] = beta(i);
+  }
+  end = chrono::high_resolution_clock::now();
+  est_time =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+
+//  cout << "!!! corner time " << cor_time / 1000000.0f << " est "
+//       << est_time / 1000000 << endl;
 
   return pair<int, vector<double>>(prev_pts.size(), std_beta);
 }
@@ -147,7 +191,8 @@ void SyntheticTrack::downloadZBuffer(std::vector<float>& buffer) {
   d_z.copyTo(buffer);
 }
 
-void SyntheticTrack::trackCorners(cv::Mat& rendered_image, cv::Mat& next_img,
+void SyntheticTrack::trackCorners(const cv::Mat& rendered_image,
+                                  const cv::Mat& next_img,
                                   std::vector<cv::Point2f>& prev_pts,
                                   std::vector<cv::Point2f>& next_pts) {
   vector<KeyPoint> kps;
@@ -225,10 +270,6 @@ void SyntheticTrackVX::init(double nodal_x, double nodal_y, double focal_x,
   focal_y_ = focal_y;
 }
 
-std::pair<int, std::vector<double> > SyntheticTrackVX::poseFromSynth(Pose prev_pose,
-                                                   vx_image next_img)
-{
-
-}
-
+std::pair<int, std::vector<double>> SyntheticTrackVX::poseFromSynth(
+    Pose prev_pose, vx_image next_img) {}
 }

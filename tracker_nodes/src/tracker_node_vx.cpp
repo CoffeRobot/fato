@@ -273,7 +273,7 @@ void TrackerModelVX::run() {
       }
 
       auto begin = chrono::high_resolution_clock::now();
-      vx_tracker_->computeNextSequential(rgb_image_);
+      vx_tracker_->next(rgb_image_);
       auto end = chrono::high_resolution_clock::now();
       frame_counter++;
       average_time += chrono::duration_cast<chrono::microseconds>(end-begin).count();
@@ -361,7 +361,7 @@ void TrackerModelVX::run() {
         }
       }
 
-      cout << target.active_to_model_.size() << endl;
+      //cout << target.active_to_model_.size() << endl;
 
       if (target.active_to_model_.size()) {
         std::vector<Point3f> model_pts;
@@ -404,8 +404,7 @@ void TrackerModelVX::run() {
         TR.at(0).setT(tra_render);
         TR.at(0).setR_mat(rot_render);
 
-        Mat rend_mat;
-        vx_tracker_->getRenderedPose(target.weighted_pose, rend_mat);
+        Mat rend_mat = vx_tracker_->getRenderedPose();
 
         cv_bridge::CvImage cv_img, cv_rend, cv_flow;
         cv_img.image = rgb_image_;
@@ -413,18 +412,18 @@ void TrackerModelVX::run() {
         publisher_.publish(cv_img.toImageMsg());
 
         cv_rend.image = rend_mat;
-        cv_rend.encoding = sensor_msgs::image_encodings::BGR8;
+        cv_rend.encoding = sensor_msgs::image_encodings::MONO8;
         render_publisher_.publish(cv_rend.toImageMsg());
 
         cv_flow.image = flow_output;
         cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
         flow_publisher_.publish(cv_flow.toImageMsg());
 
-        Size sz1 = flow_output.size();
-        Size sz2 = rend_mat.size();
-        Mat im3(sz1.height, sz1.width + sz2.width, CV_8UC3);
-        flow_output.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
-        rend_mat.copyTo(im3(Rect(sz1.width, 0, sz2.width, sz2.height)));
+//        Size sz1 = flow_output.size();
+//        Size sz2 = rend_mat.size();
+//        Mat im3(sz1.height, sz1.width + sz2.width, CV_8UC3);
+//        flow_output.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
+//        rend_mat.copyTo(im3(Rect(sz1.width, 0, sz2.width, sz2.height)));
 
         img_updated_ = false;
         r.sleep();

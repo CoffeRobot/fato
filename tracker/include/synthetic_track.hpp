@@ -58,7 +58,11 @@ class SyntheticTrack {
             pose::MultipleRigidModelsOgre* rendering_engine);
 
   std::pair<int, std::vector<double> > poseFromSynth(Pose prev_pose,
-                                                     cv::Mat& curr_img);
+                                                     const cv::Mat& gray_next);
+
+  std::pair<int, std::vector<double>> poseFromSynth(const cv::Mat& prev_rendered,
+                                                          std::vector<float>& prev_depth,
+                                                          const cv::Mat& gray_next, float &corn_time, float &est_time);
 
   void renderObject(Pose prev_pose, cv::Mat& rendered_image,
                     std::vector<float>& z_buffer);
@@ -70,7 +74,7 @@ class SyntheticTrack {
 
   void downloadZBuffer(std::vector<float>& buffer);
 
-  void trackCorners(cv::Mat& rendered_image, cv::Mat& next_img,
+  void trackCorners(const cv::Mat& rendered_image, const cv::Mat& next_img,
                     std::vector<cv::Point2f>& prev_pts,
                     std::vector<cv::Point2f>& next_pts);
 

@@ -45,6 +45,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/video/tracking.hpp>
 #include <chrono>
 
 using namespace std;
@@ -259,6 +260,117 @@ void realgraph_test(vx_context& context) {
   }
 }
 
+void trackCorners(const cv::Mat& rendered_image, const cv::Mat& next_img,
+                  std::vector<cv::Point2f>& prev_pts,
+                  std::vector<cv::Point2f>& next_pts, float distance,
+                  Mat& out) {
+  distance = distance * distance;
+
+  vector<KeyPoint> kps;
+  FAST(rendered_image, kps, 7, true);
+
+  if (kps.empty()) return;
+
+  vector<Point2f> tmp_next_pts, tmp_prev_pts, backflow_pts;
+
+  for (auto kp : kps) tmp_prev_pts.push_back(kp.pt);
+
+  vector<uchar> next_status, prev_status;
+  vector<float> next_errors, prev_errors;
+
+  calcOpticalFlowPyrLK(rendered_image, next_img, tmp_prev_pts, tmp_next_pts,
+                       next_status, next_errors);
+  calcOpticalFlowPyrLK(next_img, rendered_image, tmp_next_pts, backflow_pts,
+                       prev_status, prev_errors);
+
+  int lost_track = 0;
+  int dist_err = 0;
+  int correct = 0;
+
+  for (int i = 0; i < tmp_prev_pts.size(); ++i) {
+    float dx = backflow_pts[i].x - tmp_prev_pts[i].x;
+    float dy = backflow_pts[i].y - tmp_prev_pts[i].y;
+
+    float error = dx * dx + dy * dy;
+
+    Scalar color(0, 255, 0);
+
+    if (prev_status[i] != 1) {
+      color = cv::Scalar(0, 0, 255);
+      lost_track++;
+    } else if (error > distance) {
+      color = cv::Scalar(255, 0, 0);
+      dist_err++;
+    }
+    else
+    {
+        correct++;
+    }
+
+    cv::Point2f p_pt = tmp_prev_pts[i];
+    cv::Point2f n_pt = tmp_next_pts[i];
+    n_pt.x += 640;
+    prev_pts.push_back(p_pt);
+    next_pts.push_back(n_pt);
+
+    cv::circle(out, p_pt, 3, color, 1);
+    cv::circle(out, n_pt, 3, color, 1);
+    cv::line(out, p_pt, n_pt, color, 1);
+  }
+
+  cout << "CV: total features " << tmp_prev_pts.size() << endl;
+  cout << "\t correct " << correct << " ratio " << correct/(float)tmp_prev_pts.size() << endl;
+  cout << "\t lost " << lost_track << endl;
+  cout << "\t dist " << dist_err << endl;
+}
+
+void synthgraph_test2(vx_context& context) {
+  fato::vx::FeatureTrackerSynth::Params params;
+  params.img_w = 640;
+  params.img_h = 480;
+  params.use_harris_detector = false;
+  params.fast_type = 9;
+  params.fast_thresh = 7;
+  params.detector_cell_size = 7;
+  params.lk_num_iters = 5;
+
+  fato::vx::FeatureTrackerSynth tracker(context, params);
+
+  Mat rendered = imread("/home/alessandro/debug/rendered.jpg", 0);
+  Mat real = imread("/home/alessandro/debug/real.jpg", 0);
+
+  vx_image vx_rend, vx_real;
+  vx_rend = nvx_cv::createVXImageFromCVMat(context, rendered);
+  vx_real = nvx_cv::createVXImageFromCVMat(context, real);
+
+  tracker.track(vx_rend, vx_real);
+
+  Mat rend_c, cam_c;
+  Size sz1 = rendered.size();
+  Size sz2 = real.size();
+  Mat im3(sz1.height, sz1.width + sz2.width, CV_8UC3);
+
+  cvtColor(rendered, rend_c, CV_GRAY2BGR);
+  cvtColor(real, cam_c, CV_GRAY2BGR);
+
+  rend_c.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
+  cam_c.copyTo(im3(Rect(sz1.width, 0, sz2.width, sz2.height)));
+  Mat im4;
+  im3.copyTo(im4);
+  std::vector<cv::Point2f> prev_cv, next_cv;
+  trackCorners(rendered, real, prev_cv, next_cv, 5, im4);
+
+
+  std::vector<cv::Point2f> prev, next;
+  tracker.debugPoints(25, prev, next, im3);
+
+  tracker.printPerfs();
+
+  imshow("Debug_vx", im3);
+  imshow("Debug_cv", im4);
+  waitKey(0);
+}
+
 void synthgraph_test(vx_context& context) {
   VideoCapture camera(0);
   Mat img;
@@ -390,35 +502,24 @@ void gl2Vx(vx_context context) {
 
   rendering_engine.render(TR);
 
-  util::Device2D<uchar> d_texture(image_w,image_h);
-
-  vx_imagepatch_addressing_t img_addrs[1];
-  img_addrs[0].dim_x = 640;
-  img_addrs[0].dim_y = 480;
-  img_addrs[0].stride_x = sizeof(uchar);
-  img_addrs[0].stride_y = vx_int32(d_texture.pitch_);
-  void* src_ptr[] = {d_texture.data()};
-
-  cout << "here" << endl;
-
   vx_df_image format = VX_DF_IMAGE_VIRT;
   vx_uint32 width = 0;
   vx_uint32 height = 0;
 
-
   vx_image src = vxCreateImage(context, 640, 480, VX_DF_IMAGE_U8);
   vx_rectangle_t rect;
   vxGetValidRegionImage(src, &rect);
-  vx_uint8* dst_ptr = NULL; // should be NULL to work in MAP mode
+  vx_uint8* dst_ptr = NULL;  // should be NULL to work in MAP mode
   vx_imagepatch_addressing_t dst_addr;
-  vxAccessImagePatch(src, &rect, 0, &dst_addr, (void **)&dst_ptr, NVX_WRITE_ONLY_CUDA);
+  vxAccessImagePatch(src, &rect, 0, &dst_addr, (void**)&dst_ptr,
+                     NVX_WRITE_ONLY_CUDA);
   vision::convertFloatArrayToGrayVX((uchar*)dst_ptr,
-                                  rendering_engine.getTexture(), image_w,
-                                  image_h, dst_addr.stride_y, 1.0, 2.0);
+                                    rendering_engine.getTexture(), image_w,
+                                    image_h, dst_addr.stride_y, 1.0, 2.0);
   vxCommitImagePatch(src, &rect, 0, &dst_addr, dst_ptr);
 
-//  vx_image src = vxCreateImageFromHandle(context, VX_DF_IMAGE_U8, img_addrs,
-//                                         src_ptr, NVX_IMPORT_TYPE_CUDA);
+  //  vx_image src = vxCreateImageFromHandle(context, VX_DF_IMAGE_U8, img_addrs,
+  //                                         src_ptr, NVX_IMPORT_TYPE_CUDA);
 
   NVXIO_SAFE_CALL(
       vxQueryImage(src, VX_IMAGE_ATTRIBUTE_FORMAT, &format, sizeof(format)));
@@ -429,9 +530,8 @@ void gl2Vx(vx_context context) {
   cout << format << " " << width << " " << height << " " << VX_DF_IMAGE_U8
        << endl;
 
-
   vx_uint32 plane_index = 0;
-  //vx_rectangle_t rect = {0u, 0u, 640u, 480u};
+  // vx_rectangle_t rect = {0u, 0u, 640u, 480u};
   void* ptr = NULL;
   vx_imagepatch_addressing_t addr;
 
@@ -439,33 +539,64 @@ void gl2Vx(vx_context context) {
                                    VX_IMPORT_TYPE_HOST);
   cv::Mat cv_img = map.getMat();
 
-  imshow("debug", cv_img);
-  //waitKey(0);
-
-  std::vector<uchar> h_texture(image_w * image_h);
-  d_texture.copyTo(h_texture);
-  Mat rendered_img;
-  cv::Mat img_rgba(image_h, image_w, CV_8UC1, h_texture.data());
-  // cv::cvtColor(img_rgba, rendered_img, CV_RGBA2BGR);
-
-  imshow("debug1", img_rgba);
+  imshow("Ogre2VX", cv_img);
   waitKey(0);
 
-  cout << cv_img.cols << " " << cv_img.rows << " " << cv_img.channels() << " "
-       << img_rgba.cols << " " << img_rgba.rows << " " << img_rgba.channels()
-       << endl;
+  vector<KeyPoint> kps;
+  FAST(cv_img, kps, 7, true);
 
-  ofstream file("/home/alessandro/debug/color.txt");
+  cv::Mat cv_out, vx_out;
 
-  for (int i = 0; i < cv_img.rows; ++i) {
-    for (int j = 0; j < cv_img.cols; ++j) {
-      uchar col = cv_img.at<uchar>(i, j);
-      uchar col2 = img_rgba.at<uchar>(i, j);
+  cv_img.copyTo(cv_out);
+  cv_img.copyTo(vx_out);
 
-      file << (int)col << "-" << (int)col2 << " ";
-    }
-    file << "\n";
+  for (auto kp : kps) circle(cv_out, kp.pt, 3, 0, 1);
+
+  fato::vx::FeatureTrackerSynth::Params params;
+
+  //  vx_pyramid pyr_exemplar =
+  //      vxCreatePyramid(context, params.pyr_levels, VX_SCALE_PYRAMID_HALF,
+  //                      width, height, VX_DF_IMAGE_U8);
+  //  vxuGaussianPyramid(context, src, pyr_exemplar);
+  // vx_scalar corners = 500;
+  params.fast_thresh = 7;
+  params.detector_cell_size = 3;
+  params.fast_type = 9;
+
+  vx_array kp_list =
+      vxCreateArray(context, NVX_TYPE_KEYPOINTF, params.array_capacity);
+  nvxuFastTrack(context, src, kp_list, NULL, nullptr, params.fast_type,
+                params.fast_thresh, params.detector_cell_size, nullptr);
+
+  vx_size prev_size;
+  vx_size prev_stride = 0;
+  void* prev_data = NULL;
+
+  vxQueryArray(kp_list, VX_ARRAY_ATTRIBUTE_NUMITEMS, &prev_size,
+               sizeof(prev_size));
+
+  vxAccessArrayRange(kp_list, 0, prev_size, &prev_stride, &prev_data,
+                     VX_READ_ONLY);
+
+  for (auto i = 0; i < prev_size; ++i) {
+    nvx_keypointf_t prev_kp =
+        vxArrayItem(nvx_keypointf_t, prev_data, i, prev_stride);
+
+    Point2f pt(prev_kp.x, prev_kp.y);
+    circle(vx_out, pt, 3, 0, 1);
   }
+  vxCommitArrayRange(kp_list, 0, prev_size, prev_data);
+
+  vxReleaseArray(&kp_list);
+  vxReleaseContext(&context);
+
+  cout << "cv_points " << kps.size() << " vx " << prev_size << endl;
+
+  imshow("Opnecv", cv_out);
+  imshow("VX", vx_out);
+  waitKey(0);
+
+  // vxReleasePyramid(&pyr_exemplar);
 }
 
 int main(int argc, char** argv) {
@@ -473,7 +604,8 @@ int main(int argc, char** argv) {
 
   // synthgraph_test(context);
   // realgraph_test(context);
-  gl2Vx(context);
+  // gl2Vx(context);
+  synthgraph_test2(context);
 
   //    cout << VX_FAILURE << endl;
   //    cout << VX_ERROR_INVALID_REFERENCE << endl;

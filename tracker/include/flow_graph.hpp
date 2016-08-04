@@ -48,6 +48,7 @@ class FeatureTracker {
     vx_uint32 pyr_levels;
     vx_uint32 lk_num_iters;
     vx_uint32 lk_win_size;
+    vx_float32 lk_epsilon;
 
     // common parameters for corner detector node
     vx_uint32 array_capacity;
@@ -61,6 +62,9 @@ class FeatureTracker {
     // parameters for fast_track node
     vx_uint32 fast_type;
     vx_uint32 fast_thresh;
+
+    vx_uint32 img_w;
+    vx_uint32 img_h;
 
     Params();
   };
@@ -78,6 +82,13 @@ class FeatureTracker {
   void getValidPoints(float distance_thresh,
                       std::vector<nvx_keypointf_t>& prev_pts,
                       std::vector<nvx_keypointf_t>& next_pts);
+
+  void getValidPoints(float distance_thresh,
+                      std::vector<cv::Point2f>& prev_pts,
+                      std::vector<cv::Point2f>& next_pts);
+
+  void debugPoints(float distance_thresh, std::vector<cv::Point2f>& prev_pts,
+                   std::vector<cv::Point2f>& next_pts, cv::Mat &out);
 
  protected:
 
@@ -143,6 +154,8 @@ class FeatureTrackerSynth : public FeatureTracker {
 
   void init(vx_image sample_image);
 
+  void init();
+
   void track(vx_image rendered, vx_image curr_frame);
 
   void printPerfs() const;
@@ -151,7 +164,7 @@ class FeatureTrackerSynth : public FeatureTracker {
   void createDataObjects();
 
   // void processFirstFrame(vx_image frame);
-  void createMainGraph(vx_image frame);
+  void createMainGraph();
 
   void release();
 
