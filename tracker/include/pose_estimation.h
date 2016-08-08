@@ -179,6 +179,10 @@ public:
 
     void transform(std::vector<double>& beta);
 
+    std::vector<double> translation() const;
+
+    Eigen::Quaternionf rotation() const;
+
     std::string str() const;
 
 private:

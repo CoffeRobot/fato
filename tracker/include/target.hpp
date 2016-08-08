@@ -35,11 +35,50 @@
 #include <vector>
 #include <opencv2/core/core.hpp>
 #include <Eigen/Core>
+#include <chrono>
 
 #include "constants.h"
 #include "pose_estimation.h"
 
 namespace fato {
+
+class TrackingHistory{
+
+public:
+
+    TrackingHistory(int time_period = 30, float max_t = 0.5, float max_r = 7);
+
+    void init(const Pose& p);
+
+    void update(const Pose& p);
+
+    std::pair<float,float> getConfidence() const;
+
+    float getAvgVelocity() const;
+
+    float getAvgAngular() const;
+
+    std::pair<float,float> getLastVal() const;
+
+    void clear();
+
+    std::vector<float> getHistory() const {return velocities_;}
+
+
+private:
+
+    std::vector<float> velocities_;
+    std::vector<float> angular_vels;
+    int last_;
+    float translation_sum_;
+    float angular_sum_;
+    float max_vel_, max_r_;
+
+    Pose last_pose_;
+    std::chrono::high_resolution_clock::time_point last_update;
+
+};
+
 
 class Target {
  public:
@@ -54,6 +93,8 @@ class Target {
   void removeInvalidPoints(const std::vector<int>& ids);
 
   bool isConsistent();
+
+  bool isPoseReliable();
 
   void projectVectors(cv::Mat& camera, cv::Mat& out);
 
@@ -77,6 +118,8 @@ class Target {
   Pose pnp_pose, kal_pnp_pose;
   Pose flow_pose, synth_pose, weighted_pose;
 
+  std::vector<float> t_velocities;
+
   // position of points in previous frame, used for structure from motion pose
   // estimation
   std::vector<cv::Point3f> last_frame_points_;
@@ -85,7 +128,11 @@ class Target {
 
   bool target_found_;
 
+  TrackingHistory target_history_;
+
 };
+
+
 }
 
 #endif  // TARGET_HPP

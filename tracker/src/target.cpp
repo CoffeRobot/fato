@@ -38,14 +38,19 @@
 #include <stdexcept>
 #include <Eigen/Dense>
 
+#define DEG2RAD 180/M_PI
+
 using namespace cv;
 using namespace std;
 
 namespace fato {
 
-void Target::init(std::vector<cv::Point3f> &points, cv::Mat &descriptors) {
+void Target::init(std::vector<cv::Point3f> &points, cv::Mat &descriptors)
+{
   model_points_ = points;
   descriptors_ = descriptors.clone();
+
+  target_history_ = TrackingHistory(5, 0.1, 15);
 
   centroid_ = Point3f(0, 0, 0);
 
@@ -117,6 +122,8 @@ void Target::resetPose() {
 
   for (auto &d : projected_depth_) d = numeric_limits<float>::quiet_NaN();
 
+  target_history_.clear();
+
   //cout << "Object status reset " << endl;
 }
 
@@ -180,4 +187,127 @@ void Target::projectVectors(Mat &camera, Mat &out) {
     line(out, model_2d.at(i), rel_2d.at(i), Scalar(0, 255, 0));
   }
 }
+
+
+bool Target::isPoseReliable()
+{
+   pair<float,float> confidence = target_history_.getConfidence();
+
+   float val =  (confidence.first + confidence.second)/2.0f;
+
+   return val > 0.6;
+}
+
+
+/***************************************************************************/
+
+
+TrackingHistory::TrackingHistory(int time_period, float max_t, float max_r):
+    velocities_(time_period, 0),
+    angular_vels(time_period, 0),
+    last_(-1),
+    translation_sum_(0),
+    angular_sum_(0),
+    max_vel_(max_t),
+    max_r_(max_r)
+
+{
+
+}
+
+void TrackingHistory::init(const Pose &p)
+{
+    last_pose_ = p;
+    last_update = chrono::high_resolution_clock::now();
+}
+
+void TrackingHistory::update(const Pose &p)
+{
+
+    auto tp = chrono::high_resolution_clock::now();
+
+    float dt = chrono::duration_cast<chrono::milliseconds>(tp - last_update).count() / 1000.0;
+    if(dt == 0)
+        dt = 0.01;
+
+    vector<double> t = p.translation();
+    vector<double> old_t = last_pose_.translation();
+
+    //cout << "old pose " << old_t[0] << " " << old_t[1] << " " << old_t[2] << endl;
+
+    double dx = t[0] - old_t[0];
+    double dy = t[1] - old_t[1];
+    double dz = t[2] - old_t[2];
+
+    //cout << "dx is " << dx << endl;
+
+    double velocity = sqrt(dx*dx+dy*dy+dz*dz);
+
+    int first = last_+1;
+    if(first == velocities_.size())
+        first = 0;
+
+    translation_sum_ -= velocities_[first];
+    translation_sum_ += velocity;
+    velocities_[first] = velocity;
+
+    Eigen::Quaternionf q1 = p.rotation();
+    Eigen::Quaternionf q2 = last_pose_.rotation();
+
+    float angular = q1.angularDistance(q2) * DEG2RAD;
+    angular_sum_ -= angular_vels[first];
+    angular_sum_ += angular;
+    angular_vels[first] = angular;
+
+    // updating index and pose
+    last_ = first;
+    last_update = tp;
+    last_pose_ = p;
+}
+
+std::pair<float,float> TrackingHistory::getConfidence() const
+{
+    float average_vel = translation_sum_/velocities_.size();
+    float average_angular = angular_sum_/angular_vels.size();
+
+    if(average_vel > max_vel_)
+        average_vel = max_vel_;
+
+    if(average_angular > max_r_)
+        average_angular = max_r_;
+
+    return pair<float,float>((1 - (average_vel / max_vel_)),
+                             (1 - (average_angular/max_r_)));
+}
+
+float TrackingHistory::getAvgVelocity() const
+{
+    return translation_sum_/velocities_.size();
+}
+
+float TrackingHistory::getAvgAngular() const
+{
+    return angular_sum_/angular_vels.size();
+}
+
+std::pair<float,float> TrackingHistory::getLastVal() const
+{
+    if(last_ != -1)
+        return pair<float,float>(velocities_.at(last_), angular_vels.at(last_));
+    else return pair<float,float>(0,0);
+}
+
+void TrackingHistory::clear()
+{
+    last_ = -1;
+    translation_sum_ = 0;
+    angular_sum_ = 0;
+
+    for(auto& el : velocities_)
+        el = 0;
+
+    for(auto& el : angular_vels)
+        el = 0;
+}
+
 }

@@ -58,7 +58,6 @@ void SyntheticTrack::init(double nodal_x, double nodal_y, double focal_x,
   focal_x_ = focal_x;
   focal_y_ = focal_y;
 
-  namedWindow("synthetic_pose");
 }
 
 pair<int, vector<double>> SyntheticTrack::poseFromSynth(

@@ -42,6 +42,7 @@
 #include <utility>
 #include <iomanip>
 
+
 #include <NVX/nvxcu.h>
 #include <NVX/nvx_opencv_interop.hpp>
 #include <NVX/nvx_timer.hpp>
@@ -377,13 +378,21 @@ void TrackerVX::trackSequential(const Mat& next) {
       // removing outliers using pnp ransac
 
       vector<int> inliers;
+      begin = chrono::high_resolution_clock::now();
       poseFromPnP(model_pts, inliers);
+      end = chrono::high_resolution_clock::now();
+      profile_.pnp_time =
+          chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+
       target_object_.pnp_pose =
           Pose(target_object_.rotation, target_object_.translation);
 
       // initializing the synth pose with PNP
       target_object_.synth_pose = target_object_.pnp_pose;
       target_object_.weighted_pose = target_object_.pnp_pose;
+
+      target_object_.target_history_.clear();
+      target_object_.target_history_.init(target_object_.pnp_pose);
 
       auto inliers_count = inliers.size();
       removeOutliers(inliers);
@@ -482,6 +491,10 @@ void TrackerVX::trackSequential(const Mat& next) {
         }
 
         target_object_.weighted_pose.transform(weigthed_beta);
+        target_object_.target_history_.update(target_object_.weighted_pose);
+
+        if(!target_object_.isPoseReliable())
+            target_object_.target_found_ = false;
         // updatePointsDepth(target_object_, target_object_.weighted_pose);
         //        updatePointsDepthFromZBuffer(target_object_,
         //                                     target_object_.weighted_pose);
@@ -510,15 +523,16 @@ void TrackerVX::detectSequential(const Mat& next) {
   /*                       FEATURE MATCHING */
   /*************************************************************************************/
   vector<vector<DMatch>> matches;
-  // cout << "Before match" << endl;
+  auto begin = chrono::high_resolution_clock::now();
   feature_detector_->match(next, keypoints, descriptors, matches);
-  // std::cout << "Number of matches " << matches.size() << std::endl;
-  // cout << "After match" << endl;
-  // m_customMatcher.matchHamming(descriptors, m_initDescriptors, 2, matches);
+  auto end = chrono::high_resolution_clock::now();
+  profile_.feature_extraction =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+
   /*************************************************************************************/
   /*                       ADD FEATURES TO TRACKER */
   /*************************************************************************************/
-
+  begin = chrono::high_resolution_clock::now();
   if (matches.size() < 2) return;
   if (matches.at(0).size() != 2) return;
 
@@ -560,13 +574,15 @@ void TrackerVX::detectSequential(const Mat& next) {
 
     if (s != KpStatus::LOST) continue;
 
-    // new interface using target class and keeping a list of pointers for speed
     if (point_status.at(model_idx) == KpStatus::LOST) {
       active_points.push_back(keypoints.at(match_idx).pt);
       target_object_.active_to_model_.push_back(model_idx);
       point_status.at(model_idx) = KpStatus::MATCH;
     }
   }
+  end = chrono::high_resolution_clock::now();
+  profile_.matching_update =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 }
 
 void TrackerVX::renderPredictedPose() {
@@ -1171,7 +1187,10 @@ string TrackerVX::Profile::str() {
 
   ss << "Tracker profile: \n";
   ss << "\t img:  " << img_load_time / 1000000.0f << "\n";
+  ss << "\t pnp:  " << pnp_time / 1000000.0f << "\n";
   ss << "\t matcher:  " << match_time / 1000000.0f << "\n";
+  ss << "\t\t features:  " << feature_extraction / 1000000.0f << "\n";
+  ss << "\t\t update:  " << matching_update / 1000000.0f << "\n";
   ss << "\t tracker:  " << track_time / 1000000.0f << "\n";
   ss << "\t\t cam_flow: " << cam_flow_time / 1000000.0f << "\n";
   ss << "\t\t active pts: " << active_transf_time / 1000000.0f << "\n";

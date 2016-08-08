@@ -567,19 +567,6 @@ void drawInformationHeader(const int numFrames, const float scale,
   // imshow("Debug Window", out);
 }
 
-void drawInformationHeader(const Point2f& top, const string information,
-                           float alpha, int width, int height, Mat& out) {
-  for (int i = top.y; i < top.y + height; ++i) {
-    for (int j = 0; j < width; j++) {
-      out.at<Vec3b>(i, j) = (1 - alpha) * out.at<Vec3b>(i, j);
-    }
-  }
-  // rectangle(out, Rect(0, 0, (out.cols * 0.75), 30), Scalar(0, 0, 0), -1);
-
-  putText(out, information, Point2f(top.x, top.y + 10), FONT_HERSHEY_PLAIN, 1,
-          Scalar(255, 255, 255), 1);
-}
-
 void drawInformationHeaderICRA(Point2f& top, const string frame,
                                const string angle, const string visibility,
                                float alpha, int width, int height, Mat& out) {

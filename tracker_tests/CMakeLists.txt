@@ -190,6 +190,16 @@ if(VisionWorks_FOUND)
     ${VisionWorks_LIBRARIES}
     ${CUDA_LIBRARIES})
 
+  add_executable(render_motion
+    src/render_object_motion.cpp)
+
+  target_link_libraries(render_motion
+    ${catkin_LIBRARIES}
+    ${OPENCV_LIBS}
+    ${Boost_LIBRARIES}
+    ${VisionWorks_LIBRARIES}
+    ${CUDA_LIBRARIES})
+
 endif()
 
 

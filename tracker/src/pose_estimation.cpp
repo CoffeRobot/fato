@@ -684,6 +684,21 @@ vector<double> Pose::getBeta() {
   return tmp;
 }
 
+vector<double> Pose::translation() const
+{
+    return vector<double>{pose_(0, 3), pose_(1, 3), pose_(2, 3)};
+}
+
+Eigen::Quaternionf Pose::rotation() const
+{
+    Eigen::Matrix3f tmp_mat(3, 3);
+
+    for (auto i = 0; i < 3; ++i) {
+      for (auto j = 0; j < 3; ++j) tmp_mat(i, j) = (float)pose_(i, j);
+    }
+
+    return Quaternionf(tmp_mat);
+}
 
 string Pose::str() const {
   stringstream ss;

@@ -85,7 +85,6 @@ void BriskMatcher::initExtractor() {
       cout << "FeatureMatcher: BRISK initialization " << endl;
       feature_name = "brisk";
       matcher_ = DescriptorMatcher::create("BruteForce-Hamming");
-      //opencv_detector_ = cv::BRISK(30,3,1);
 }
 
 void BriskMatcher::extract(const Mat &img, std::vector<KeyPoint> &keypoints,

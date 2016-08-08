@@ -159,10 +159,6 @@ void drawInformationHeader(const int numFrames, const float scale,
                            const float angle, int clusterSize, int matched,
                            int tracked, cv::Mat& out);
 
-void drawInformationHeader(const cv::Point2f& top,
-                           const std::string information, float alpha,
-                           int width, int height, cv::Mat& out);
-
 void drawInformationHeaderICRA(cv::Point2f& top, const std::string frame,
                                const std::string angle,
                                const std::string visibility, float alpha,

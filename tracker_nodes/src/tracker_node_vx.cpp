@@ -35,15 +35,13 @@
 #include <sstream>
 #include <chrono>
 #include <iomanip>
-#include <profiler.h>
-#include <draw_functions.h>
 #include <opencv2/calib3d/calib3d.hpp>
 #include <string>
 #include <iostream>
+#include <sstream>
 
 #include <utility_kernels.h>
 #include <utility_kernels_pose.h>
-
 
 #include "../../fato_rendering/include/multiple_rigid_models_ogre.h"
 #include "../../fato_rendering/include/windowless_gl_context.h"
@@ -81,8 +79,7 @@ TrackerModelVX::TrackerModelVX(string descriptor_file, string model_file)
       spinner_(0),
       camera_matrix_initialized(false),
       obj_file_(descriptor_file),
-      params_()
-{
+      params_() {
   cvStartWindowThread();
 
   publisher_ = nh_.advertise<sensor_msgs::Image>("fato_tracker/output_pnp", 1);
@@ -93,8 +90,8 @@ TrackerModelVX::TrackerModelVX(string descriptor_file, string model_file)
   flow_publisher_ =
       nh_.advertise<sensor_msgs::Image>("fato_tracker/output_flow", 1);
 
-  service_server_ = nh_.advertiseService("tracker_service",
-                                         &TrackerModelVX::serviceCallback, this);
+  service_server_ = nh_.advertiseService(
+      "tracker_service", &TrackerModelVX::serviceCallback, this);
 
   initRGB();
 
@@ -163,8 +160,12 @@ void TrackerModelVX::run() {
   // setup the engines
   // unique_ptr<pose::MultipleRigidModelsOgre> rendering_engine;
 
-  spinner_.start();
+  ofstream file("/home/alessandro/debug/debug.txt");
+  cv::VideoWriter video_writer("/home/alessandro/Downloads/pose_estimation.avi",
+                               CV_FOURCC('D', 'I', 'V', 'X'), 30,
+                               cv::Size(640, 480), true);
 
+  spinner_.start();
 
   ros::Rate r(100);
 
@@ -234,7 +235,6 @@ void TrackerModelVX::run() {
   axis2.push_back(cv::Scalar(0, 125, 125));
   axis2.push_back(cv::Scalar(125, 0, 125));
 
-
   float average_time = 0.0f;
   float frame_counter = 0;
 
@@ -260,7 +260,8 @@ void TrackerModelVX::run() {
         std::unique_ptr<FeatureMatcher> derived =
             std::unique_ptr<BriskMatcher>(new BriskMatcher);
 
-        vx_tracker_ = unique_ptr<TrackerVX>(new TrackerVX(params_, std::move(derived)));
+        vx_tracker_ =
+            unique_ptr<TrackerVX>(new TrackerVX(params_, std::move(derived)));
 
         cout << "Tracker initialized!" << endl;
 
@@ -268,7 +269,7 @@ void TrackerModelVX::run() {
       }
 
       if (!background_learned) {
-        //tracker.learnBackground(rgb_image_);
+        // tracker.learnBackground(rgb_image_);
         background_learned = true;
       }
 
@@ -276,13 +277,13 @@ void TrackerModelVX::run() {
       vx_tracker_->next(rgb_image_);
       auto end = chrono::high_resolution_clock::now();
       frame_counter++;
-      average_time += chrono::duration_cast<chrono::microseconds>(end-begin).count();
-
+      average_time +=
+          chrono::duration_cast<chrono::microseconds>(end - begin).count();
 
       char c = waitKey(1);
       if (c == 'b') {
         std::cout << "Learning background" << std::endl;
-        //tracker.learnBackground(rgb_image_);
+        // tracker.learnBackground(rgb_image_);
       }
 
       vector<int> inliers;
@@ -318,10 +319,7 @@ void TrackerModelVX::run() {
         translation.at<float>(i) = target.pose_(i, 3);
       }
 
-
       if (target.target_found_) {
-
-
         auto w_pose = target.weighted_pose.toCV();
         drawObjectPose(target.centroid_, cam, w_pose.first, w_pose.second, axis,
                        flow_output);
@@ -339,9 +337,8 @@ void TrackerModelVX::run() {
             // circle(rgb_image_, target.prev_points_.at(i), 1, color);
             line(flow_output, target.prev_points_.at(i),
                  target.active_points.at(i), Scalar(255, 0, 0), 1);
-          }
-          else if (target.point_status_.at(id) == fato::KpStatus::PNP) color =
-              Scalar(0, 255, 255);
+          } else if (target.point_status_.at(id) == fato::KpStatus::PNP)
+            color = Scalar(0, 255, 255);
 
           // circle(rgb_image_, target.prev_points_.at(i), 3, color);
           circle(flow_output, target.active_points.at(i), 1, color);
@@ -349,19 +346,43 @@ void TrackerModelVX::run() {
           // target.active_points.at(i), Scalar(255,0,0), 1);
           // center += model_points.at(i);
 
-          cout << "--- average time: " << (average_time/frame_counter)/1000.0 << " --- \n";
+
+
+          //          file << "average velocity \n";
+          //          vector<float> vels = target.target_history_.getHistory();
+          //          for(auto el : vels)
+          //          {
+          //              file << el << " ";
+          //          }
+          //          file << "\n\n";
+
           vx_tracker_->printProfile();
 
-          if(frame_counter > 100 )
-          {
-              frame_counter = 0;
-              average_time = 0;
+          if (frame_counter > 100) {
+            frame_counter = 0;
+            average_time = 0;
           }
-
         }
       }
 
-      //cout << target.active_to_model_.size() << endl;
+
+      pair<float, float> last_vals = target.target_history_.getLastVal();
+      stringstream ss, ss1, ss2;
+      ss << "average time: " << (average_time / frame_counter) / 1000.0;
+      ss1 << "vel " << target.target_history_.getAvgVelocity() << " conf "
+          << target.target_history_.getConfidence().first << " last "
+          << last_vals.first;
+      ss2 << " angular " << target.target_history_.getAvgAngular()
+          << " conf " << target.target_history_.getConfidence().second
+          << " last " << last_vals.second;
+
+      drawInformationHeader(Point2f(0, 0), ss.str(), 0.8, flow_output.cols,
+                            20, flow_output);
+      drawInformationHeader(Point2f(0, 20), ss1.str(), 0.8,
+                            flow_output.cols, 20, flow_output);
+      drawInformationHeader(Point2f(0, 40), ss2.str(), 0.8,
+                            flow_output.cols, 20, flow_output);
+      // cout << target.active_to_model_.size() << endl;
 
       if (target.active_to_model_.size()) {
         std::vector<Point3f> model_pts;
@@ -419,11 +440,14 @@ void TrackerModelVX::run() {
         cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
         flow_publisher_.publish(cv_flow.toImageMsg());
 
-//        Size sz1 = flow_output.size();
-//        Size sz2 = rend_mat.size();
-//        Mat im3(sz1.height, sz1.width + sz2.width, CV_8UC3);
-//        flow_output.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
-//        rend_mat.copyTo(im3(Rect(sz1.width, 0, sz2.width, sz2.height)));
+        video_writer.write(flow_output);
+
+        //        Size sz1 = flow_output.size();
+        //        Size sz2 = rend_mat.size();
+        //        Mat im3(sz1.height, sz1.width + sz2.width, CV_8UC3);
+        //        flow_output.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
+        //        rend_mat.copyTo(im3(Rect(sz1.width, 0, sz2.width,
+        //        sz2.height)));
 
         img_updated_ = false;
         r.sleep();

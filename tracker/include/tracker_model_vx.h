@@ -107,7 +107,10 @@ class TrackerVX {
 
     struct Profile{
       float img_load_time;
+      float pnp_time;
       float match_time;
+      float feature_extraction;
+      float matching_update;
       float track_time;
       float render_time;
       float synth_time;
@@ -121,7 +124,10 @@ class TrackerVX {
 
       Profile() :
           img_load_time(0),
+          pnp_time(0),
           match_time(0),
+          feature_extraction(0),
+          matching_update(0),
           render_time(0),
           track_time(0),
           synth_time(0),

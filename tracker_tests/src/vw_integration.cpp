@@ -33,6 +33,7 @@
 #include "../../fato_rendering/include/multiple_rigid_models_ogre.h"
 #include "../../fato_rendering/include/windowless_gl_context.h"
 #include "../../fato_rendering/include/device_2d.h"
+#include "../../fato_rendering/include/device_1d.h"
 #include "../../tracker/include/flow_graph.hpp"
 #include "../../tracker/include/nvx_utilities.hpp"
 #include "../../cuda/include/utility_kernels.h"
@@ -47,9 +48,57 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 #include <chrono>
+#include <random>
+#include <iostream>
+
+#include "../../tracker/include/target.hpp"
+#include "../../tracker/include/pose_estimation.h"
+
 
 using namespace std;
 using namespace cv;
+
+
+void testAverage()
+{
+    random_device rd;
+    default_random_engine dre(rd());
+    uniform_int_distribution<int> dist(0,6);
+
+    fato::TrackingHistory history(5,3);
+
+    vector<double> b{0,0,0,0,0,0};
+
+    fato::Pose p(b);
+    history.init(p);
+
+    for(int i = 0; i < 100; ++i)
+    {
+       int val = dist(dre);
+
+       cout << "creating pose with " << val << endl;
+
+       vector<double> beta{val,0,0,val,0,0};
+
+       fato::Pose tmp(beta);
+
+       history.update(tmp);
+
+       auto vec = history.getHistory();
+
+       for(auto el : vec)
+           cout << el << " ";
+       cout << "\n";
+
+       cout << "average " << history.getAvgVelocity() << endl;
+       cout << "confidence " << history.getConfidence().first << endl;
+
+       cout << "average " << history.getAvgAngular() << endl;
+
+       cin.get();
+    }
+}
+
 
 void transferData(vx_context& context) {
   vector<nvx_keypointf_t> kps;
@@ -240,7 +289,7 @@ void realgraph_test(vx_context& context) {
       proc_ms = procTimer.toc();
       next_points.clear();
       // tracker.downloadPoints(prev_points,next_points, back_points);
-      //tracker.getValidPoints(20, prev_points, next_points);
+      // tracker.getValidPoints(20, prev_points, next_points);
       tracker.printPerfs();
 
       for (auto pt : next_points)
@@ -301,10 +350,8 @@ void trackCorners(const cv::Mat& rendered_image, const cv::Mat& next_img,
     } else if (error > distance) {
       color = cv::Scalar(255, 0, 0);
       dist_err++;
-    }
-    else
-    {
-        correct++;
+    } else {
+      correct++;
     }
 
     cv::Point2f p_pt = tmp_prev_pts[i];
@@ -319,7 +366,8 @@ void trackCorners(const cv::Mat& rendered_image, const cv::Mat& next_img,
   }
 
   cout << "CV: total features " << tmp_prev_pts.size() << endl;
-  cout << "\t correct " << correct << " ratio " << correct/(float)tmp_prev_pts.size() << endl;
+  cout << "\t correct " << correct << " ratio "
+       << correct / (float)tmp_prev_pts.size() << endl;
   cout << "\t lost " << lost_track << endl;
   cout << "\t dist " << dist_err << endl;
 }
@@ -359,7 +407,6 @@ void synthgraph_test2(vx_context& context) {
   im3.copyTo(im4);
   std::vector<cv::Point2f> prev_cv, next_cv;
   trackCorners(rendered, real, prev_cv, next_cv, 5, im4);
-
 
   std::vector<cv::Point2f> prev, next;
   tracker.debugPoints(25, prev, next, im3);
@@ -599,13 +646,137 @@ void gl2Vx(vx_context context) {
   // vxReleasePyramid(&pyr_exemplar);
 }
 
+void testObjectMovement() {
+  render::WindowLessGLContext dummy(10, 10);
+
+  int image_w = 640;
+  int image_h = 480;
+  double focal_length_x = 632.7361080533549;
+  double focal_length_y = 634.2327075892116;
+  double nodal_point_x = 321.9474832561696;
+  double nodal_point_y = 223.9353111003978;
+
+  string filename =
+      "/home/alessandro/projects/drone_ws/src/fato_tracker/data/kellog/"
+      "kellog.obj";
+
+  pose::MultipleRigidModelsOgre rendering_engine(
+      image_w, image_h, focal_length_x, focal_length_y, nodal_point_x,
+      nodal_point_y, 0.01, 10.0);
+
+  rendering_engine.addModel(filename);
+
+  const render::RigidObject &obj_model = rendering_engine.getRigidObject(0);
+
+  Eigen::Map<const Eigen::MatrixXf> vertices_f(obj_model.getPositions().data(),
+                                               3, obj_model.getNPositions());
+  Eigen::MatrixXd vertices;
+  vertices = vertices_f.cast<double>();
+
+  vector<float> position = obj_model.getBoundingBox();
+
+  Eigen::Map<const Eigen::MatrixXf> bounding_box_f(
+      obj_model.getBoundingBox().data(), 3, 8);
+
+  Eigen::Matrix<double, 3, 8> bounding_box;
+  bounding_box = bounding_box_f.cast<double>();
+
+  // centralizing translation
+  auto mn = vertices.rowwise().minCoeff();
+  auto mx = vertices.rowwise().maxCoeff();
+  Eigen::Translation<double, 3> tra_center(-(mn + mx) / 2.0f);
+
+//  // compute minimal z-shift required to ensure visibility
+//  // assuming cx,cy in image center
+//  Eigen::Matrix<double, 1, 8> shift_x =
+//      (2.0 * focal_length_x / (double)image_w) * bb.row(0).array().abs();
+//  shift_x -= bb.row(2);
+//  Eigen::Matrix<double, 1, 8> shift_y =
+//      (2.0 * focal_length_y / (double)image_h) * bb.row(1).array().abs();
+//  shift_y -= bb.row(2);
+//  Eigen::Matrix<double, 1, 16> shift;
+//  shift << shift_x, shift_y;
+//  double z_shift = shift.maxCoeff();
+//  Eigen::Translation<double, 3> tra_z_shift(0, 0, z_shift);
+
+  for(auto i = 0; i <8; ++i)
+  {
+      cout << fixed << setprecision(3) << tra_center.x() << " " << tra_center.y() << " " << tra_center.z()  << endl;
+  }
+
+  Eigen::Vector3d translation(0, 0, 700);
+  Eigen::Vector3d rotation(0, 0, 0);
+
+  double T[] = {translation[0], translation[1], translation[2]};
+  double R[] = {rotation[0], rotation[1], rotation[2]};
+  std::vector<pose::TranslationRotation3D> TR(1);
+  TR.at(0) = pose::TranslationRotation3D(T, R);
+
+  rendering_engine.render(TR);
+
+  std::vector<std::vector<double>> bboxes =
+      rendering_engine.getBoundingBoxesInCameraImage(TR);
+
+  std::vector<uchar4> h_texture(image_w * image_h);
+  util::Device1D<uchar4> d_texture(image_w * image_h);
+  vision::convertFloatArrayToGrayRGBA(d_texture.data(),
+                                      rendering_engine.getTexture(), image_w,
+                                      image_h, 1.0, 2.0);
+  h_texture.resize(image_h * image_w);
+  d_texture.copyTo(h_texture);
+
+  cv::Mat img_rgba(image_h, image_w, CV_8UC4, h_texture.data());
+  cv::Mat rendered_image;
+  cv::cvtColor(img_rgba, rendered_image, CV_RGBA2BGR);
+
+  vector<double> box = bboxes[0];
+  cout << bboxes.size() << " " << box.size() << endl;
+
+  Point2d pt0(box[0],box[1]);
+  Point2d pt1(box[2],box[3]);
+  Point2d pt2(box[4],box[5]);
+  Point2d pt3(box[6],box[7]);
+  Point2d pt4(box[8],box[9]);
+  Point2d pt5(box[10],box[11]);
+  Point2d pt6(box[12],box[13]);
+  Point2d pt7(box[014],box[15]);
+
+
+//  for(int i = 0; i < 4; i++)
+//  {
+//      circle(rendered_image, Point2f(box[2*i],box[2*i+1]), 3, Scalar(255,0,0), 1);
+//  }
+
+//  for(int i = 0; i < 4; i++)
+//  {
+//      circle(rendered_image, Point2f(box[2*i+4],box[2*i+1+4]), 3, Scalar(255,0,255), 1);
+//  }
+
+  for(int i = 0; i < 8; ++i)
+  {
+      cout << box[2*i] << " " << box[2*i+1] << endl;
+  }
+
+  line(rendered_image, pt0, pt2, Scalar(0,255,0), 1);
+  line(rendered_image, pt2, pt6, Scalar(0,255,0), 1);
+  line(rendered_image, pt6, pt4, Scalar(0,255,0), 1);
+  line(rendered_image, pt4, pt0, Scalar(0,255,0), 1);
+
+  imshow("debug", rendered_image);
+  waitKey(0);
+
+}
+
 int main(int argc, char** argv) {
   vx_context context = vxCreateContext();
 
   // synthgraph_test(context);
   // realgraph_test(context);
   // gl2Vx(context);
-  synthgraph_test2(context);
+  //synthgraph_test2(context);
+
+  //testObjectMovement();
+  testAverage();
 
   //    cout << VX_FAILURE << endl;
   //    cout << VX_ERROR_INVALID_REFERENCE << endl;

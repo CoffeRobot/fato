@@ -97,6 +97,10 @@ void cross(cv::Mat& img, cv::Point2f center, const cv::Scalar& color,
 
 void drawKeypoints(const std::vector<cv::KeyPoint>& points, cv::Mat& out);
 
+void drawInformationHeader(const cv::Point2f& top,
+                           const std::string information, float alpha,
+                           int width, int height, cv::Mat& out);
+
 }  // end namespace
 
 #endif  // DRAW_FUNCTIONS_H

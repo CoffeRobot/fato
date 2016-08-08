@@ -257,6 +257,7 @@ int main(int argc, char **argv) {
 
   bounding_box = bounding_box_f.cast<double>();
 
+
   // centralizing translation
   auto mn = vertices.rowwise().minCoeff();
   auto mx = vertices.rowwise().maxCoeff();
