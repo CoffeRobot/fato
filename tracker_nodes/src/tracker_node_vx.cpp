@@ -65,6 +65,55 @@ using namespace std;
 
 namespace fato {
 
+void getPose(const cv::Mat &rot, const cv::Mat &tra,
+             Eigen::Transform<double, 3, Eigen::Affine> &t_render) {
+  Eigen::Matrix3d rot_view;
+  rot_view = Eigen::AngleAxisd(rot.at<double>(2), Eigen::Vector3d::UnitZ()) *
+             Eigen::AngleAxisd(rot.at<double>(1), Eigen::Vector3d::UnitY()) *
+             Eigen::AngleAxisd(rot.at<double>(0), Eigen::Vector3d::UnitX());
+
+  // rotate around x to 'render' just as Ogre
+  Eigen::Matrix3d Rx_180 = Eigen::Matrix<double, 3, 3>::Identity();
+  Rx_180(1, 1) = -1.0;
+  Rx_180(2, 2) = -1.0;
+  rot_view *= Rx_180;
+
+  Eigen::Translation<double, 3> translation(
+      tra.at<double>(0), tra.at<double>(1), tra.at<double>(2));
+
+  // apply tra_center -> rot_view to bounding box
+  Eigen::Transform<double, 3, Eigen::Affine> t = rot_view * translation;
+
+  // compose render transform (tra_center -> rot_view -> tra_z_shift)
+  t_render = rot_view * translation;
+}
+
+void renderObject(Eigen::Transform<double, 3, Eigen::Affine> &pose,
+                  pose::MultipleRigidModelsOgre &model_ogre) {
+  double tra_render[3];
+  double rot_render[9];
+  Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
+  Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
+      rot_render);
+  tra_render_eig = pose.translation();
+  rot_render_eig = pose.rotation();
+
+  std::vector<pose::TranslationRotation3D> TR(1);
+  TR.at(0).setT(tra_render);
+  TR.at(0).setR_mat(rot_render);
+
+  model_ogre.render(TR);
+}
+
+void downloadRenderedImg(pose::MultipleRigidModelsOgre &model_ogre,
+                         std::vector<uchar4> &h_texture) {
+  util::Device1D<uchar4> d_texture(480 * 640);
+  vision::convertFloatArrayToGrayRGBA(d_texture.data(), model_ogre.getTexture(),
+                                      640, 480, 1.0, 2.0);
+  h_texture.resize(480 * 640);
+  d_texture.copyTo(h_texture);
+}
+
 TrackerModelVX::TrackerModelVX(string descriptor_file, string model_file)
     : nh_(),
       rgb_topic_("/image_raw"),
@@ -158,68 +207,17 @@ void TrackerModelVX::run() {
   // Create dummy GL context before cudaGL init
   render::WindowLessGLContext dummy(10, 10);
   // setup the engines
-  // unique_ptr<pose::MultipleRigidModelsOgre> rendering_engine;
 
   ofstream file("/home/alessandro/debug/debug.txt");
   cv::VideoWriter video_writer("/home/alessandro/Downloads/pose_estimation.avi",
                                CV_FOURCC('D', 'I', 'V', 'X'), 30,
                                cv::Size(640, 480), true);
-
   spinner_.start();
 
   ros::Rate r(100);
 
   bool camera_is_set = false;
   bool background_learned = false;
-
-  auto getPose = [](const cv::Mat &rot, const cv::Mat &tra,
-                    Eigen::Transform<double, 3, Eigen::Affine> &t_render) {
-    Eigen::Matrix3d rot_view;
-    rot_view = Eigen::AngleAxisd(rot.at<double>(2), Eigen::Vector3d::UnitZ()) *
-               Eigen::AngleAxisd(rot.at<double>(1), Eigen::Vector3d::UnitY()) *
-               Eigen::AngleAxisd(rot.at<double>(0), Eigen::Vector3d::UnitX());
-
-    // rotate around x to 'render' just as Ogre
-    Eigen::Matrix3d Rx_180 = Eigen::Matrix<double, 3, 3>::Identity();
-    Rx_180(1, 1) = -1.0;
-    Rx_180(2, 2) = -1.0;
-    rot_view *= Rx_180;
-
-    Eigen::Translation<double, 3> translation(
-        tra.at<double>(0), tra.at<double>(1), tra.at<double>(2));
-
-    // apply tra_center -> rot_view to bounding box
-    Eigen::Transform<double, 3, Eigen::Affine> t = rot_view * translation;
-
-    // compose render transform (tra_center -> rot_view -> tra_z_shift)
-    t_render = rot_view * translation;
-  };
-
-  auto renderObject = [](Eigen::Transform<double, 3, Eigen::Affine> &pose,
-                         pose::MultipleRigidModelsOgre &model_ogre) {
-    double tra_render[3];
-    double rot_render[9];
-    Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
-    Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
-        rot_render);
-    tra_render_eig = pose.translation();
-    rot_render_eig = pose.rotation();
-
-    std::vector<pose::TranslationRotation3D> TR(1);
-    TR.at(0).setT(tra_render);
-    TR.at(0).setR_mat(rot_render);
-
-    model_ogre.render(TR);
-  };
-
-  auto downloadRenderedImg = [](pose::MultipleRigidModelsOgre &model_ogre,
-                                std::vector<uchar4> &h_texture) {
-    util::Device1D<uchar4> d_texture(480 * 640);
-    vision::convertFloatArrayToGrayRGBA(
-        d_texture.data(), model_ogre.getTexture(), 640, 480, 1.0, 2.0);
-    h_texture.resize(480 * 640);
-    d_texture.copyTo(h_texture);
-  };
 
   Mat flow_output;
 
@@ -238,12 +236,13 @@ void TrackerModelVX::run() {
   float average_time = 0.0f;
   float frame_counter = 0;
 
+  Mat cam(3, 3, CV_64FC1);
+
   while (ros::ok()) {
     if (img_updated_) {
       if (!camera_matrix_initialized)
         continue;
       else if (camera_matrix_initialized && !camera_is_set) {
-        Mat cam(3, 3, CV_64FC1);
         for (int i = 0; i < cam.rows; ++i) {
           for (int j = 0; j < cam.cols; ++j) {
             cam.at<double>(i, j) = camera_matrix_.at<double>(i, j);
@@ -268,11 +267,6 @@ void TrackerModelVX::run() {
         camera_is_set = true;
       }
 
-      if (!background_learned) {
-        // tracker.learnBackground(rgb_image_);
-        background_learned = true;
-      }
-
       auto begin = chrono::high_resolution_clock::now();
       vx_tracker_->next(rgb_image_);
       auto end = chrono::high_resolution_clock::now();
@@ -280,44 +274,9 @@ void TrackerModelVX::run() {
       average_time +=
           chrono::duration_cast<chrono::microseconds>(end - begin).count();
 
-      char c = waitKey(1);
-      if (c == 'b') {
-        std::cout << "Learning background" << std::endl;
-        // tracker.learnBackground(rgb_image_);
-      }
-
-      vector<int> inliers;
-
-      Mat cam(3, 3, CV_64FC1);
-      for (int i = 0; i < cam.rows; ++i) {
-        for (int j = 0; j < cam.cols; ++j) {
-          cam.at<double>(i, j) = camera_matrix_.at<double>(i, j);
-        }
-      }
-
       const Target &target = vx_tracker_->getTarget();
 
       flow_output = rgb_image_.clone();
-
-      drawObjectPose(target.centroid_, cam, target.rotation, target.translation,
-                     rgb_image_);
-
-      Pose p_k = target.kal_pnp_pose;
-
-      pair<Mat, Mat> pcv = p_k.toCV();
-
-      drawObjectPose(target.centroid_, cam, pcv.first, pcv.second, axis,
-                     rgb_image_);
-
-      cv::Mat rotation = cv::Mat(3, 3, CV_64FC1, 0.0f);
-      cv::Mat translation = cv::Mat(1, 3, CV_32FC1, 0.0f);
-
-      for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
-          rotation.at<double>(i, j) = target.pose_(i, j);
-        }
-        translation.at<float>(i) = target.pose_(i, 3);
-      }
 
       if (target.target_found_) {
         auto w_pose = target.weighted_pose.toCV();
@@ -334,27 +293,13 @@ void TrackerModelVX::run() {
           else if (target.point_status_.at(id) == fato::KpStatus::TRACK) {
             color = Scalar(0, 255, 0);
 
-            // circle(rgb_image_, target.prev_points_.at(i), 1, color);
             line(flow_output, target.prev_points_.at(i),
                  target.active_points.at(i), Scalar(255, 0, 0), 1);
           } else if (target.point_status_.at(id) == fato::KpStatus::PNP)
             color = Scalar(0, 255, 255);
 
-          // circle(rgb_image_, target.prev_points_.at(i), 3, color);
+
           circle(flow_output, target.active_points.at(i), 1, color);
-          // line(rgb_image_, target.prev_points_.at(i),
-          // target.active_points.at(i), Scalar(255,0,0), 1);
-          // center += model_points.at(i);
-
-
-
-          //          file << "average velocity \n";
-          //          vector<float> vels = target.target_history_.getHistory();
-          //          for(auto el : vels)
-          //          {
-          //              file << el << " ";
-          //          }
-          //          file << "\n\n";
 
           vx_tracker_->printProfile();
 
@@ -365,23 +310,22 @@ void TrackerModelVX::run() {
         }
       }
 
-
       pair<float, float> last_vals = target.target_history_.getLastVal();
       stringstream ss, ss1, ss2;
       ss << "average time: " << (average_time / frame_counter) / 1000.0;
       ss1 << "vel " << target.target_history_.getAvgVelocity() << " conf "
           << target.target_history_.getConfidence().first << " last "
           << last_vals.first;
-      ss2 << " angular " << target.target_history_.getAvgAngular()
-          << " conf " << target.target_history_.getConfidence().second
-          << " last " << last_vals.second;
+      ss2 << " angular " << target.target_history_.getAvgAngular() << " conf "
+          << target.target_history_.getConfidence().second << " last "
+          << last_vals.second;
 
-      drawInformationHeader(Point2f(0, 0), ss.str(), 0.8, flow_output.cols,
+      drawInformationHeader(Point2f(0, 0), ss.str(), 0.8, flow_output.cols, 20,
+                            flow_output);
+      drawInformationHeader(Point2f(0, 20), ss1.str(), 0.8, flow_output.cols,
                             20, flow_output);
-      drawInformationHeader(Point2f(0, 20), ss1.str(), 0.8,
-                            flow_output.cols, 20, flow_output);
-      drawInformationHeader(Point2f(0, 40), ss2.str(), 0.8,
-                            flow_output.cols, 20, flow_output);
+      drawInformationHeader(Point2f(0, 40), ss2.str(), 0.8, flow_output.cols,
+                            20, flow_output);
       // cout << target.active_to_model_.size() << endl;
 
       if (target.active_to_model_.size()) {

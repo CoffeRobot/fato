@@ -62,68 +62,68 @@
 namespace fato {
 
 class TrackerVX {
-
  public:
+  struct Params {
+    bool parallel;
 
-    struct Params {
-      int image_width;
-      int image_height;
+    int image_width;
+    int image_height;
 
-      float fx;
-      float fy;
-      float cx;
-      float cy;
+    float fx;
+    float fy;
+    float cx;
+    float cy;
 
-      std::string descriptors_file;
-      std::string model_file;
+    std::string descriptors_file;
+    std::string model_file;
 
-      float match_confidence;
-      float match_ratio;
+    float match_confidence;
+    float match_ratio;
 
-      float flow_threshold;
+    float flow_threshold;
 
-      // VISIONWORKS PARAMETERS
-      // parameters for optical flow node
-      vx_uint32 pyr_levels;
-      vx_uint32 lk_num_iters;
-      vx_uint32 lk_win_size;
-      vx_float32 lk_epsilon;
+    // VISIONWORKS PARAMETERS
+    // parameters for optical flow node
+    vx_uint32 pyr_levels;
+    vx_uint32 lk_num_iters;
+    vx_uint32 lk_win_size;
+    vx_float32 lk_epsilon;
 
-      // common parameters for corner detector node
-      vx_uint32 array_capacity;
-      vx_uint32 detector_cell_size;
-      bool use_harris_detector;
+    // common parameters for corner detector node
+    vx_uint32 array_capacity;
+    vx_uint32 detector_cell_size;
+    bool use_harris_detector;
 
-      // parameters for harris_track node
-      vx_float32 harris_k;
-      vx_float32 harris_thresh;
+    // parameters for harris_track node
+    vx_float32 harris_k;
+    vx_float32 harris_thresh;
 
-      // parameters for fast_track node
-      vx_uint32 fast_type;
-      vx_uint32 fast_thresh;
+    // parameters for fast_track node
+    vx_uint32 fast_type;
+    vx_uint32 fast_thresh;
 
-      Params();
-    };
+    Params();
+  };
 
-    struct Profile{
-      float img_load_time;
-      float pnp_time;
-      float match_time;
-      float feature_extraction;
-      float matching_update;
-      float track_time;
-      float render_time;
-      float synth_time;
-      float synth_time_vx;
-      float cam_flow_time;
-      float active_transf_time;
-      float corner_time;
-      float m_est_time;
-      float depth_to_host_time;
-      float depth_update_time;
+  struct Profile {
+    float img_load_time;
+    float pnp_time;
+    float match_time;
+    float feature_extraction;
+    float matching_update;
+    float track_time;
+    float render_time;
+    float synth_time;
+    float synth_time_vx;
+    float cam_flow_time;
+    float active_transf_time;
+    float corner_time;
+    float m_est_time;
+    float depth_to_host_time;
+    float depth_update_time;
 
-      Profile() :
-          img_load_time(0),
+    Profile()
+        : img_load_time(0),
           pnp_time(0),
           match_time(0),
           feature_extraction(0),
@@ -137,13 +137,10 @@ class TrackerVX {
           depth_to_host_time(0),
           depth_update_time(0),
           cam_flow_time(0),
-          active_transf_time(0)
-      {}
+          active_transf_time(0) {}
 
-      std::string str();
-
-    };
-
+    std::string str();
+  };
 
   TrackerVX(const Params& params, std::unique_ptr<FeatureMatcher> matcher);
 
@@ -153,9 +150,9 @@ class TrackerVX {
 
   void resetTarget();
 
-  void computeNextSequential(cv::Mat& rgb);
-
   void next(cv::Mat& rgb);
+
+  void parNext(cv::Mat& rgb);
 
   std::vector<cv::Point2f> getActivePoints();
 
@@ -176,15 +173,12 @@ class TrackerVX {
   /****************************************************************************/
   std::atomic_int m_flow_counter;
   std::atomic_int m_match_counter;
-  int m_original_model_size;
-  std::vector<KpStatus> m_points_status_debug;
 
   bool stop_matcher;
 
   /****************************************************************************/
   /*                       KALMAN POSE                                        */
   /****************************************************************************/
-  cv::KalmanFilter kalman_pose_pnp_;
   cv::KalmanFilter kalman_pose_flow_;
 
  private:
@@ -196,7 +190,8 @@ class TrackerVX {
 
   /**
    * @brief initSynthTracking initializes the rendering engine
-   * @param object_model model file save in obj format, need to render the object
+   * @param object_model model file save in obj format, need to render the
+   * object
    * @param fx
    * @param fy
    * @param cx
@@ -211,6 +206,11 @@ class TrackerVX {
    * @brief initializeContext initializes visionworks context and variables
    */
   void initializeContext();
+
+
+  void detectorWorker();
+
+  void trackerWorker();
 
   void getOpticalFlow(const cv::Mat& prev, const cv::Mat& next, Target& target);
 
@@ -238,18 +238,24 @@ class TrackerVX {
                         std::vector<cv::Point3f>& model_valid_pts,
                         std::vector<cv::Point2f>& current_valid_pts);
 
-  void trackSequential(const cv::Mat& next);
+  void trackSequential();
 
-  void detectSequential(const cv::Mat& next);
+  void detectSequential();
+
+  void detectParallel();
+
+  void updatedDetectedPoints(
+      const std::vector<cv::KeyPoint>& keypoints,
+      const std::vector<std::vector<cv::DMatch>>& matches);
 
   void renderPredictedPose();
 
   void poseFromPnP(std::vector<cv::Point3f>& model_pts,
                    std::vector<int>& inliers);
 
-  std::pair<int, std::vector<double> > poseFromFlow();
+  std::pair<int, std::vector<double>> poseFromFlow();
 
-  std::pair<int, std::vector<double> > poseFromSynth();
+  std::pair<int, std::vector<double>> poseFromSynth();
 
   void projectPointsDepth(std::vector<cv::Point3f>& points,
                           Eigen::MatrixXd& projection,
@@ -257,19 +263,13 @@ class TrackerVX {
 
   void initFilter(cv::KalmanFilter& filter, Eigen::MatrixXd& projection);
 
-  void predictPose();
-
-  void predictPoseFlow(std::vector<float>& t, std::vector<float> r);
-
   void updatePointsDepth(Target& t, Pose& p);
 
   void updatePointsDepthFromZBuffer(Target& t, Pose& p);
 
   int image_w_, image_h_;
 
-  std::future<int> m_trackerStatus, m_detectorStatus;
-
-  cv::Mat m_nextRgb, m_init_rgb_img, prev_gray_;
+  cv::Mat prev_gray_, next_gray_;
   /****************************************************************************/
   /*                       ESTIMATION VARIABLES                               */
   /****************************************************************************/
@@ -281,12 +281,15 @@ class TrackerVX {
   /****************************************************************************/
   /*                       CONCURRENCY VARIABLES                              */
   /****************************************************************************/
-  std::condition_variable m_trackerCondition, m_detectorCondition;
-  std::mutex m_trackerMutex, m_detectorMutex, m_mutex;
-  std::atomic_int m_completed;
-  std::atomic_bool m_isRunning;
-  std::atomic_bool m_trackerDone;
-  std::atomic_bool m_matcherDone;
+  std::condition_variable tracker_condition_, detector_condition_;
+  std::mutex tracker_mutex_, detector_mutex_, main_mutex_;
+
+  std::atomic_bool task_completed_, tra_img_updated_, det_img_updated_,
+  tra_worker_ready_, det_worker_ready_;
+
+
+  std::thread detector_thread_;
+  std::thread tracker_thread_;
   /****************************************************************************/
   /*                       DETECTOR VARIABLES                                 */
   /****************************************************************************/
@@ -297,14 +300,11 @@ class TrackerVX {
   /****************************************************************************/
   Profile profile_;
   /****************************************************************************/
-  /*                       PNP RANSAC REQUIREMENTS                            */
-  /****************************************************************************/
-  int pnp_iterations_;
-  /****************************************************************************/
-  /*                       MATCHER PARAMS                                     */
+  /*                           PARAMS                                        */
   /****************************************************************************/
   float matcher_confidence_;
   float matcher_ratio_;
+  int pnp_iterations_;
   /****************************************************************************/
   /*                       TARGETS TO TRACK                                   */
   /****************************************************************************/
@@ -319,7 +319,7 @@ class TrackerVX {
 
   util::Device1D<float> rendered_depth_;
   std::vector<float> host_rendered_depth_;
-
+  // ERORR: why doesn't work if I move this!!!!
   Params params_;
 
   SyntheticTrack synth_track_;

@@ -42,7 +42,6 @@
 #include <utility>
 #include <iomanip>
 
-
 #include <NVX/nvxcu.h>
 #include <NVX/nvx_opencv_interop.hpp>
 #include <NVX/nvx_timer.hpp>
@@ -94,7 +93,12 @@ TrackerVX::TrackerVX(const Params& params,
   image_w_ = params_.image_width;
   image_h_ = params_.image_height;
 
-  cvStartWindowThread();
+  //launch workers for paraller detection and tracking
+  if(params.parallel)
+  {
+    detector_thread_ = thread(&TrackerVX::detectorWorker, this);
+    tracker_thread_ = thread(&TrackerVX::trackerWorker, this);
+  }
 
   //  util::Device1D depth_buffer(img_h_ * img_w);_
 
@@ -177,20 +181,23 @@ void TrackerVX::initializeContext() {
   vxReleaseImage(&frameGray);
 }
 
-void TrackerVX::learnBackground(const Mat& rgb) {
-  Mat gray;
-  cvtColor(rgb, gray, CV_BGR2GRAY);
-  feature_detector_->extractTarget(gray);
 
-  vector<KeyPoint> kps;
-  Mat descriptors;
-  feature_detector_->extract(gray, kps, descriptors);
+void TrackerVX::detectorWorker()
+{
+    while(true)
+    {
+        if(task_completed_)
+            break;
+    }
+}
 
-  Mat taget_descriptors = feature_detector_->getTargetDescriptors();
-
-  cv::vconcat(taget_descriptors, descriptors, taget_descriptors);
-
-  feature_detector_->setTarget(taget_descriptors);
+void TrackerVX::trackerWorker()
+{
+    while(true)
+    {
+        if(task_completed_)
+            break;
+    }
 }
 
 void TrackerVX::resetTarget() { target_object_.resetPose(); }
@@ -253,25 +260,12 @@ void TrackerVX::getOpticalFlowVX(vx_image prev, vx_image next, Target& target) {
   real_graph_->getValidPoints(target, params_.flow_threshold);
 }
 
-void TrackerVX::computeNextSequential(Mat& rgb) {
-  auto begin = chrono::high_resolution_clock::now();
-  trackSequential(rgb);
-  auto end = chrono::high_resolution_clock::now();
-  profile_.track_time =
-      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-  begin = chrono::high_resolution_clock::now();
-  detectSequential(rgb);
-  end = chrono::high_resolution_clock::now();
-  profile_.match_time =
-      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-}
 
 void TrackerVX::next(Mat& rgb) {
   // TODO: visionworks is slow right now due to a bug, grayscale conversion must
   // be moved to gpu later
   auto begin = chrono::high_resolution_clock::now();
-  Mat gray;
-  cvtColor(rgb, gray, CV_BGR2GRAY);
+  cvtColor(rgb, next_gray_, CV_BGR2GRAY);
   vx_image vxiSrc;
   vxiSrc = nvx_cv::createVXImageFromCVMat(gpu_context_, rgb);
   NVXIO_SAFE_CALL(
@@ -283,7 +277,7 @@ void TrackerVX::next(Mat& rgb) {
 
   // compute flow
   begin = chrono::high_resolution_clock::now();
-  trackSequential(gray);
+  trackSequential();
   end = chrono::high_resolution_clock::now();
   profile_.track_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -311,7 +305,7 @@ void TrackerVX::next(Mat& rgb) {
 
   // compute match
   begin = chrono::high_resolution_clock::now();
-  detectSequential(gray);
+  detectSequential();
   end = chrono::high_resolution_clock::now();
   profile_.match_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -319,8 +313,36 @@ void TrackerVX::next(Mat& rgb) {
   // age dealy of images in visionworks
   vxAgeDelay(camera_img_delay_);
   vxAgeDelay(renderer_img_delay_);
-
+  next_gray_.copyTo(prev_gray_);
   vxReleaseImage(&vxiSrc);
+}
+
+void TrackerVX::parNext(cv::Mat& rgb)
+{
+    if(tra_worker_ready_ && det_worker_ready_)
+    {
+        unique_lock<mutex> lock1(tracker_mutex_,defer_lock);
+        unique_lock<mutex> lock2(detector_mutex_,defer_lock);
+        lock(lock1, lock2);
+
+        auto begin = chrono::high_resolution_clock::now();
+        cvtColor(rgb, next_gray_, CV_BGR2GRAY);
+        vx_image vxiSrc;
+        vxiSrc = nvx_cv::createVXImageFromCVMat(gpu_context_, rgb);
+        NVXIO_SAFE_CALL(
+            vxuColorConvert(gpu_context_, vxiSrc,
+                            (vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0)));
+        auto end = chrono::high_resolution_clock::now();
+        profile_.img_load_time =
+            chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+
+        tra_img_updated_ = det_img_updated_ = true;
+
+        cout << "new image ready!" << endl;
+
+        tracker_condition_.notify_one();
+        detector_condition_.notify_one();
+    }
 }
 
 void TrackerVX::release() {
@@ -329,33 +351,31 @@ void TrackerVX::release() {
   vxReleaseContext(&gpu_context_);
 }
 
-void TrackerVX::trackSequential(const Mat& next) {
+void TrackerVX::trackSequential() {
   /*************************************************************************************/
   /*                       TRACKING */
   /*************************************************************************************/
   if (!real_graph_->isInitialized())
     real_graph_->init((vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0));
 
-
-  //Target tmp_t = target_object_;
-//  auto begin = chrono::high_resolution_clock::now();
-//  getOpticalFlow(prev_gray_, next, target_object_);
-//  auto end = chrono::high_resolution_clock::now();
-//
-//  profile_.cam_flow_time =
-//      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-
+  // Target tmp_t = target_object_;
+  //  auto begin = chrono::high_resolution_clock::now();
+  //  getOpticalFlow(prev_gray_, next, target_object_);
+  //  auto end = chrono::high_resolution_clock::now();
+  //
+  //  profile_.cam_flow_time =
+  //      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
   auto begin = chrono::high_resolution_clock::now();
   real_graph_->track(target_object_.active_points,
-                       (vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0));
+                     (vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0));
   real_graph_->getValidPoints(target_object_, params_.flow_threshold);
   auto end = chrono::high_resolution_clock::now();
   profile_.cam_flow_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
-//  cout << "cpu active " << target_object_.active_points.size() << " gpu "
-//       << tmp_t.active_points.size() << endl;
+  //  cout << "cpu active " << target_object_.active_points.size() << " gpu "
+  //       << tmp_t.active_points.size() << endl;
 
   if (!target_object_.isConsistent())
     cout << "OF: Error status of object is incosistent!!" << endl;
@@ -428,45 +448,12 @@ void TrackerVX::trackSequential(const Mat& next) {
       // initFilter(kalman_pose_flow_, projection_matrix);
 
     } else {
-      // cout << "1";
 
-      // predictPose(); // kalman filter on pnp, not very useful
-
-      // auto begin = chrono::high_resolution_clock::now();
-
-      // Mat prev_rendered = getRenderedPose();
-
-      //      float corn_time, est_time;
-      //      pair<int, vector<double>> synth_beta2 =
-      //      synth_track_.poseFromSynth(
-      //          prev_rendered, host_rendered_depth_, next, corn_time,
-      //          est_time);
-      //      auto end = chrono::high_resolution_clock::now();
-      //      profile_.synth_time =
-      //          chrono::duration_cast<chrono::nanoseconds>(end -
-      //          begin).count();
-      // cout << "2";
       begin = chrono::high_resolution_clock::now();
       pair<int, vector<double>> synth_beta = poseFromSynth();
       end = chrono::high_resolution_clock::now();
       profile_.synth_time_vx =
           chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-
-      //      Mat rendered =
-      //      downloadImage((vx_image)vxGetReferenceFromDelay(renderer_img_delay_,
-      //      -1));
-      //      Mat real =
-      //      downloadImage((vx_image)vxGetReferenceFromDelay(camera_img_delay_,
-      //      0));
-
-      //      imwrite("/home/alessandro/debug/rendered.jpg", rendered);
-      //      imwrite("/home/alessandro/debug/real.jpg", real);
-
-      // cout << "!!! valid points " << synth_beta.first << " - " <<
-      // synth_beta2.first << endl;
-
-      // profile_.corner_time = corn_time;
-      // profile_.m_est_time = est_time;
 
       std::pair<int, vector<double>> beta = poseFromFlow();
 
@@ -493,8 +480,8 @@ void TrackerVX::trackSequential(const Mat& next) {
         target_object_.weighted_pose.transform(weigthed_beta);
         target_object_.target_history_.update(target_object_.weighted_pose);
 
-        if(!target_object_.isPoseReliable())
-            target_object_.target_found_ = false;
+        if (!target_object_.isPoseReliable())
+          target_object_.target_found_ = false;
         // updatePointsDepth(target_object_, target_object_.weighted_pose);
         //        updatePointsDepthFromZBuffer(target_object_,
         //                                     target_object_.weighted_pose);
@@ -508,13 +495,9 @@ void TrackerVX::trackSequential(const Mat& next) {
     target_object_.target_found_ = false;
     target_object_.resetPose();
   }
-  /*************************************************************************************/
-  /*                       SWAP MEMORY */
-  /*************************************************************************************/
-  next.copyTo(prev_gray_);
 }
 
-void TrackerVX::detectSequential(const Mat& next) {
+void TrackerVX::detectSequential() {
   // if (stop_matcher) return;
 
   vector<KeyPoint> keypoints;
@@ -524,7 +507,7 @@ void TrackerVX::detectSequential(const Mat& next) {
   /*************************************************************************************/
   vector<vector<DMatch>> matches;
   auto begin = chrono::high_resolution_clock::now();
-  feature_detector_->match(next, keypoints, descriptors, matches);
+  feature_detector_->match(next_gray_, keypoints, descriptors, matches);
   auto end = chrono::high_resolution_clock::now();
   profile_.feature_extraction =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -532,57 +515,83 @@ void TrackerVX::detectSequential(const Mat& next) {
   /*************************************************************************************/
   /*                       ADD FEATURES TO TRACKER */
   /*************************************************************************************/
-  begin = chrono::high_resolution_clock::now();
-  if (matches.size() < 2) return;
-  if (matches.at(0).size() != 2) return;
+  updatedDetectedPoints(keypoints,matches);
+}
 
-  vector<cv::Point2f>& active_points = target_object_.active_points;
-  vector<KpStatus>& point_status = target_object_.point_status_;
-  Mat& target_descriptors = feature_detector_->getTargetDescriptors();
+void TrackerVX::detectParallel() {
+  // if (stop_matcher) return;
 
-  int bg_count = 0;
-
-  for (size_t i = 0; i < matches.size(); i++) {
-    const DMatch& fst_match = matches.at(i).at(0);
-    const DMatch& scd_match = matches.at(i).at(1);
-
-    const int& model_idx = fst_match.trainIdx;
-    const int& match_idx = fst_match.queryIdx;
-
-    if (match_idx < 0 || match_idx >= keypoints.size()) continue;
-    // the descriptor mat includes the objects and the background stacked
-    // vertically, therefore
-    // the index shoud be less than the target object points
-    if (model_idx < 0 ||
-        model_idx >=
-            target_descriptors.rows)  // target_object_.model_points_.size())
-      continue;
-
-    if (model_idx >= target_object_.model_points_.size()) {
-      bg_count++;
-      continue;
-    }
-
-    float confidence = 1 - (matches[i][0].distance / 512.0);
-    auto ratio = (fst_match.distance / scd_match.distance);
-
-    KpStatus& s = point_status.at(model_idx);
-
-    if (confidence < 0.80f) continue;
-
-    if (ratio > 0.8f) continue;
-
-    if (s != KpStatus::LOST) continue;
-
-    if (point_status.at(model_idx) == KpStatus::LOST) {
-      active_points.push_back(keypoints.at(match_idx).pt);
-      target_object_.active_to_model_.push_back(model_idx);
-      point_status.at(model_idx) = KpStatus::MATCH;
-    }
-  }
-  end = chrono::high_resolution_clock::now();
-  profile_.matching_update =
+  vector<KeyPoint> keypoints;
+  Mat descriptors;
+  /*************************************************************************************/
+  /*                       FEATURE MATCHING                                            */
+  /*************************************************************************************/
+  vector<vector<DMatch>> matches;
+  auto begin = chrono::high_resolution_clock::now();
+  feature_detector_->match(next_gray_, keypoints, descriptors, matches);
+  auto end = chrono::high_resolution_clock::now();
+  profile_.feature_extraction =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+  /*************************************************************************************/
+  /*                       SYNCRONIZATION                                              */
+  /*************************************************************************************/
+  // need to wait that the tracker thread is done
+
+  /*************************************************************************************/
+  /*                       ADD FEATURES TO TRACKER */
+  /*************************************************************************************/
+  updatedDetectedPoints(keypoints,matches);
+}
+
+void TrackerVX::updatedDetectedPoints(
+    const std::vector<KeyPoint>& keypoints,
+    const std::vector<std::vector<DMatch>>& matches)
+{
+    auto begin = chrono::high_resolution_clock::now();
+    if (matches.size() < 2) return;
+    if (matches.at(0).size() != 2) return;
+
+    vector<cv::Point2f>& active_points = target_object_.active_points;
+    vector<KpStatus>& point_status = target_object_.point_status_;
+    Mat& target_descriptors = feature_detector_->getTargetDescriptors();
+
+
+    for (size_t i = 0; i < matches.size(); i++) {
+      const DMatch& fst_match = matches.at(i).at(0);
+      const DMatch& scd_match = matches.at(i).at(1);
+
+      const int& model_idx = fst_match.trainIdx;
+      const int& match_idx = fst_match.queryIdx;
+
+      if (match_idx < 0 || match_idx >= keypoints.size()) continue;
+      // the descriptor mat includes the objects and the background stacked
+      // vertically, therefore
+      // the index shoud be less than the target object points
+      if (model_idx < 0 ||
+          model_idx >=
+              target_descriptors.rows)  // target_object_.model_points_.size())
+        continue;
+
+      float confidence = 1 - (matches[i][0].distance / 512.0);
+      auto ratio = (fst_match.distance / scd_match.distance);
+
+      KpStatus& s = point_status.at(model_idx);
+
+      if (confidence < 0.80f) continue;
+
+      if (ratio > 0.8f) continue;
+
+      if (s != KpStatus::LOST) continue;
+
+      if (point_status.at(model_idx) == KpStatus::LOST) {
+        active_points.push_back(keypoints.at(match_idx).pt);
+        target_object_.active_to_model_.push_back(model_idx);
+        point_status.at(model_idx) = KpStatus::MATCH;
+      }
+    }
+    auto end = chrono::high_resolution_clock::now();
+    profile_.matching_update =
+        chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 }
 
 void TrackerVX::renderPredictedPose() {
@@ -877,186 +886,7 @@ void TrackerVX::initFilter(KalmanFilter& filter, Eigen::MatrixXd& projection) {
   measurement(5) = beta.at(5);  //
 }
 
-void TrackerVX::predictPose() {
-  //  ofstream file("/home/alessandro/debug/object_pose.txt",
-  //                ofstream::out | ofstream::app);
 
-  // file << "----------------- PNP PREDICTION ---------------- \n\n";
-
-  auto toString = [](cv::Mat& mat) {
-    stringstream ss;
-    ss << fixed << setprecision(5);
-    for (auto i = 0; i < mat.rows; ++i) {
-      ss << mat.at<float>(i, 0) << " ";
-    }
-    return ss.str();
-  };
-
-  // file << "state pred \n" << toString(kalman_pose_pnp_.statePre) << "\n";
-
-  Mat prediction = kalman_pose_pnp_.predict();
-
-  // file << "pnp pred \n";
-  //  file << "pred: " << prediction.at<float>(9) << " " <<
-  //  prediction.at<float>(10)
-  //       << " " << prediction.at<float>(11) << "\n";
-
-  Pose& pnp_pose = target_object_.pnp_pose;
-  vector<double> beta = pnp_pose.getBeta();
-
-  //  file << "euler angles " << angles(0) << " " << angles(1) << " " <<
-  //  angles(2)
-  //       << "\n";
-
-  Mat_<float> measurement(6, 1);
-  measurement(0) = beta.at(0);  // target_object_.translation.at<double>(0);
-  measurement(1) = beta.at(1);  // target_object_.translation.at<double>(1);
-  measurement(2) = beta.at(2);  // target_object_.translation.at<double>(2);
-  measurement(3) = beta.at(3);  //;
-  measurement(4) = beta.at(4);  //;
-  measurement(5) = beta.at(5);  //
-  // file << "pnp meas \n";
-  // file << toString(measurement) << "\n";
-
-  Mat estimated = kalman_pose_pnp_.correct(measurement);
-  // file << "pnp estimated \n";
-  // file << toString(estimated) << "\n";
-
-  Mat_<double> rot(3, 1);
-  Mat_<double> tr(3, 1);
-
-  tr(0) = estimated.at<float>(0);
-  tr(1) = estimated.at<float>(1);
-  tr(2) = estimated.at<float>(2);
-
-  rot(0) = estimated.at<float>(9);
-  rot(1) = estimated.at<float>(10);
-  rot(2) = estimated.at<float>(11);
-
-  vector<double> tmp = {estimated.at<float>(0),  estimated.at<float>(1),
-                        estimated.at<float>(2),  estimated.at<float>(9),
-                        estimated.at<float>(10), estimated.at<float>(11)};
-
-  target_object_.kal_pnp_pose = Pose(tmp);
-}
-
-void TrackerVX::predictPoseFlow(std::vector<float>& t, std::vector<float> r) {
-  //  ofstream file("/home/alessandro/debug/object_pose.txt",
-  //                ofstream::out | ofstream::app);
-
-  Pose tmp_pose = target_object_.flow_pose;
-  vector<double> tmp_bt = {
-      static_cast<double>(t[0]), static_cast<double>(t[1]),
-      static_cast<double>(t[2]), static_cast<double>(r[0]),
-      static_cast<double>(r[1]), static_cast<double>(r[2])};
-  tmp_pose.transform(tmp_bt);
-
-  auto toString = [](cv::Mat& mat) {
-    stringstream ss;
-    ss << fixed << setprecision(5);
-    for (auto i = 0; i < mat.rows; ++i) {
-      ss << mat.at<float>(i, 0) << " ";
-    }
-    return ss.str();
-  };
-
-  Mat prediction = kalman_pose_flow_.predict();
-  vector<double> beta = tmp_pose.getBeta();
-
-  Mat_<float> measurement(6, 1);
-  measurement(0) = static_cast<float>(beta[0]);
-  measurement(1) = static_cast<float>(beta[1]);
-  measurement(2) = static_cast<float>(beta[2]);
-  measurement(3) = static_cast<float>(beta[3]);
-  measurement(4) = static_cast<float>(beta[4]);
-  measurement(5) = static_cast<float>(beta[5]);
-  // file << "flow measurement \n" << toString(measurement) << "\n";
-  Mat estimated = kalman_pose_flow_.correct(measurement);
-  // file << "flow estimated \n" << toString(estimated) << "\n";
-
-  //  cout << "measuered " << endl;
-  //  cout << fixed << setprecision(2) << t.at(0) << " " << t.at(1) << " "
-  //       << t.at(2) << endl;
-  //  cout << "estimated " << endl;
-  //  cout << fixed << setprecision(2) << estimated.at<float>(0) << " "
-  //       << estimated.at<float>(1) << " " << estimated.at<float>(2) << endl;
-
-  beta = {static_cast<double>(estimated.at<float>(0)),
-          static_cast<double>(estimated.at<float>(1)),
-          static_cast<double>(estimated.at<float>(2)),
-          static_cast<double>(estimated.at<float>(9)),
-          static_cast<double>(estimated.at<float>(10)),
-          static_cast<double>(estimated.at<float>(11))};
-
-  Pose updated_pose(beta);
-
-#ifdef VERBOSE_DEBUG
-  ofstream file(file_name_pose, ofstream::app);
-
-  file << "--------- flow prediction --------- \n";
-  //  file << "pose \n" << fixed << setprecision(3);
-  //  for(auto i = 0; i < 4; ++i)
-  //  {
-  //      for(int j = 0; j < 4; ++j)
-  //      {
-  //          file << target_object_.pose_(i,j) << " ";
-  //      }
-  //      file << "\n";
-  //  }
-  //  file << "\n";
-  //  file << "pose kf \n";
-  //  file << target_object_.flow_pose.str();
-
-  file << "beta \n";
-  for (auto b : tmp_bt) file << fixed << setprecision(5) << b << " ";
-  file << "\n";
-
-  //  file << "updated pose \n";
-  //  file << tmp_pose.str();
-
-  tmp_bt = target_object_.flow_pose.getBeta();
-  file << "flow beta \n";
-  for (auto b : tmp_bt) file << fixed << setprecision(5) << b << " ";
-  file << "\n";
-
-  file << "estimated beta \n";
-  for (auto b : beta) file << fixed << setprecision(5) << b << " ";
-  file << "\n";
-
-  bool check = false;
-
-  for (auto i = 0; i < beta.size(); ++i) {
-    if (abs(beta.at(i) - tmp_bt.at(i)) > 0.01) {
-      check = true;
-      break;
-    }
-  }
-
-  if (check) {
-    file << "!!!!!!!! INCONSISTENCY !!!!!!!"
-         << "\n";
-    file << "measurements \n";
-    file << toString(measurement) << "\n";
-    file << "full estimated \n";
-    file << toString(estimated) << "\n";
-  }
-
-#endif
-
-  // target_object_.flow_pose = updated_pose;
-
-  //  rot_view =
-  //      Eigen::AngleAxisd(estimated.at<float>(11), Eigen::Vector3d::UnitZ()) *
-  //      Eigen::AngleAxisd(estimated.at<float>(10), Eigen::Vector3d::UnitY()) *
-  //      Eigen::AngleAxisd(estimated.at<float>(9), Eigen::Vector3d::UnitX());
-
-  //  for (int i = 0; i < 3; ++i) {
-  //    for (int j = 0; j < 3; ++j) {
-  //      target_object_.kalman_pose_(i, j) = rot_view(i, j);
-  //    }
-  //    target_object_.kalman_pose_(i, 3) = estimated.at<float>(i);
-  //  }
-}
 
 void TrackerVX::updatePointsDepth(Target& t, Pose& p) {
   vector<Point3f> model_pts;
@@ -1146,6 +976,8 @@ cv::Mat TrackerVX::downloadImage(vx_image image) {
 void TrackerVX::printProfile() { cout << profile_.str() << endl; }
 
 TrackerVX::Params::Params() {
+  parallel = false;
+
   image_width = 0;
   image_height = 0;
 
