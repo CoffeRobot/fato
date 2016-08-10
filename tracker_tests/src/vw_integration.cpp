@@ -775,8 +775,8 @@ int main(int argc, char** argv) {
   // gl2Vx(context);
   //synthgraph_test2(context);
 
-  //testObjectMovement();
-  testAverage();
+  testObjectMovement();
+  //testAverage();
 
   //    cout << VX_FAILURE << endl;
   //    cout << VX_ERROR_INVALID_REFERENCE << endl;
