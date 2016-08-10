@@ -62,6 +62,13 @@ using namespace cv;
 
 namespace fato {
 
+mutex io_mutex;
+
+void safePrint(string message) {
+  unique_lock<mutex> lck(io_mutex);
+  cout << message << endl;
+}
+
 TrackerVX::TrackerVX(const Params& params,
                      std::unique_ptr<FeatureMatcher> matcher)
     : rendered_depth_(params_.image_height * params_.image_width),
@@ -93,16 +100,12 @@ TrackerVX::TrackerVX(const Params& params,
   image_w_ = params_.image_width;
   image_h_ = params_.image_height;
 
-  //launch workers for paraller detection and tracking
-  if(params.parallel)
-  {
+  // launch workers for paraller detection and tracking
+  if (params.parallel) {
+    task_completed_ = false;
+    image_received_ = false;
     detector_thread_ = thread(&TrackerVX::detectorWorker, this);
-    tracker_thread_ = thread(&TrackerVX::trackerWorker, this);
   }
-
-  //  util::Device1D depth_buffer(img_h_ * img_w);_
-
-  //  rendered_depth_
 }
 
 TrackerVX::~TrackerVX() { release(); }
@@ -181,23 +184,38 @@ void TrackerVX::initializeContext() {
   vxReleaseImage(&frameGray);
 }
 
+void TrackerVX::detectorWorker() {
+  cout << "detector worker started" << endl;
+  det_worker_ready_ = true;
 
-void TrackerVX::detectorWorker()
-{
-    while(true)
+  while (true) {
     {
-        if(task_completed_)
-            break;
+      unique_lock<mutex> lock(detector_mutex_);
+      while (!image_received_) {
+        detector_condition_.wait(lock);
+      }
+      det_worker_ready_ = false;
+      //safePrint("detector working");
     }
-}
 
-void TrackerVX::trackerWorker()
-{
-    while(true)
+    if (task_completed_) break;
+
+    auto begin = chrono::high_resolution_clock::now();
+    detectParallel();
+    auto end = chrono::high_resolution_clock::now();
+    profile_.match_time =
+        chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+
     {
-        if(task_completed_)
-            break;
+      //safePrint("detector done");
+      unique_lock<mutex> lock(detector_mutex_);
+      det_worker_ready_ = true;
+      detector_done_ = true;
+      tracker_condition_.notify_one();
     }
+  }
+
+  cout << "detector worker stopped" << endl;
 }
 
 void TrackerVX::resetTarget() { target_object_.resetPose(); }
@@ -260,7 +278,6 @@ void TrackerVX::getOpticalFlowVX(vx_image prev, vx_image next, Target& target) {
   real_graph_->getValidPoints(target, params_.flow_threshold);
 }
 
-
 void TrackerVX::next(Mat& rgb) {
   // TODO: visionworks is slow right now due to a bug, grayscale conversion must
   // be moved to gpu later
@@ -317,38 +334,81 @@ void TrackerVX::next(Mat& rgb) {
   vxReleaseImage(&vxiSrc);
 }
 
-void TrackerVX::parNext(cv::Mat& rgb)
-{
-    if(tra_worker_ready_ && det_worker_ready_)
-    {
-        unique_lock<mutex> lock1(tracker_mutex_,defer_lock);
-        unique_lock<mutex> lock2(detector_mutex_,defer_lock);
-        lock(lock1, lock2);
-
-        auto begin = chrono::high_resolution_clock::now();
-        cvtColor(rgb, next_gray_, CV_BGR2GRAY);
-        vx_image vxiSrc;
-        vxiSrc = nvx_cv::createVXImageFromCVMat(gpu_context_, rgb);
-        NVXIO_SAFE_CALL(
-            vxuColorConvert(gpu_context_, vxiSrc,
-                            (vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0)));
-        auto end = chrono::high_resolution_clock::now();
-        profile_.img_load_time =
-            chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-
-        tra_img_updated_ = det_img_updated_ = true;
-
-        cout << "new image ready!" << endl;
-
-        tracker_condition_.notify_one();
-        detector_condition_.notify_one();
+void TrackerVX::parNext(cv::Mat& rgb) {
+  {
+    unique_lock<mutex> lock(detector_mutex_);
+    if (!det_worker_ready_) {
+      //cout << "worker not ready, skipping img" << endl;
+      return;
     }
+  }
+
+  // loading image on the gpu and notify detector
+  {
+    //safePrint("new image ready");
+    unique_lock<mutex> lock(detector_mutex_);
+    loadImg(rgb);
+    image_received_ = true;
+    tracking_done_ = false;
+    detector_done_ = false;
+    detector_condition_.notify_one();
+  }
+  // doing the tracking stuff
+  trackParallel();
+
+  // notify detector tracking is done
+  {
+    //safePrint("tracking done");
+    unique_lock<mutex> lock(detector_mutex_);
+    tracking_done_ = true;
+    update_condition_.notify_one();
+  }
+  // waiting for the detector to be finished
+  {
+    //safePrint("waiting for detector to be done");
+    unique_lock<mutex> lock(detector_mutex_);
+    while (!detector_done_) tracker_condition_.wait(lock);
+  }
+
+  image_received_ = false;
+  vxAgeDelay(camera_img_delay_);
+  vxAgeDelay(renderer_img_delay_);
+  next_gray_.copyTo(prev_gray_);
+}
+
+void TrackerVX::loadImg(Mat& rgb) {
+
+
+  auto begin = chrono::high_resolution_clock::now();
+  cvtColor(rgb, next_gray_, CV_BGR2GRAY);
+  vx_image vxiSrc;
+  vxiSrc = nvx_cv::createVXImageFromCVMat(gpu_context_, rgb);
+  NVXIO_SAFE_CALL(
+      vxuColorConvert(gpu_context_, vxiSrc,
+                      (vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0)));
+  auto end = chrono::high_resolution_clock::now();
+  profile_.img_load_time =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+  vxReleaseImage(&vxiSrc);
+
 }
 
 void TrackerVX::release() {
   vxReleaseDelay(&camera_img_delay_);
   vxReleaseDelay(&renderer_img_delay_);
   vxReleaseContext(&gpu_context_);
+
+  if (params_.parallel) {
+    {
+      unique_lock<mutex> lock(detector_mutex_);
+      task_completed_ = true;
+      image_received_ = true;
+    }
+
+    tracker_condition_.notify_one();
+    detector_condition_.notify_one();
+    detector_thread_.join();
+  }
 }
 
 void TrackerVX::trackSequential() {
@@ -357,14 +417,6 @@ void TrackerVX::trackSequential() {
   /*************************************************************************************/
   if (!real_graph_->isInitialized())
     real_graph_->init((vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0));
-
-  // Target tmp_t = target_object_;
-  //  auto begin = chrono::high_resolution_clock::now();
-  //  getOpticalFlow(prev_gray_, next, target_object_);
-  //  auto end = chrono::high_resolution_clock::now();
-  //
-  //  profile_.cam_flow_time =
-  //      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
   auto begin = chrono::high_resolution_clock::now();
   real_graph_->track(target_object_.active_points,
@@ -444,11 +496,7 @@ void TrackerVX::trackSequential() {
       target_object_.flow_pose =
           Pose(target_object_.rotation, target_object_.translation);
 
-      // initFilter(kalman_pose_pnp_, projection_matrix);
-      // initFilter(kalman_pose_flow_, projection_matrix);
-
     } else {
-
       begin = chrono::high_resolution_clock::now();
       pair<int, vector<double>> synth_beta = poseFromSynth();
       end = chrono::high_resolution_clock::now();
@@ -467,8 +515,7 @@ void TrackerVX::trackSequential() {
       else {
         float ratio = beta.first / total_features;
 
-        if (synth_beta.first > 0)  // pose estimated by synth should be valid
-        {
+        if (synth_beta.first > 0) {
           target_object_.synth_pose.transform(synth_beta.second);
         }
 
@@ -482,9 +529,6 @@ void TrackerVX::trackSequential() {
 
         if (!target_object_.isPoseReliable())
           target_object_.target_found_ = false;
-        // updatePointsDepth(target_object_, target_object_.weighted_pose);
-        //        updatePointsDepthFromZBuffer(target_object_,
-        //                                     target_object_.weighted_pose);
       }
     }
   } else {
@@ -515,7 +559,7 @@ void TrackerVX::detectSequential() {
   /*************************************************************************************/
   /*                       ADD FEATURES TO TRACKER */
   /*************************************************************************************/
-  updatedDetectedPoints(keypoints,matches);
+  updatedDetectedPoints(keypoints, matches);
 }
 
 void TrackerVX::detectParallel() {
@@ -524,74 +568,110 @@ void TrackerVX::detectParallel() {
   vector<KeyPoint> keypoints;
   Mat descriptors;
   /*************************************************************************************/
-  /*                       FEATURE MATCHING                                            */
+  /*                       FEATURE MATCHING */
   /*************************************************************************************/
   vector<vector<DMatch>> matches;
   auto begin = chrono::high_resolution_clock::now();
-  feature_detector_->match(next_gray_, keypoints, descriptors, matches);
+  pair<float,float> times =feature_detector_->matchP(next_gray_, keypoints, descriptors, matches);
+  //feature_detector_->match(next_gray_, keypoints, descriptors, matches);
   auto end = chrono::high_resolution_clock::now();
   profile_.feature_extraction =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+  profile_.feature_detection = times.first;
+  profile_.feature_matching = times.second;
   /*************************************************************************************/
-  /*                       SYNCRONIZATION                                              */
+  /*                       SYNCRONIZATION */
   /*************************************************************************************/
-  // need to wait that the tracker thread is done
-
+  unique_lock<mutex> lock(detector_mutex_);
+  while (!tracking_done_) {
+    update_condition_.wait(lock);
+  }
   /*************************************************************************************/
   /*                       ADD FEATURES TO TRACKER */
   /*************************************************************************************/
-  updatedDetectedPoints(keypoints,matches);
+  //safePrint("updating points");
+  updatedDetectedPoints(keypoints, matches);
+}
+
+void TrackerVX::trackParallel() {
+  // compute flow
+  auto begin = chrono::high_resolution_clock::now();
+  trackSequential();
+  auto end = chrono::high_resolution_clock::now();
+  profile_.track_time =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+  // render pose
+  begin = chrono::high_resolution_clock::now();
+  renderPredictedPose();
+  end = chrono::high_resolution_clock::now();
+  profile_.render_time =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+
+  if (target_object_.target_found_) {
+    // download to host depth buffer
+    begin = chrono::high_resolution_clock::now();
+    rendered_depth_.copyTo(host_rendered_depth_);
+    end = chrono::high_resolution_clock::now();
+    profile_.depth_to_host_time =
+        chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+    // update position of tracked points
+    begin = chrono::high_resolution_clock::now();
+    updatePointsDepthFromZBuffer(target_object_, target_object_.weighted_pose);
+    end = chrono::high_resolution_clock::now();
+    profile_.depth_update_time =
+        chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+  }
 }
 
 void TrackerVX::updatedDetectedPoints(
     const std::vector<KeyPoint>& keypoints,
-    const std::vector<std::vector<DMatch>>& matches)
-{
-    auto begin = chrono::high_resolution_clock::now();
-    if (matches.size() < 2) return;
-    if (matches.at(0).size() != 2) return;
+    const std::vector<std::vector<DMatch>>& matches) {
+  auto begin = chrono::high_resolution_clock::now();
+  if (matches.size() < 2) return;
+  if (matches.at(0).size() != 2) return;
 
-    vector<cv::Point2f>& active_points = target_object_.active_points;
-    vector<KpStatus>& point_status = target_object_.point_status_;
-    Mat& target_descriptors = feature_detector_->getTargetDescriptors();
+  vector<cv::Point2f>& active_points = target_object_.active_points;
+  vector<KpStatus>& point_status = target_object_.point_status_;
+  Mat& target_descriptors = feature_detector_->getTargetDescriptors();
 
+  float max_distance = feature_detector_->maxDistance();
 
-    for (size_t i = 0; i < matches.size(); i++) {
-      const DMatch& fst_match = matches.at(i).at(0);
-      const DMatch& scd_match = matches.at(i).at(1);
+  for (size_t i = 0; i < matches.size(); i++) {
+    const DMatch& fst_match = matches.at(i).at(0);
+    const DMatch& scd_match = matches.at(i).at(1);
 
-      const int& model_idx = fst_match.trainIdx;
-      const int& match_idx = fst_match.queryIdx;
+    const int& model_idx = fst_match.trainIdx;
+    const int& match_idx = fst_match.queryIdx;
 
-      if (match_idx < 0 || match_idx >= keypoints.size()) continue;
-      // the descriptor mat includes the objects and the background stacked
-      // vertically, therefore
-      // the index shoud be less than the target object points
-      if (model_idx < 0 ||
-          model_idx >=
-              target_descriptors.rows)  // target_object_.model_points_.size())
-        continue;
+    if (match_idx < 0 || match_idx >= keypoints.size()) continue;
+    // the descriptor mat includes the objects and the background stacked
+    // vertically, therefore
+    // the index shoud be less than the target object points
+    if (model_idx < 0 ||
+        model_idx >=
+            target_descriptors.rows)  // target_object_.model_points_.size())
+      continue;
 
-      float confidence = 1 - (matches[i][0].distance / 512.0);
-      auto ratio = (fst_match.distance / scd_match.distance);
+    float confidence = 1 - (matches[i][0].distance / max_distance);
+    auto ratio = (fst_match.distance / scd_match.distance);
 
-      KpStatus& s = point_status.at(model_idx);
+    KpStatus& s = point_status.at(model_idx);
 
-      if (confidence < 0.80f) continue;
+    if (confidence < params_.match_confidence) continue;
 
-      if (ratio > 0.8f) continue;
+    if (ratio > params_.match_ratio) continue;
 
-      if (s != KpStatus::LOST) continue;
+    if (s != KpStatus::LOST) continue;
 
-      if (point_status.at(model_idx) == KpStatus::LOST) {
-        active_points.push_back(keypoints.at(match_idx).pt);
-        target_object_.active_to_model_.push_back(model_idx);
-        point_status.at(model_idx) = KpStatus::MATCH;
-      }
+    if (point_status.at(model_idx) == KpStatus::LOST) {
+      active_points.push_back(keypoints.at(match_idx).pt);
+      target_object_.active_to_model_.push_back(model_idx);
+      point_status.at(model_idx) = KpStatus::MATCH;
     }
-    auto end = chrono::high_resolution_clock::now();
-    profile_.matching_update =
-        chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+  }
+  auto end = chrono::high_resolution_clock::now();
+  profile_.matching_update =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 }
 
 void TrackerVX::renderPredictedPose() {
@@ -886,8 +966,6 @@ void TrackerVX::initFilter(KalmanFilter& filter, Eigen::MatrixXd& projection) {
   measurement(5) = beta.at(5);  //
 }
 
-
-
 void TrackerVX::updatePointsDepth(Target& t, Pose& p) {
   vector<Point3f> model_pts;
   for (int i = 0; i < t.active_points.size(); ++i) {
@@ -989,8 +1067,8 @@ TrackerVX::Params::Params() {
   descriptors_file = "";
   model_file = "";
 
-  match_confidence = 0;
-  match_ratio = 0;
+  match_confidence = 0.8;
+  match_ratio = 0.8;
 
   flow_threshold = 25.0f;  // distance * distance in pixel
 
@@ -1022,6 +1100,8 @@ string TrackerVX::Profile::str() {
   ss << "\t pnp:  " << pnp_time / 1000000.0f << "\n";
   ss << "\t matcher:  " << match_time / 1000000.0f << "\n";
   ss << "\t\t features:  " << feature_extraction / 1000000.0f << "\n";
+  ss << "\t\t\t detection:  " << feature_detection / 1000000.0f << "\n";
+  ss << "\t\t\t matching:  " << feature_matching / 1000000.0f << "\n";
   ss << "\t\t update:  " << matching_update / 1000000.0f << "\n";
   ss << "\t tracker:  " << track_time / 1000000.0f << "\n";
   ss << "\t\t cam_flow: " << cam_flow_time / 1000000.0f << "\n";

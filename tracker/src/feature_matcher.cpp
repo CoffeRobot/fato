@@ -36,9 +36,11 @@
 
 #include <iostream>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <chrono>
 
 using namespace std;
 using namespace cv;
+using namespace std::chrono;
 
 namespace fato {
 
@@ -104,6 +106,28 @@ void BriskMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
   //matcher_->knnMatch(train_descriptors_, query_descriptors, matches, 1);
   //matcher_custom_.match(train_descriptors_, query_descriptors, 2, matches);
   matcher_custom_.match(query_descriptors, train_descriptors_,  2, matches);
+}
+
+std::pair<float,float> BriskMatcher::matchP(const Mat &img, std::vector<KeyPoint> &query_keypoints,
+                      Mat &query_descriptors,
+                      std::vector<vector<DMatch>> &matches) {
+
+  auto begin = high_resolution_clock::now();
+  extract(img, query_keypoints, query_descriptors);
+  auto end = high_resolution_clock::now();
+  float ext_time = duration_cast<nanoseconds>(end-begin).count();
+  if (query_descriptors.rows == 0) {
+    return pair<float,float>(ext_time, 0);
+  }
+  //TOFIX: opencv matcher does not work in 2.4
+  //matcher_->knnMatch(train_descriptors_, query_descriptors, matches, 1);
+  //matcher_custom_.match(train_descriptors_, query_descriptors, 2, matches);
+  begin = high_resolution_clock::now();
+  matcher_custom_.match(query_descriptors, train_descriptors_,  2, matches);
+  end = high_resolution_clock::now();
+  float mtc_time = duration_cast<nanoseconds>(end-begin).count();
+
+  return pair<float,float>(ext_time, mtc_time);
 }
 
 std::vector<cv::KeyPoint> &BriskMatcher::getTargetPoints() {

@@ -117,11 +117,17 @@ class FeatureMatcher {
                      cv::Mat& query_descriptors,
                      std::vector<std::vector<cv::DMatch>>& matches) = 0;
 
+  virtual std::pair<float, float> matchP(
+      const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
+      cv::Mat& query_descriptors,
+      std::vector<std::vector<cv::DMatch>>& matches) = 0;
+
   virtual void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
-               cv::Mat& descriptors) = 0;
+                       cv::Mat& descriptors) = 0;
 
   virtual std::vector<cv::KeyPoint>& getTargetPoints() = 0;
   virtual cv::Mat& getTargetDescriptors() = 0;
+  virtual float maxDistance() = 0;
 
  protected:
   FeatureMatcher(){};
@@ -143,6 +149,11 @@ class BriskMatcher : public FeatureMatcher {
              cv::Mat& query_descriptors,
              std::vector<std::vector<cv::DMatch>>& matches);
 
+  std::pair<float, float> matchP(const cv::Mat& img,
+                                 std::vector<cv::KeyPoint>& query_keypoints,
+                                 cv::Mat& query_descriptors,
+                                 std::vector<std::vector<cv::DMatch>>& matches);
+
   std::vector<cv::KeyPoint>& getTargetPoints();
 
   cv::Mat& getTargetDescriptors();
@@ -151,6 +162,8 @@ class BriskMatcher : public FeatureMatcher {
 
   void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
                cv::Mat& descriptors);
+
+  float maxDistance(){return 512.0;}
 
  private:
   cv::Ptr<cv::DescriptorMatcher> matcher_;
@@ -186,6 +199,9 @@ class OrbMatcher : public FeatureMatcher {
 
   void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
                cv::Mat& descriptors);
+
+  float maxDistance(){return 256.0;}
+
  private:
   CustomMatcher matcher_custom_;
 
@@ -197,7 +213,6 @@ class OrbMatcher : public FeatureMatcher {
   std::vector<cv::KeyPoint> train_keypoints_;
 
   void initExtractor();
-
 };
 
 }  // end namespace

@@ -172,8 +172,6 @@ void FeatureTracker::getValidPoints(float distance_thresh,
                      VX_READ_ONLY);
   vxAccessArrayRange(kp_back_list_, 0, back_size, &back_stride, &back_data,
                      VX_READ_ONLY);
-  int flag_counter = 0;
-  int distance_counter = 0;
 
   for (auto i = 0; i < next_size; ++i) {
     nvx_keypointf_t prev_kp =
@@ -184,7 +182,7 @@ void FeatureTracker::getValidPoints(float distance_thresh,
         vxArrayItem(nvx_keypointf_t, back_data, i, back_stride);
 
     if (next_kp.tracking_status == 0) {
-      flag_counter++;
+      //flag_counter++;
       continue;
     }
 
@@ -192,7 +190,7 @@ void FeatureTracker::getValidPoints(float distance_thresh,
     float dy = prev_kp.y - back_kp.y;
 
     if (((dx * dx) + (dy * dy)) > distance_thresh) {
-      distance_counter++;
+      //distance_counter++;
       continue;
     }
 
@@ -203,8 +201,8 @@ void FeatureTracker::getValidPoints(float distance_thresh,
   vxCommitArrayRange(kp_next_list_, 0, next_size, next_data);
   vxCommitArrayRange(kp_back_list_, 0, back_size, back_data);
 
-  cout << "invalid points " << next_size - next_pts.size() << endl;
-  cout << "\t flag " << flag_counter << " dist " << distance_counter << endl;
+  //cout << "invalid points " << next_size - next_pts.size() << endl;
+  //cout << "\t flag " << flag_counter << " dist " << distance_counter << endl;
 
   auto end = chrono::high_resolution_clock::now();
   valid_time_ = chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -489,7 +487,7 @@ void FeatureTrackerReal::init(vx_image first_frame) {
   processFirstFrame(first_frame);
 
   is_initialized = true;
-  // Process first frame 
+  // Process first frame
 }
 
 //
@@ -611,8 +609,8 @@ void FeatureTrackerReal::getValidPoints(Target &t, float distance_thresh)
                        VX_READ_ONLY);
     vxAccessArrayRange(kp_back_list_, 0, back_size, &back_stride, &back_data,
                        VX_READ_ONLY);
-    int flag_counter = 0;
-    int distance_counter = 0;
+    //int flag_counter = 0;
+    //int distance_counter = 0;
 
     for (auto i = 0; i < next_size; ++i) {
       nvx_keypointf_t prev_kp =
@@ -626,7 +624,7 @@ void FeatureTrackerReal::getValidPoints(Target &t, float distance_thresh)
       KpStatus& s = prev_status.at(id);
 
       if (next_kp.tracking_status == 0) {
-        flag_counter++;
+        //flag_counter++;
         to_remove.push_back(i);
         continue;
       }
@@ -635,7 +633,7 @@ void FeatureTrackerReal::getValidPoints(Target &t, float distance_thresh)
       float dy = prev_kp.y - back_kp.y;
 
       if (((dx * dx) + (dy * dy)) > distance_thresh) {
-        distance_counter++;
+        //distance_counter++;
         to_remove.push_back(i);
         continue;
       }

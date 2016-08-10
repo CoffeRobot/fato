@@ -110,6 +110,8 @@ class TrackerVX {
     float pnp_time;
     float match_time;
     float feature_extraction;
+    float feature_detection;
+    float feature_matching;
     float matching_update;
     float track_time;
     float render_time;
@@ -127,6 +129,8 @@ class TrackerVX {
           pnp_time(0),
           match_time(0),
           feature_extraction(0),
+          feature_detection(0),
+          feature_matching(0),
           matching_update(0),
           render_time(0),
           track_time(0),
@@ -154,6 +158,8 @@ class TrackerVX {
 
   void parNext(cv::Mat& rgb);
 
+  void loadImg(cv::Mat& rgb);
+
   std::vector<cv::Point2f> getActivePoints();
 
   const Target& getTarget() { return target_object_; }
@@ -171,9 +177,6 @@ class TrackerVX {
   /****************************************************************************/
   /*                       STATS VARIABLES                                    */
   /****************************************************************************/
-  std::atomic_int m_flow_counter;
-  std::atomic_int m_match_counter;
-
   bool stop_matcher;
 
   /****************************************************************************/
@@ -210,8 +213,6 @@ class TrackerVX {
 
   void detectorWorker();
 
-  void trackerWorker();
-
   void getOpticalFlow(const cv::Mat& prev, const cv::Mat& next, Target& target);
 
   void getOpticalFlowVX(vx_image prev, vx_image next, Target& target);
@@ -243,6 +244,8 @@ class TrackerVX {
   void detectSequential();
 
   void detectParallel();
+
+  void trackParallel();
 
   void updatedDetectedPoints(
       const std::vector<cv::KeyPoint>& keypoints,
@@ -281,12 +284,11 @@ class TrackerVX {
   /****************************************************************************/
   /*                       CONCURRENCY VARIABLES                              */
   /****************************************************************************/
-  std::condition_variable tracker_condition_, detector_condition_;
-  std::mutex tracker_mutex_, detector_mutex_, main_mutex_;
+  std::condition_variable tracker_condition_, detector_condition_, update_condition_;
+  std::mutex detector_mutex_;
 
-  std::atomic_bool task_completed_, tra_img_updated_, det_img_updated_,
-  tra_worker_ready_, det_worker_ready_;
-
+  bool image_received_, tracking_done_, detector_done_, det_worker_ready_,
+       task_completed_;
 
   std::thread detector_thread_;
   std::thread tracker_thread_;

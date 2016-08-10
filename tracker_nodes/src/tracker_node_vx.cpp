@@ -238,6 +238,9 @@ void TrackerModelVX::run() {
 
   Mat cam(3, 3, CV_64FC1);
 
+  // set to true to run concurrent threads
+  params_.parallel = true;
+
   while (ros::ok()) {
     if (img_updated_) {
       if (!camera_matrix_initialized)
@@ -256,6 +259,7 @@ void TrackerModelVX::run() {
         params_.cx = cam.at<double>(0, 2);
         params_.cy = cam.at<double>(1, 2);
 
+
         std::unique_ptr<FeatureMatcher> derived =
             std::unique_ptr<BriskMatcher>(new BriskMatcher);
 
@@ -268,7 +272,14 @@ void TrackerModelVX::run() {
       }
 
       auto begin = chrono::high_resolution_clock::now();
-      vx_tracker_->next(rgb_image_);
+      if(params_.parallel)
+      {
+        vx_tracker_->parNext(rgb_image_);
+      }
+      else
+      {
+          vx_tracker_->next(rgb_image_);
+      }
       auto end = chrono::high_resolution_clock::now();
       frame_counter++;
       average_time +=
@@ -293,8 +304,8 @@ void TrackerModelVX::run() {
           else if (target.point_status_.at(id) == fato::KpStatus::TRACK) {
             color = Scalar(0, 255, 0);
 
-            line(flow_output, target.prev_points_.at(i),
-                 target.active_points.at(i), Scalar(255, 0, 0), 1);
+//            line(flow_output, target.prev_points_.at(i),
+//                 target.active_points.at(i), Scalar(255, 0, 0), 1);
           } else if (target.point_status_.at(id) == fato::KpStatus::PNP)
             color = Scalar(0, 255, 255);
 
@@ -356,18 +367,6 @@ void TrackerModelVX::run() {
           }
           translation_vect(i) = target.pose_(i, 3);
         }
-
-        double tra_render[3];
-        double rot_render[9];
-        Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
-        Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
-            rot_render);
-        tra_render_eig = translation_vect;
-        rot_render_eig = rotation_temp;
-
-        std::vector<pose::TranslationRotation3D> TR(1);
-        TR.at(0).setT(tra_render);
-        TR.at(0).setR_mat(rot_render);
 
         Mat rend_mat = vx_tracker_->getRenderedPose();
 
