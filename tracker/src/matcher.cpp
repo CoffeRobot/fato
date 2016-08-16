@@ -64,25 +64,22 @@ void CustomMatcher::match(const Mat& query, const Mat& train, int bestNum, vecto
 	__int64* fstData = (__int64*)query.data;
 	__int64* scdData = (__int64*)train.data;
 
-    // TODO(alessandro.pieropan@gmail.com): can be optimized to make it faster
-	for (size_t i = 0; i < query.rows; i++)
-	{
+    matches.reserve(query.rows);
 
-		DMatch tmp;
-		tmp.distance = numeric_limits<float>::max();
-		tmp.queryIdx = i;
-		tmp.trainIdx = -1;
+    // TODO(alessandro.pieropan@gmail.com): can be optimized to make it faster
+    for (size_t i = 0; i < query.rows; ++i)
+	{
 
 		list<DMatch> bestMatches(bestNum, DMatch(i, -1, numeric_limits<float>::max()));
 
-		for (size_t j = 0; j < train.rows; j++)
+        for (size_t j = 0; j < train.rows; ++j)
 		{
 			int fstIdx = 8 * i;
 			int scdIdx = 8 * j;
 
 			int distance = 0;
 
-			for (size_t k = 0; k < 8; k++)
+            for (size_t k = 0; k < 8; ++k)
 			{
 				distance += _mm_popcnt_u64(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
 			}
@@ -102,6 +99,52 @@ void CustomMatcher::match(const Mat& query, const Mat& train, int bestNum, vecto
 	}
 }
 
+
+void CustomMatcher::matchV2(const Mat& query, const Mat& train, vector<vector<DMatch>>& matches)
+{
+
+    __int64* fstData = (__int64*)query.data;
+    __int64* scdData = (__int64*)train.data;
+
+    matches.resize(query.rows, vector<DMatch>(2, DMatch(-1,-1, numeric_limits<float>::max())));
+
+    // TODO(alessandro.pieropan@gmail.com): can be optimized to make it faster
+    for (size_t i = 0; i < query.rows; ++i)
+    {
+        DMatch& best = matches.at(i)[0];
+        DMatch& second = matches.at(i)[1];
+        best.queryIdx = i;
+        second.queryIdx = i;
+
+        //list<DMatch> bestMatches(bestNum, DMatch(i, -1, numeric_limits<float>::max()));
+
+        for (size_t j = 0; j < train.rows; ++j)
+        {
+            int fstIdx = 8 * i;
+            int scdIdx = 8 * j;
+
+            int distance = 0;
+
+            for (size_t k = 0; k < 8; ++k)
+            {
+                distance += _mm_popcnt_u64(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
+            }
+
+            if(distance < best.distance)
+            {
+                second.distance = best.distance;
+                second.trainIdx = best.trainIdx;
+                best.distance = distance;
+                best.trainIdx = j;
+            }
+            else if(distance < second.distance)
+            {
+                second.distance = distance;
+                second.trainIdx = j;
+            }
+        }
+    }
+}
 
 void CustomMatcher::match32(const cv::Mat& query, const cv::Mat& train, int bestNum,
 	std::vector<std::vector<cv::DMatch>>& matches)

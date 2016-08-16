@@ -49,6 +49,9 @@ public:
 	void match(const cv::Mat& query, const cv::Mat& train, int bestNum, 
 		       std::vector<std::vector<cv::DMatch> >& matches);
 
+    void matchV2(const cv::Mat& query, const cv::Mat& train,
+               std::vector<std::vector<cv::DMatch> >& matches);
+
 	void match32(const cv::Mat& query, const cv::Mat& train, int bestNum,
 		std::vector<std::vector<cv::DMatch>>& matches);
 

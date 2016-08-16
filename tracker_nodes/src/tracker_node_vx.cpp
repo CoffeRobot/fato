@@ -53,7 +53,7 @@
 
 #include "../../io/include/VideoWriter.h"
 
-#include "../../utilities/include/device_1d.h"
+#include "../../fato_rendering/include/device_1d.h"
 #include "../../utilities/include/draw_functions.h"
 #include "../../utilities/include/utilities.h"
 #include "../../utilities/include/hdf5_file.h"

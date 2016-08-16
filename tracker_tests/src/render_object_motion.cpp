@@ -37,6 +37,9 @@
 #include "../../tracker/include/flow_graph.hpp"
 #include "../../tracker/include/nvx_utilities.hpp"
 #include "../../cuda/include/utility_kernels.h"
+#include "../../tracker/include/tracker_model_vx.h"
+#include "../../utilities/include/draw_functions.h"
+
 #include <NVX/nvxcu.h>
 #include <NVX/nvx_opencv_interop.hpp>
 #include <NVX/nvx_timer.hpp>
@@ -48,9 +51,28 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 #include <chrono>
+#include <ros/ros.h>
 
 using namespace std;
 using namespace cv;
+using namespace std::chrono;
+
+struct ParamsBench {
+  float translation_x;
+  float translation_y;
+  float translation_z;
+  float rotation_x;
+  float rotation_y;
+  float min_scale;
+  float max_scale;
+
+  int framerate;
+  int camera_id;
+
+  string object_model_file;
+  string object_descriptors_file;
+  string result_file;
+};
 
 // default parameters
 int width = 640;
@@ -61,7 +83,11 @@ double cx = width / 2.0;
 double cy = height / 2.0;
 double near_plane = 0.01;   // for init only
 double far_plane = 1000.0;  // for init only
+float deg2rad = M_PI / 180.0;
+float rad2deg = 180.0 / M_PI;
 Eigen::Matrix<double, 3, 8> bounding_box;
+
+enum IMG_BOUND { UP = 1, DOWN, LEFT, RIGHT };
 
 Eigen::Matrix3d getRotationView(float rot_x, float rot_y) {
   Eigen::Matrix3d rot_view;
@@ -195,34 +221,60 @@ void drawBox(vector<double> &box, Mat &out) {
   line(out, pt5, pt1, Scalar(0, 255, 0), 1);
 }
 
-int isOut(vector<double>& box)
-{
-    for(int i = 0; i < 8;++i)
-    {
-        if(box[2*i] < 0)
-            return 1;
-        if(box[2*i] > width)
-            return 1;
-        if(box[2*i+1] < 0)
-            return 2;
-        if(box[2*i+1] > height)
-            return 2;
-    }
+int isOut(vector<double> &box) {
+  for (int i = 0; i < 8; ++i) {
+    if (box[2 * i] < 0) return LEFT;
+    if (box[2 * i] > width) return RIGHT;
+    if (box[2 * i + 1] < 0) return UP;
+    if (box[2 * i + 1] > height) return DOWN;
+  }
 
-    return 0;
+  return 0;
 }
 
-void testObjectMovement() {
+void blendImages(const Mat &cam, const Mat &render, Mat &out) {
+  cam.copyTo(out);
+
+  for (auto i = 0; i < cam.cols; ++i) {
+    for (auto j = 0; j < cam.rows; ++j) {
+      Vec3b rend_px = render.at<Vec3b>(j, i);
+      if (rend_px[0] != 0 || rend_px[1] != 0 || rend_px[2] != 0) {
+        Vec3b &out_px = out.at<Vec3b>(j, i);
+        out_px = rend_px;
+      }
+    }
+  }
+}
+
+void testObjectMovement(const ParamsBench &params) {
   render::WindowLessGLContext dummy(10, 10);
 
-  string filename =
-      "/home/alessandro/projects/drone_ws/src/fato_tracker/data/kellog/"
-      "kellog.obj";
+  // init rendering engine
+  //  string filename = params.object_model_file;
+  //  pose::MultipleRigidModelsOgre rendering_engine(width, height, fx, fy, cx,
+  //  cy,
+  //                                                 near_plane, far_plane);
+  //  rendering_engine.addModel(filename);
 
-  pose::MultipleRigidModelsOgre rendering_engine(width, height, fx, fy, cx, cy,
-                                                 near_plane, far_plane);
+  // init tracker
+  fato::TrackerVX::Params tracker_params;
+  tracker_params.descriptors_file = params.object_descriptors_file;
+  tracker_params.model_file = params.object_model_file;
+  tracker_params.image_width = width;
+  tracker_params.image_height = height;
+  tracker_params.fx = fx;
+  tracker_params.fy = fy;
+  tracker_params.cx = cx;
+  tracker_params.cy = cy;
+  tracker_params.parallel = true;
 
-  rendering_engine.addModel(filename);
+  std::unique_ptr<fato::FeatureMatcher> matcher =
+      std::unique_ptr<fato::BriskMatcher>(new fato::BriskMatcher);
+
+  fato::TrackerVX vx_tracker(tracker_params, std::move(matcher));
+
+  pose::MultipleRigidModelsOgre &rendering_engine =
+      *vx_tracker.rendering_engine_;
 
   // object vertices
   const render::RigidObject &obj_model = rendering_engine.getRigidObject(0);
@@ -243,8 +295,6 @@ void testObjectMovement() {
   Eigen::Translation<double, 3> tra_center(-(mn + mx) / 2.0f);
 
   Eigen::Transform<double, 3, Eigen::Affine> t_render;
-  // getPose(0, 0, tra_center, t_render);
-  // tra_z_shift * rot_view * tra_center;
 
   Eigen::Matrix3d rot_view = getRotationView(0, 0);
 
@@ -252,11 +302,6 @@ void testObjectMovement() {
   Eigen::Translation<double, 3> tra_z_shift(0, 0, z_shift);
   // compose render transform (tra_center -> rot_view -> tra_z_shift)
   t_render = tra_z_shift * rot_view * tra_center;
-
-  cout << fixed << setprecision(3) << t_render.translation() << "\n"
-       << t_render.rotation() << endl;
-
-  // t_render.translate()
 
   renderObject(t_render, rendering_engine);
 
@@ -272,117 +317,184 @@ void testObjectMovement() {
 
   drawBox(boxes[0], img_gray);
 
-  float x_vel = 30; // velocity per second
-  float y_vel = 20;
+  float max_vel_h = params.translation_x;
+  float max_vel_v = params.translation_y;
+  float max_vel_d = params.translation_z;
+  float rot_x_vel = params.rotation_x;  // degrees
+  float rot_y_vel = params.rotation_y;
 
-  int framerate = 30;
+  float x_vel = max_vel_h;  // velocity per second
+  float y_vel = max_vel_v;
+  float z_vel = max_vel_d;
+
+  float milliseconds = 0.010;
 
   float x_pos = 0;
   float y_pos = 0;
+  float z_pos = z_shift;
+  float x_rot = 0;
 
-  while(1)
-  {
-      x_pos += x_vel/float(framerate);
-      y_pos += y_vel/float(framerate);
+  double min_scale = getZshif(rot_view, params.min_scale, tra_center);
+  double max_scale = getZshif(rot_view, params.max_scale, tra_center);
 
-      Eigen::Translation<double, 3> tra_z_shift(x_pos, y_pos, z_shift);
-      t_render = tra_z_shift * rot_view * tra_center;
-      renderObject(t_render, rendering_engine);
-      getTransformedObjectBox(t_render, rendering_engine, boxes);
+  high_resolution_clock::time_point last_time = high_resolution_clock::now();
 
-      if(isOut(boxes[0]) == 1)
-          x_vel = x_vel * - 1;
-      if(isOut(boxes[0]) == 2)
-          y_vel = y_vel * -1;
+  VideoCapture camera(0);
 
-
-      downloadRenderedImg(rendering_engine, h_texture);
-
-      cv::Mat img_rgba(height, width, CV_8UC4, h_texture.data());
-      cv::Mat img_gray;
-      cv::cvtColor(img_rgba, img_gray, CV_RGBA2BGR);
-
-      imshow("debug", img_gray);
-      auto c = waitKey(framerate);
-      if(c == 'q')
-          break;
+  if (!camera.isOpened()) {
+    cout << "cannot open camera!" << endl;
+    return;
   }
 
+  namedWindow("debug", 1);
+  Mat cam_img;
 
-  //  for(auto i = 0; i <8; ++i)
-  //  {
-  //      cout << fixed << setprecision(3) << tra_center.x() << " " <<
-  //      tra_center.y() << " " << tra_center.z()  << endl;
-  //  }
+  vector<cv::Scalar> axis;
+  axis.push_back(cv::Scalar(255, 255, 0));
+  axis.push_back(cv::Scalar(0, 255, 255));
+  axis.push_back(cv::Scalar(255, 0, 255));
 
-  //  vector<double> box = bboxes[0];
-  //  cout << bboxes.size() << " " << box.size() << endl;
+  Mat camera_matrix(3, 3, CV_64FC1);
 
-  //  Point2d pt0(box[0],box[1]);
-  //  Point2d pt1(box[2],box[3]);
-  //  Point2d pt2(box[4],box[5]);
-  //  Point2d pt3(box[6],box[7]);
-  //  Point2d pt4(box[8],box[9]);
-  //  Point2d pt5(box[10],box[11]);
-  //  Point2d pt6(box[12],box[13]);
-  //  Point2d pt7(box[014],box[15]);
+  for (auto i = 0; i < 3; ++i) {
+    for (auto j = 0; j < 3; ++j) {
+      camera_matrix.at<double>(i, j) = 0;
+    }
+  }
 
-  //  for(int i = 0; i < 4; i++)
-  //  {
-  //      circle(rendered_image, Point2f(box[2*i],box[2*i+1]), 3,
-  //      Scalar(255,0,0), 1);
-  //  }
+  camera_matrix.at<double>(0, 0) = fx;
+  camera_matrix.at<double>(1, 1) = fy;
+  camera_matrix.at<double>(0, 2) = cx;
+  camera_matrix.at<double>(1, 2) = cy;
+  camera_matrix.at<double>(2, 2) = 1;
 
-  //  for(int i = 0; i < 4; i++)
-  //  {
-  //      circle(rendered_image, Point2f(box[2*i+4],box[2*i+1+4]), 3,
-  //      Scalar(255,0,255), 1);
-  //  }
+  while (ros::ok()) {
+    camera >> cam_img;
 
-  //  for(int i = 0; i < 8; ++i)
-  //  {
-  //      cout << box[2*i] << " " << box[2*i+1] << endl;
-  //  }
+    auto now = high_resolution_clock::now();
+    float dt = 0.03;
+        //duration_cast<microseconds>(now - last_time).count() / 1000000.0f;
 
-  //  line(rendered_image, pt0, pt2, Scalar(0,255,0), 1);
-  //  line(rendered_image, pt2, pt6, Scalar(0,255,0), 1);
-  //  line(rendered_image, pt6, pt4, Scalar(0,255,0), 1);
-  //  line(rendered_image, pt4, pt0, Scalar(0,255,0), 1);
+    if (dt > milliseconds) {
+      x_pos += x_vel * float(dt);
+      y_pos += y_vel * float(dt);
+      z_pos += z_vel * float(dt);
+      x_rot += rot_x_vel * float(dt);
+      last_time = now;
+    }
 
-  imshow("debug", img_gray);
-  waitKey(0);
+    float angle = x_rot * deg2rad;
+
+    if (x_rot >= 360) x_rot = 0;
+
+    rot_view = getRotationView(angle, 0);
+
+    Eigen::Translation<double, 3> tra_z_shift(x_pos, y_pos, z_pos);
+    t_render = tra_z_shift * rot_view * tra_center;
+    renderObject(t_render, rendering_engine);
+    getTransformedObjectBox(t_render, rendering_engine, boxes);
+
+    if (isOut(boxes[0]) == LEFT)
+      x_vel = max_vel_h;
+    else if (isOut(boxes[0]) == RIGHT)
+      x_vel = -max_vel_h;
+    if (isOut(boxes[0]) == UP)
+      y_vel = max_vel_v;
+    else if (isOut(boxes[0]) == DOWN)
+      y_vel = -max_vel_v;
+
+    if (z_pos > min_scale) {
+      z_vel = -max_vel_d;
+    } else if (z_pos < max_scale) {
+      z_vel = max_vel_d;
+    }
+
+    downloadRenderedImg(rendering_engine, h_texture);
+
+    cv::Mat img_rgba(height, width, CV_8UC4, h_texture.data());
+    cv::Mat img_gray, out;
+    cv::cvtColor(img_rgba, img_gray, CV_RGBA2BGR);
+
+    blendImages(cam_img, img_gray, out);
+
+    vx_tracker.parNext(out);
+
+    vx_tracker.printProfile();
+
+    const fato::Target &target = vx_tracker.getTarget();
+
+    if (target.target_found_) {
+      //cout << "object found\n" << camera_matrix << endl;
+      auto w_pose = target.weighted_pose.toCV();
+      fato::drawObjectPose(target.centroid_, camera_matrix, w_pose.first,
+                           w_pose.second, axis, out);
+    }
+
+    imshow("debug", out);
+    auto c = waitKey(5);
+    if (c == 'q') break;
+  }
+}
+
+void readParameters(ParamsBench &params) {
+  if (!ros::param::get("fato/model_file", params.object_model_file)) {
+    throw std::runtime_error("cannot read model_file file param");
+  }
+
+  if (!ros::param::get("fato/object_descriptors_file",
+                       params.object_descriptors_file)) {
+    throw std::runtime_error("cannot read obj file param");
+  }
+
+  if (!ros::param::get("fato/translation_x", params.translation_x)) {
+    throw std::runtime_error("cannot read translation_x param");
+  }
+
+  if (!ros::param::get("fato/translation_y", params.translation_y)) {
+    throw std::runtime_error("cannot read translation_y param");
+  }
+
+  if (!ros::param::get("fato/translation_z", params.translation_z)) {
+    throw std::runtime_error("cannot read translation_z param");
+  }
+
+  if (!ros::param::get("fato/rotation_x", params.rotation_x)) {
+    throw std::runtime_error("cannot read rotation_x param");
+  }
+
+  if (!ros::param::get("fato/rotation_y", params.rotation_y)) {
+    throw std::runtime_error("cannot read rotation_y param");
+  }
+
+  if (!ros::param::get("fato/min_scale", params.min_scale)) {
+    throw std::runtime_error("cannot read min_scale param");
+  }
+
+  if (!ros::param::get("fato/max_scale", params.max_scale)) {
+    throw std::runtime_error("cannot read max_scale param");
+  }
+
+  if (!ros::param::get("fato/camera_id", params.camera_id)) {
+    throw std::runtime_error("cannot read camera_id param");
+  }
+
+  if (!ros::param::get("fato/framerate", params.framerate)) {
+    throw std::runtime_error("cannot read framerate param");
+  }
+
+  if (!ros::param::get("fato/result_file", params.result_file)) {
+    throw std::runtime_error("cannot read result_file param");
+  }
 }
 
 int main(int argc, char **argv) {
-  vx_context context = vxCreateContext();
+  ros::init(argc, argv, "synthetic_benchmark");
+  ros::NodeHandle nh;
 
-  // synthgraph_test(context);
-  // realgraph_test(context);
-  // gl2Vx(context);
-  // synthgraph_test2(context);
+  ParamsBench params;
+  readParameters(params);
 
-  testObjectMovement();
-
-  //    cout << VX_FAILURE << endl;
-  //    cout << VX_ERROR_INVALID_REFERENCE << endl;
-  //    cout << VX_ERROR_INVALID_PARAMETERS << endl;
-  //    return 0;
-
-  //    cout << sizeof(nvx_keypointf_t) << " " << sizeof(KeyPoint) << endl;
-
-  //    transferData(context);
-
-  //    return 0;
-
-  // uploadPoints(context);
-
-  //    nvxcu_pitch_linear_image_t image;
-  //    image.base.image_type = NVXCU_PITCH_LINEAR_IMAGE;
-  //    image.base.format = NVXCU_DF_IMAGE_U8;
-  //    image.base.width = image_w;
-  //    image.base.height = image_h;
-  //    image.planes[0].dev_ptr = dev_ptr;
-  //    image.planes[0].pitch_in_bytes = pitch;
+  testObjectMovement(params);
 
   return 0;
 }

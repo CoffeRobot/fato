@@ -58,7 +58,7 @@
 #include "../../tracker/include/constants.h"
 #include "../../utilities/include/draw_functions.h"
 #include "../../io/include/VideoWriter.h"
-#include "../../utilities/include/device_1d.h"
+#include "../../fato_rendering/include/device_1d.h"
 
 using namespace cv;
 using namespace std;

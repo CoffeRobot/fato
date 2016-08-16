@@ -105,7 +105,7 @@ void BriskMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
   //TOFIX: opencv matcher does not work in 2.4
   //matcher_->knnMatch(train_descriptors_, query_descriptors, matches, 1);
   //matcher_custom_.match(train_descriptors_, query_descriptors, 2, matches);
-  matcher_custom_.match(query_descriptors, train_descriptors_,  2, matches);
+  matcher_custom_.matchV2(query_descriptors, train_descriptors_, matches);
 }
 
 std::pair<float,float> BriskMatcher::matchP(const Mat &img, std::vector<KeyPoint> &query_keypoints,
@@ -123,7 +123,8 @@ std::pair<float,float> BriskMatcher::matchP(const Mat &img, std::vector<KeyPoint
   //matcher_->knnMatch(train_descriptors_, query_descriptors, matches, 1);
   //matcher_custom_.match(train_descriptors_, query_descriptors, 2, matches);
   begin = high_resolution_clock::now();
-  matcher_custom_.match(query_descriptors, train_descriptors_,  2, matches);
+  //matcher_custom_.match(query_descriptors, train_descriptors_, 2, matches);
+  matcher_custom_.matchV2(query_descriptors, train_descriptors_, matches);
   end = high_resolution_clock::now();
   float mtc_time = duration_cast<nanoseconds>(end-begin).count();
 

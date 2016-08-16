@@ -31,7 +31,7 @@
 /*****************************************************************************/
 
 #include "../include/utilities.h"
-#include "../include/device_1d.h"
+#include "../../fato_rendering/include/device_1d.h"
 #include <iostream>
 #include <stdexcept>
 

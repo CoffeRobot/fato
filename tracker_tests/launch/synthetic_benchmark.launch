@@ -1,0 +1,11 @@
+<launch>
+
+<rosparam command="load" file="$(find fato_tracker_nodes)/config/tracker_parameters.yaml"/>
+<rosparam command="load" file="$(find fato_tracker_tests)/config/benchmark_parameters.yaml"/>
+
+<node name="tracker" pkg="fato_tracker_tests" type="render_motion" output="screen">
+</node>
+
+</launch>
+
+

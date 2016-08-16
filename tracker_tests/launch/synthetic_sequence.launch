@@ -7,5 +7,6 @@
 <!-- uncomment to use the medium version-->
  <node name="tracker" pkg="fato_tracker_tests" type="synthetic_track" output="screen">
  </node>
-  
+
 </launch>
+

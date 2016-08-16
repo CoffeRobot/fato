@@ -626,6 +626,7 @@ void TrackerVX::trackParallel() {
 void TrackerVX::updatedDetectedPoints(
     const std::vector<KeyPoint>& keypoints,
     const std::vector<std::vector<DMatch>>& matches) {
+  //cout << "matches size: " << matches.size() << endl;
   auto begin = chrono::high_resolution_clock::now();
   if (matches.size() < 2) return;
   if (matches.at(0).size() != 2) return;
@@ -635,6 +636,7 @@ void TrackerVX::updatedDetectedPoints(
   Mat& target_descriptors = feature_detector_->getTargetDescriptors();
 
   float max_distance = feature_detector_->maxDistance();
+  int valid = 0;
 
   for (size_t i = 0; i < matches.size(); i++) {
     const DMatch& fst_match = matches.at(i).at(0);
@@ -653,13 +655,14 @@ void TrackerVX::updatedDetectedPoints(
       continue;
 
     float confidence = 1 - (matches[i][0].distance / max_distance);
-    auto ratio = (fst_match.distance / scd_match.distance);
-
-    KpStatus& s = point_status.at(model_idx);
 
     if (confidence < params_.match_confidence) continue;
 
+    auto ratio = (fst_match.distance / scd_match.distance);
+
     if (ratio > params_.match_ratio) continue;
+
+    KpStatus& s = point_status.at(model_idx);
 
     if (s != KpStatus::LOST) continue;
 
@@ -667,11 +670,13 @@ void TrackerVX::updatedDetectedPoints(
       active_points.push_back(keypoints.at(match_idx).pt);
       target_object_.active_to_model_.push_back(model_idx);
       point_status.at(model_idx) = KpStatus::MATCH;
+      valid++;
     }
   }
   auto end = chrono::high_resolution_clock::now();
   profile_.matching_update =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+  //cout << "valid matches " << valid << endl;
 }
 
 void TrackerVX::renderPredictedPose() {

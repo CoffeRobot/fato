@@ -55,7 +55,7 @@
 #include "../../fato_rendering/include/multiple_rigid_models_ogre.h"
 #include "../../fato_rendering/include/windowless_gl_context.h"
 #include "../../tracker/include/feature_matcher.hpp"
-#include "../../utilities/include/device_1d.h"
+#include "../../fato_rendering/include/device_1d.h"
 #include "../../utilities/include/hdf5_file.h"
 #include "../../utilities/include/utilities.h"
 #include "../../io/include/VideoWriter.h"

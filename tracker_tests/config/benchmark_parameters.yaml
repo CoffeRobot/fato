@@ -1,0 +1,27 @@
+# path to obj file
+fato/model_file: /home/alessandro/projects/drone_ws/src/fato_tracker/data/kellog/kellog.obj
+# path to h5_file
+fato/object_descriptors_file: /home/alessandro/projects/drone_ws/src/fato_tracker/data/kellog/kellog_features.h5
+# mm per second
+fato/translation_x: 30.0
+fato/translation_y: 0.0
+fato/translation_z: 0.0
+# degrees per second
+fato/rotation_x: 0.0
+fato/rotation_y: 0.0
+# aspect ration between 0 and 1
+fato/min_scale: 0.1
+fato/max_scale: 0.6
+# simulated framerate of camera
+fato/framerate: 30
+# id camera for opencv
+fato/camera_id: 0
+# output file
+fato/result_file: /home/alessandro/debug/result.txt
+
+
+
+
+
+
+

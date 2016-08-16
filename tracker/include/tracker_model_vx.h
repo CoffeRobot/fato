@@ -57,7 +57,7 @@
 #include "synthetic_track.hpp"
 #include "flow_graph.hpp"
 
-#include "../../utilities/include/device_1d.h"
+#include "../../fato_rendering/include/device_1d.h"
 
 namespace fato {
 
@@ -183,6 +183,8 @@ class TrackerVX {
   /*                       KALMAN POSE                                        */
   /****************************************************************************/
   cv::KalmanFilter kalman_pose_flow_;
+  // exposing the rendering engine cuz of opengl context problems
+  std::unique_ptr<pose::MultipleRigidModelsOgre> rendering_engine_;
 
  private:
   /**
@@ -325,7 +327,7 @@ class TrackerVX {
   Params params_;
 
   SyntheticTrack synth_track_;
-  std::unique_ptr<pose::MultipleRigidModelsOgre> rendering_engine_;
+
 
   std::string file_name_pose;
 };
