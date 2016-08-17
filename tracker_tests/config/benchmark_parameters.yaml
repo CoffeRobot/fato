@@ -1,7 +1,7 @@
 # path to obj file
-fato/model_file: /home/alessandro/projects/drone_ws/src/fato_tracker/data/kellog/kellog.obj
+fato/model_file: /home/alessandro/projects/drone_ws/src/fato_tracker/data/ros_hydro/ros_hydro.obj
 # path to h5_file
-fato/object_descriptors_file: /home/alessandro/projects/drone_ws/src/fato_tracker/data/kellog/kellog_features.h5
+fato/object_descriptors_file: /home/alessandro/projects/drone_ws/src/fato_tracker/data/ros_hydro/ros_hydro_features.h5
 # mm per second
 fato/translation_x: 30.0
 fato/translation_y: 0.0

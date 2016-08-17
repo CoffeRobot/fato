@@ -71,8 +71,8 @@ void safePrint(string message) {
 
 TrackerVX::TrackerVX(const Params& params,
                      std::unique_ptr<FeatureMatcher> matcher)
-    : rendered_depth_(params_.image_height * params_.image_width),
-      host_rendered_depth_(params_.image_height * params_.image_width, 0) {
+    : rendered_depth_(params.image_height * params.image_width),
+      host_rendered_depth_(params.image_height * params.image_width, 0) {
   params_ = params;
 
   profile_ = Profile();
@@ -158,7 +158,9 @@ void TrackerVX::initializeContext() {
                                      params_.image_height, VX_DF_IMAGE_U8);
 
   camera_img_delay_ = vxCreateDelay(gpu_context_, (vx_reference)frameGray, 2);
+  NVXIO_CHECK_REFERENCE(camera_img_delay_);
   renderer_img_delay_ = vxCreateDelay(gpu_context_, (vx_reference)frameGray, 2);
+  NVXIO_CHECK_REFERENCE(renderer_img_delay_);
 
   vx::FeatureTracker::Params params;
   params.array_capacity = params_.array_capacity;
@@ -285,29 +287,34 @@ void TrackerVX::next(Mat& rgb) {
   cvtColor(rgb, next_gray_, CV_BGR2GRAY);
   vx_image vxiSrc;
   vxiSrc = nvx_cv::createVXImageFromCVMat(gpu_context_, rgb);
+  NVXIO_CHECK_REFERENCE(vxGetReferenceFromDelay(camera_img_delay_, 0));
   NVXIO_SAFE_CALL(
       vxuColorConvert(gpu_context_, vxiSrc,
                       (vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0)));
   auto end = chrono::high_resolution_clock::now();
   profile_.img_load_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-
   // compute flow
   begin = chrono::high_resolution_clock::now();
   trackSequential();
   end = chrono::high_resolution_clock::now();
   profile_.track_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+
   // render pose
   begin = chrono::high_resolution_clock::now();
   renderPredictedPose();
   end = chrono::high_resolution_clock::now();
   profile_.render_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-
   if (target_object_.target_found_) {
     // download to host depth buffer
     begin = chrono::high_resolution_clock::now();
+//    util::Device1D<float> rendered_depth(params_.image_height * params_.image_width);
+//    pose::convertZbufferToZ(rendered_depth.data(),
+//                            rendering_engine_->getZBuffer(), params_.image_width,
+//                            params_.image_height, params_.cx, params_.cy, 0.01,
+//                            1000.0);
     rendered_depth_.copyTo(host_rendered_depth_);
     end = chrono::high_resolution_clock::now();
     profile_.depth_to_host_time =
@@ -326,7 +333,6 @@ void TrackerVX::next(Mat& rgb) {
   end = chrono::high_resolution_clock::now();
   profile_.match_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-
   // age dealy of images in visionworks
   vxAgeDelay(camera_img_delay_);
   vxAgeDelay(renderer_img_delay_);
@@ -383,6 +389,8 @@ void TrackerVX::loadImg(Mat& rgb) {
   cvtColor(rgb, next_gray_, CV_BGR2GRAY);
   vx_image vxiSrc;
   vxiSrc = nvx_cv::createVXImageFromCVMat(gpu_context_, rgb);
+  NVXIO_CHECK_REFERENCE((vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0));
+  NVXIO_CHECK_REFERENCE(vxiSrc);
   NVXIO_SAFE_CALL(
       vxuColorConvert(gpu_context_, vxiSrc,
                       (vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0)));
@@ -610,6 +618,7 @@ void TrackerVX::trackParallel() {
   if (target_object_.target_found_) {
     // download to host depth buffer
     begin = chrono::high_resolution_clock::now();
+
     rendered_depth_.copyTo(host_rendered_depth_);
     end = chrono::high_resolution_clock::now();
     profile_.depth_to_host_time =
@@ -676,10 +685,12 @@ void TrackerVX::updatedDetectedPoints(
   auto end = chrono::high_resolution_clock::now();
   profile_.matching_update =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-  //cout << "valid matches " << valid << endl;
+  cout << "valid matches " << valid << endl;
 }
 
 void TrackerVX::renderPredictedPose() {
+
+
   // setting up pose according to ogre requirements
   auto eigen_pose = target_object_.weighted_pose.toEigen();
   double tra_render[3];
@@ -690,19 +701,25 @@ void TrackerVX::renderPredictedPose() {
   tra_render_eig = eigen_pose.second;
   rot_render_eig = eigen_pose.first;
 
+
+
   std::vector<pose::TranslationRotation3D> TR(1);
   TR.at(0).setT(tra_render);
   TR.at(0).setR_mat(rot_render);
   rendering_engine_->render(TR);
+
   // mapping opengl rendered image to visionworks vx_image
   vx_image rendered_next =
       (vx_image)vxGetReferenceFromDelay(renderer_img_delay_, 0);
+
+
   vx_rectangle_t rect;
   vxGetValidRegionImage(rendered_next, &rect);
   vx_uint8* dst_ptr = NULL;  // should be NULL to work in MAP mode
   vx_imagepatch_addressing_t dst_addr;
   vxAccessImagePatch(rendered_next, &rect, 0, &dst_addr, (void**)&dst_ptr,
                      NVX_WRITE_ONLY_CUDA);
+
   vision::convertFloatArrayToGrayVX(
       (uchar*)dst_ptr, rendering_engine_->getTexture(), params_.image_width,
       params_.image_height, dst_addr.stride_y, 1.0, 2.0);
@@ -711,8 +728,8 @@ void TrackerVX::renderPredictedPose() {
   pose::convertZbufferToZ(rendered_depth_.data(),
                           rendering_engine_->getZBuffer(), params_.image_width,
                           params_.image_height, params_.cx, params_.cy, 0.01,
-                          10.0);
-  // rendered_depth_.copyTo(host_rendered_depth_);
+                          1000.0);
+   rendered_depth_.copyTo(host_rendered_depth_);
 }
 
 void TrackerVX::projectPointsToModel(const Point2f& model_centroid,

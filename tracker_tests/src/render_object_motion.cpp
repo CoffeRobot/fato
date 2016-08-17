@@ -69,9 +69,21 @@ struct ParamsBench {
   int framerate;
   int camera_id;
 
+  float running_time;
+
   string object_model_file;
   string object_descriptors_file;
   string result_file;
+};
+
+struct RenderData {
+  vector<Mat> images;
+  vector<Eigen::Transform<double, 3, Eigen::Affine>> poses;
+
+  void addFrame(Mat &img, Eigen::Transform<double, 3, Eigen::Affine> &pose) {
+    images.push_back(img);
+    poses.push_back(pose);
+  }
 };
 
 // default parameters
@@ -246,36 +258,9 @@ void blendImages(const Mat &cam, const Mat &render, Mat &out) {
   }
 }
 
-void testObjectMovement(const ParamsBench &params) {
-  render::WindowLessGLContext dummy(10, 10);
-
-  // init rendering engine
-  //  string filename = params.object_model_file;
-  //  pose::MultipleRigidModelsOgre rendering_engine(width, height, fx, fy, cx,
-  //  cy,
-  //                                                 near_plane, far_plane);
-  //  rendering_engine.addModel(filename);
-
-  // init tracker
-  fato::TrackerVX::Params tracker_params;
-  tracker_params.descriptors_file = params.object_descriptors_file;
-  tracker_params.model_file = params.object_model_file;
-  tracker_params.image_width = width;
-  tracker_params.image_height = height;
-  tracker_params.fx = fx;
-  tracker_params.fy = fy;
-  tracker_params.cx = cx;
-  tracker_params.cy = cy;
-  tracker_params.parallel = true;
-
-  std::unique_ptr<fato::FeatureMatcher> matcher =
-      std::unique_ptr<fato::BriskMatcher>(new fato::BriskMatcher);
-
-  fato::TrackerVX vx_tracker(tracker_params, std::move(matcher));
-
-  pose::MultipleRigidModelsOgre &rendering_engine =
-      *vx_tracker.rendering_engine_;
-
+void generateRenderedMovement(const ParamsBench &params,
+                              pose::MultipleRigidModelsOgre &rendering_engine,
+                              RenderData &data) {
   // object vertices
   const render::RigidObject &obj_model = rendering_engine.getRigidObject(0);
   Eigen::Map<const Eigen::MatrixXf> vertices_f(obj_model.getPositions().data(),
@@ -349,31 +334,15 @@ void testObjectMovement(const ParamsBench &params) {
   namedWindow("debug", 1);
   Mat cam_img;
 
-  vector<cv::Scalar> axis;
-  axis.push_back(cv::Scalar(255, 255, 0));
-  axis.push_back(cv::Scalar(0, 255, 255));
-  axis.push_back(cv::Scalar(255, 0, 255));
+  int num_frames = params.framerate * params.running_time;
+  int frame_count = 0;
 
-  Mat camera_matrix(3, 3, CV_64FC1);
-
-  for (auto i = 0; i < 3; ++i) {
-    for (auto j = 0; j < 3; ++j) {
-      camera_matrix.at<double>(i, j) = 0;
-    }
-  }
-
-  camera_matrix.at<double>(0, 0) = fx;
-  camera_matrix.at<double>(1, 1) = fy;
-  camera_matrix.at<double>(0, 2) = cx;
-  camera_matrix.at<double>(1, 2) = cy;
-  camera_matrix.at<double>(2, 2) = 1;
-
-  while (ros::ok()) {
+  while (frame_count < num_frames) {
     camera >> cam_img;
 
     auto now = high_resolution_clock::now();
     float dt = 0.03;
-        //duration_cast<microseconds>(now - last_time).count() / 1000000.0f;
+    // duration_cast<microseconds>(now - last_time).count() / 1000000.0f;
 
     if (dt > milliseconds) {
       x_pos += x_vel * float(dt);
@@ -417,23 +386,145 @@ void testObjectMovement(const ParamsBench &params) {
 
     blendImages(cam_img, img_gray, out);
 
-    vx_tracker.parNext(out);
+    data.addFrame(out, t_render);
 
+    imshow("debug", out);
+    auto c = waitKey(1);
+    if (c == 'q') break;
+
+    frame_count++;
+  }
+}
+
+void trackGeneratedData(RenderData &data, fato::TrackerVX &vx_tracker) {
+  vector<cv::Scalar> axis;
+  axis.push_back(cv::Scalar(255, 255, 0));
+  axis.push_back(cv::Scalar(0, 255, 255));
+  axis.push_back(cv::Scalar(255, 0, 255));
+
+  Mat camera_matrix(3, 3, CV_64FC1);
+
+  for (auto i = 0; i < 3; ++i) {
+    for (auto j = 0; j < 3; ++j) {
+      camera_matrix.at<double>(i, j) = 0;
+    }
+  }
+
+  camera_matrix.at<double>(0, 0) = fx;
+  camera_matrix.at<double>(1, 1) = fy;
+  camera_matrix.at<double>(0, 2) = cx;
+  camera_matrix.at<double>(1, 2) = cy;
+  camera_matrix.at<double>(2, 2) = 1;
+
+  vector<Mat> &images = data.images;
+
+//  VideoCapture camera(0);
+
+//  if (!camera.isOpened()) {
+//    cout << "cannot open camera!" << endl;
+//    return;
+//  }
+
+//Mat im;
+//  while(1)
+//  {
+
+//      camera >> im;
+//      vx_tracker.next(im);
+//      const fato::Target &target = vx_tracker.getTarget();
+//      vx_tracker.printProfile();
+//      //imshow("debug", im);
+//      auto c = waitKey(1);
+//      if (c == 'q') break;
+//  }
+
+  for (Mat& im : images) {
+
+    vx_tracker.next(im);
     vx_tracker.printProfile();
+
+    Mat out;
+    im.copyTo(out);
+
 
     const fato::Target &target = vx_tracker.getTarget();
 
     if (target.target_found_) {
-      //cout << "object found\n" << camera_matrix << endl;
+      cout << "object found\n" << camera_matrix << endl;
       auto w_pose = target.weighted_pose.toCV();
       fato::drawObjectPose(target.centroid_, camera_matrix, w_pose.first,
                            w_pose.second, axis, out);
     }
+    else
+    {
+        cout << "object  not found" << endl;
+    }
 
     imshow("debug", out);
-    auto c = waitKey(5);
+    auto c = waitKey(10);
     if (c == 'q') break;
+
   }
+}
+
+void testObjectMovement(const ParamsBench &params) {
+  render::WindowLessGLContext dummy(10, 10);
+
+  fato::TrackerVX::Params tracker_params;
+  tracker_params.descriptors_file = params.object_descriptors_file;
+  tracker_params.model_file = params.object_model_file;
+  tracker_params.image_width = width;
+  tracker_params.image_height = height;
+  tracker_params.fx = fx;
+  tracker_params.fy = fy;
+  tracker_params.cx = cx;
+  tracker_params.cy = cy;
+  tracker_params.parallel = false;
+
+  std::unique_ptr<fato::FeatureMatcher> matcher =
+      std::unique_ptr<fato::BriskMatcher>(new fato::BriskMatcher);
+
+  fato::TrackerVX vx_tracker(tracker_params, std::move(matcher));
+
+  pose::MultipleRigidModelsOgre &rendering_engine =
+      *vx_tracker.rendering_engine_;
+
+  RenderData data;
+  generateRenderedMovement(params, rendering_engine, data);
+
+  trackGeneratedData(data, vx_tracker);
+
+  //  vector<cv::Scalar> axis;
+  //  axis.push_back(cv::Scalar(255, 255, 0));
+  //  axis.push_back(cv::Scalar(0, 255, 255));
+  //  axis.push_back(cv::Scalar(255, 0, 255));
+
+  //  Mat camera_matrix(3, 3, CV_64FC1);
+
+  //  for (auto i = 0; i < 3; ++i) {
+  //    for (auto j = 0; j < 3; ++j) {
+  //      camera_matrix.at<double>(i, j) = 0;
+  //    }
+  //  }
+
+  //  camera_matrix.at<double>(0, 0) = fx;
+  //  camera_matrix.at<double>(1, 1) = fy;
+  //  camera_matrix.at<double>(0, 2) = cx;
+  //  camera_matrix.at<double>(1, 2) = cy;
+  //  camera_matrix.at<double>(2, 2) = 1;
+
+  //    //vx_tracker.parNext(out);
+
+  //    vx_tracker.printProfile();
+
+  //    const fato::Target &target = vx_tracker.getTarget();
+
+  //    if (target.target_found_) {
+  //      // cout << "object found\n" << camera_matrix << endl;
+  //      auto w_pose = target.weighted_pose.toCV();
+  //      fato::drawObjectPose(target.centroid_, camera_matrix, w_pose.first,
+  //                           w_pose.second, axis, out);
+  //    }
 }
 
 void readParameters(ParamsBench &params) {
@@ -487,12 +578,33 @@ void readParameters(ParamsBench &params) {
   }
 }
 
+void loadParameters(ParamsBench &params) {
+  params.camera_id = 0;
+  params.object_model_file =
+      "/home/alessandro/projects/drone_ws/src/fato_tracker/data/ros_hydro/"
+      "ros_hydro.obj";
+  params.object_descriptors_file =
+      "/home/alessandro/projects/drone_ws/src/fato_tracker/data/ros_hydro/"
+      "ros_hydro_features.h5";
+  params.translation_x = 0.030;
+  params.translation_y = 0.0;
+  params.translation_z = 0.0;
+  params.rotation_x = 0.0;
+  params.rotation_y = 0.0;
+  params.min_scale = 0.1;
+  params.max_scale = 0.6;
+  params.framerate = 30;
+  params.result_file = "/home/alessandro/debug/result.txt";
+  params.running_time = 2.0;
+}
+
 int main(int argc, char **argv) {
-  ros::init(argc, argv, "synthetic_benchmark");
-  ros::NodeHandle nh;
+  // ros::init(argc, argv, "synthetic_benchmark");
+  // ros::NodeHandle nh;
 
   ParamsBench params;
-  readParameters(params);
+  // readParameters(params);
+  loadParameters(params);
 
   testObjectMovement(params);
 

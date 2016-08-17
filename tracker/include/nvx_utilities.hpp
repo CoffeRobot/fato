@@ -117,7 +117,7 @@ namespace nvxio
 template <typename T, vx_size N>
 vx_size dimOf(T (&)[N]) { return N; }
 
-static std::string toStr(const vx_status& status)
+inline void nvx_safe_call(const vx_status& status)
 {
     std::string error;
     switch(status)
@@ -136,7 +136,7 @@ static std::string toStr(const vx_status& status)
              break;
     }
 
-    return error;
+    throw std::runtime_error("nvx_error");
 }
 
 
