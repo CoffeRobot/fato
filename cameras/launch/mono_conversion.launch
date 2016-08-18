@@ -1,0 +1,6 @@
+<launch>
+      <node name="image_proc" pkg="image_proc" type="image_proc"> 
+            <remap from="image_raw" to="image_raw" /> 
+            <remap from="camera_info" to="camera_info" /> 
+      </node>
+</launch>
