@@ -5,6 +5,8 @@
 
 <!-- uncomment to use the medium version-->
  <node name="tracker" pkg="fato_tracker_nodes" type="track_node_vx" output="screen">
+  <remap from="image_raw" to="image_raw" />
+  <remap from="camera_info" to="camera_info" />
  </node>
   
 </launch>
