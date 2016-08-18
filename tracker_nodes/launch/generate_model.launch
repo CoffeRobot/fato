@@ -1,7 +1,7 @@
 <launch>
 
-<param name="fato/model/object_path" type="str" value="$(find fato_tracker_nodes)/../data/nesquick/nesquick.obj"/>
-<param name="fato/model/response" value="200.0"/>
+<param name="fato/model/object_path" type="str" value="$(find fato_tracker_nodes)/../data/nepia/nepia.obj"/>
+<param name="fato/model/response" value="100.0"/>
 
 <!-- uncomment to use the medium version-->
  <node name="tracker" pkg="fato_tracker_nodes" type="generate_model" output="screen">

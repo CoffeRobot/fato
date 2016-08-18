@@ -453,6 +453,10 @@ void TrackerVX::trackSequential() {
   profile_.active_transf_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
+  // used for debuggin to see how many points are found by the matcher
+  if (!target_object_.target_found_)
+    target_object_.real_pts_ = model_pts.size();
+
   if (model_pts.size() > 4) {
     if (!target_object_.target_found_) {
       // removing outliers using pnp ransac
@@ -474,9 +478,12 @@ void TrackerVX::trackSequential() {
       target_object_.target_history_.clear();
       target_object_.target_history_.init(target_object_.pnp_pose);
 
+      stringstream ss;
+      ss << "pst " << model_pts.size() << " inliers " << inliers.size();
+
       auto inliers_count = inliers.size();
       removeOutliers(inliers);
-      validateInliers(inliers);
+      //validateInliers(inliers);
 
       // cout << "object found!" << endl;
       Eigen::MatrixXd projection_matrix = getProjectionMatrix(
@@ -487,6 +494,10 @@ void TrackerVX::trackSequential() {
         const int& id = target_object_.active_to_model_.at(i);
         model_pts.push_back(target_object_.model_points_.at(id));
       }
+
+      ss << " active " << model_pts.size();
+      cout << ss.str() << endl;
+
       vector<float> projected_depth;
       projectPointsDepth(model_pts, projection_matrix, projected_depth);
 
@@ -517,6 +528,8 @@ void TrackerVX::trackSequential() {
 
       vector<double> weigthed_beta(6, 0);
       float total_features = static_cast<float>(beta.first + synth_beta.first);
+      target_object_.real_pts_ = beta.first;
+      target_object_.synth_pts_ = synth_beta.first;
 
       if (total_features == 0)
         target_object_.target_found_ = false;
@@ -685,7 +698,6 @@ void TrackerVX::updatedDetectedPoints(
   auto end = chrono::high_resolution_clock::now();
   profile_.matching_update =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-  cout << "valid matches " << valid << endl;
 }
 
 void TrackerVX::renderPredictedPose() {
@@ -760,7 +772,7 @@ void TrackerVX::removeOutliers(vector<int>& inliers) {
   auto check_point = [&](int p) {
 
     int id = target_object_.active_to_model_.at(p);
-    if (target_object_.point_status_[id] == KpStatus::PNP) {
+    if (target_object_.point_status_[id] == KpStatus::MATCH) {
       to_remove.push_back(p);
     }
   };

@@ -114,6 +114,25 @@ void downloadRenderedImg(pose::MultipleRigidModelsOgre &model_ogre,
   d_texture.copyTo(h_texture);
 }
 
+
+void blendRendered(const cv::Mat& rendered, cv::Mat& out)
+{
+    for(auto i = 0; i < rendered.rows; ++i)
+    {
+        for(auto j = 0; j < rendered.cols; ++j)
+        {
+            const uchar& px = rendered.at<uchar>(i,j);
+            Vec3b& px_out = out.at<Vec3b>(i,j);
+            if(px != 0)
+            {
+                px_out[0] -= px;
+                if(px_out[0] < 0)
+                    px_out[0] = 0;
+            }
+        }
+    }
+}
+
 TrackerModelVX::TrackerModelVX(string descriptor_file, string model_file)
     : nh_(),
       rgb_topic_("/image_raw"),
@@ -200,6 +219,9 @@ void TrackerModelVX::rgbdCallback(
     const sensor_msgs::CameraInfoConstPtr &camera_info_msg) {
   ROS_INFO("Tracker2D: rgbd usupported");
 }
+
+
+
 
 void TrackerModelVX::run() {
   ROS_INFO("TrackerMB: init...");
@@ -321,13 +343,18 @@ void TrackerModelVX::run() {
         }
       }
 
+
+      float total = target.real_pts_ + target.synth_pts_;
+      float ratio = target.real_pts_ / total;
+
       pair<float, float> last_vals = target.target_history_.getLastVal();
       stringstream ss, ss1, ss2;
       ss << "average time: " << (average_time / frame_counter) / 1000.0;
+      ss << " cam pts " << target.real_pts_ << " synth " << target.synth_pts_ << " r " << ratio;
       ss1 << "vel " << target.target_history_.getAvgVelocity() << " conf "
           << target.target_history_.getConfidence().first << " last "
           << last_vals.first;
-      ss2 << " angular " << target.target_history_.getAvgAngular() << " conf "
+      ss2 << "angular " << target.target_history_.getAvgAngular() << " conf "
           << target.target_history_.getConfidence().second << " last "
           << last_vals.second;
 
@@ -369,6 +396,9 @@ void TrackerModelVX::run() {
         }
 
         Mat rend_mat = vx_tracker_->getRenderedPose();
+
+        if(target.target_found_)
+            blendRendered(rend_mat, flow_output);
 
         cv_bridge::CvImage cv_img, cv_rend, cv_flow;
         cv_img.image = rgb_image_;

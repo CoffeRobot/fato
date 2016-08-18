@@ -64,7 +64,6 @@ public:
 
     std::vector<float> getHistory() const {return velocities_;}
 
-
 private:
 
     std::vector<float> velocities_;
@@ -129,6 +128,8 @@ class Target {
   bool target_found_;
 
   TrackingHistory target_history_;
+
+  int real_pts_, synth_pts_;
 
 };
 

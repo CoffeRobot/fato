@@ -63,6 +63,7 @@ void Target::init(std::vector<cv::Point3f> &points, cv::Mat &descriptors)
     rel_distances_.push_back(centroid_ - pt);
   }
 
+
   resetPose();
 }
 
@@ -124,7 +125,8 @@ void Target::resetPose() {
 
   target_history_.clear();
 
-  //cout << "Object status reset " << endl;
+  real_pts_ = 0;
+  synth_pts_ = 0;
 }
 
 void Target::removeInvalidPoints(const std::vector<int> &ids) {

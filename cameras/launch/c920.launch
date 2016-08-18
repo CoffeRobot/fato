@@ -19,7 +19,7 @@
       <param name="video_mode" value="uncompressed"/> <!-- or yuyv/nv12/jpeg -->
       <param name="frame_rate" value="30"/>
       <param name="auto_exposure" value="0"/> <!-- use automatic exposure -->
-      <param name="auto_white_balance" value="true"/>
+      <param name="auto_white_balance" value="false"/>
 
       <param name="auto_focus" value="0"/>
       <param name="focus_absolute" value="0"/>
