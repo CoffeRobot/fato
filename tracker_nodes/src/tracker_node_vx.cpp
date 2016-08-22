@@ -135,8 +135,8 @@ void blendRendered(const cv::Mat& rendered, cv::Mat& out)
 
 TrackerModelVX::TrackerModelVX(string descriptor_file, string model_file)
     : nh_(),
-      rgb_topic_("/image_raw"),
-      camera_info_topic_("/camera_info"),
+      rgb_topic_("tracker/image_raw"),
+      camera_info_topic_("tracker/camera_info"),
       queue_size(5),
       is_mouse_dragging_(false),
       img_updated_(false),
@@ -264,6 +264,11 @@ void TrackerModelVX::run() {
   params_.parallel = true;
 
   while (ros::ok()) {
+    if(!img_updated_)
+    {
+        cout << "not receiving any image" << endl;
+    }
+
     if (img_updated_) {
       if (!camera_matrix_initialized)
         continue;
