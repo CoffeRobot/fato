@@ -261,13 +261,9 @@ void TrackerModelVX::run() {
   Mat cam(3, 3, CV_64FC1);
 
   // set to true to run concurrent threads
-  params_.parallel = true;
+  params_.parallel = false;
 
   while (ros::ok()) {
-    if(!img_updated_)
-    {
-        cout << "not receiving any image" << endl;
-    }
 
     if (img_updated_) {
       if (!camera_matrix_initialized)
@@ -418,7 +414,7 @@ void TrackerModelVX::run() {
         cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
         flow_publisher_.publish(cv_flow.toImageMsg());
 
-        video_writer.write(flow_output);
+        //video_writer.write(flow_output);
 
         //        Size sz1 = flow_output.size();
         //        Size sz2 = rend_mat.size();

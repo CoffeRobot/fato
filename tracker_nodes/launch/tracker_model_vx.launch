@@ -1,12 +1,12 @@
 <launch>
 
-<param name="fato/model/h5_file" type="str" value="$(find fato_tracker_nodes)/../data/nepia/nepia_features.h5"/>
-<param name="fato/model/obj_file" type="str" value="$(find fato_tracker_nodes)/../data/nepia/nepia.obj"/>
+<param name="fato/model/h5_file" type="str" value="$(find fato_tracker_nodes)/../data/ros_hydro/ros_hydro_features.h5"/>
+<param name="fato/model/obj_file" type="str" value="$(find fato_tracker_nodes)/../data/ros_hydro/ros_hydro.obj"/>
 
 <!-- uncomment to use the medium version-->
  <node name="tracker" pkg="fato_tracker_nodes" type="track_node_vx" output="screen">
-  <remap from="tracker/image_raw" to="camera1/image_raw" />
-  <remap from="tracker/camera_info" to="camera1/camera_info" />
+  <remap from="tracker/image_raw" to="image_raw" />
+  <remap from="tracker/camera_info" to="camera_info" />
  </node>
   
 </launch>

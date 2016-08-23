@@ -39,6 +39,9 @@ using namespace cv;
 #ifdef __APPLE__
 typedef long long __int64;
 #include <immintrin.h>
+#elif __arm__
+typedef long long __int64;
+typedef int __int32;
 #elif __unix__
 typedef long long __int64;
 typedef int32_t __int32;
@@ -58,8 +61,11 @@ CustomMatcher::~CustomMatcher()
 {
 }
 
+
 void CustomMatcher::match(const Mat& query, const Mat& train, int bestNum, vector<vector<DMatch>>& matches)
 {
+
+  
 
 	__int64* fstData = (__int64*)query.data;
 	__int64* scdData = (__int64*)train.data;
@@ -81,7 +87,11 @@ void CustomMatcher::match(const Mat& query, const Mat& train, int bestNum, vecto
 
             for (size_t k = 0; k < 8; ++k)
 			{
-				distance += _mm_popcnt_u64(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
+#ifdef __arm__
+		distance += __builtin_popcountll(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
+#else
+		distance += _mm_popcnt_u64(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
+#endif
 			}
 
 			for (auto it = bestMatches.begin(); it != bestMatches.end(); ++it)
@@ -127,7 +137,11 @@ void CustomMatcher::matchV2(const Mat& query, const Mat& train, vector<vector<DM
 
             for (size_t k = 0; k < 8; ++k)
             {
-                distance += _mm_popcnt_u64(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
+#ifdef __arm__
+		distance += __builtin_popcountll(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
+#else
+		distance += _mm_popcnt_u64(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
+#endif
             }
 
             if(distance < best.distance)
@@ -173,7 +187,11 @@ void CustomMatcher::match32(const cv::Mat& query, const cv::Mat& train, int best
 
 			for (size_t k = 0; k < 4; k++)
 			{
-				distance += _mm_popcnt_u64(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
+#ifdef __arm__
+		distance += __builtin_popcountll(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
+#else
+		distance += _mm_popcnt_u64(fstData[fstIdx + k] ^ scdData[scdIdx + k]);
+#endif
 			}
 
 			for (auto it = bestMatches.begin(); it != bestMatches.end(); ++it)
