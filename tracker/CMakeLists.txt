@@ -16,7 +16,12 @@ find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 find_package(VisionWorks REQUIRED)
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+message("Architecture: " ${CMAKE_SYSTEM_PROCESSOR})
+if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+else()
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native")
+endif()
 
 catkin_package(
   INCLUDE_DIRS include
@@ -25,6 +30,7 @@ catkin_package(
 )
 
 message("Project source dir: " ${PROJECT_SOURCE_DIR})
+
 
 # show additional files in qtcreator
 execute_process(COMMAND find ${PROJECT_SOURCE_DIR} -type f
