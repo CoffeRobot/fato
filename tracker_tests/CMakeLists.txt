@@ -179,6 +179,15 @@ add_dependencies(
   ${PROJECT_NAME}_generate_messages_cpp
 )
 
+add_executable(matching_test
+   src/matching_test.cpp
+  )
+
+target_link_libraries(matching_test
+  ${catkin_LIBRARIES}
+  ${OPENCV_LIBS}
+  ${Boost_LIBRARIES})
+
 if(VisionWorks_FOUND)
   add_executable(vw_integration
     src/vw_integration.cpp)
