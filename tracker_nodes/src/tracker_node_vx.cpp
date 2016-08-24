@@ -133,7 +133,7 @@ void blendRendered(const cv::Mat& rendered, cv::Mat& out)
     }
 }
 
-TrackerModelVX::TrackerModelVX(string descriptor_file, string model_file)
+TrackerModelVX::TrackerModelVX()
     : nh_(),
       rgb_topic_("tracker/image_raw"),
       camera_info_topic_("tracker/camera_info"),
@@ -163,21 +163,27 @@ TrackerModelVX::TrackerModelVX(string descriptor_file, string model_file)
   service_server_ = nh_.advertiseService(
       "tracker_service", &TrackerModelVX::serviceCallback, this);
 
-  getCameraParameters(nh_);
+
+  loadParameters(nh_);
 
   initRGB();
-
-  params_.descriptors_file = descriptor_file;
-  params_.model_file = model_file;
 
   run();
 }
 
-void TrackerModelVX::getCameraParameters(ros::NodeHandle &nh)
+void TrackerModelVX::loadParameters(ros::NodeHandle &nh)
 {
-    string camera_info_file;
+    string camera_info_file,model_name, obj_file;
     if (!ros::param::get("fato/camera_info_url", camera_info_file)) {
       throw std::runtime_error("cannot read camera infor url");
+    }
+
+    if (!ros::param::get("fato/model/h5_file", model_name)) {
+      throw std::runtime_error("cannot read h5 file param");
+    }
+
+    if (!ros::param::get("fato/model/obj_file", obj_file)) {
+      throw std::runtime_error("cannot read obj file param");
     }
 
     //cam_info_manager_ = camera_info_manager(nh);
@@ -189,9 +195,11 @@ void TrackerModelVX::getCameraParameters(ros::NodeHandle &nh)
         cv::Mat(3, 4, CV_64F, (void *)camera_info_msg.P.data()).clone();
     camera_matrix_initialized = true;
 
+    params_.descriptors_file = descriptor_file;
+    params_.model_file = model_file;
+
     cout << "camera parameters loaded!" << endl;
     cout << camera_matrix_ << endl;
-
 }
 
 void TrackerModelVX::initRGBSynch() {
@@ -273,10 +281,10 @@ void TrackerModelVX::run() {
   render::WindowLessGLContext dummy(10, 10);
   // setup the engines
 
-  ofstream file("/home/alessandro/debug/debug.txt");
-  cv::VideoWriter video_writer("/home/alessandro/Downloads/pose_estimation.avi",
-                               CV_FOURCC('D', 'I', 'V', 'X'), 30,
-                               cv::Size(640, 480), true);
+//  ofstream file("/home/alessandro/debug/debug.txt");
+//  cv::VideoWriter video_writer("/home/alessandro/Downloads/pose_estimation.avi",
+//                               CV_FOURCC('D', 'I', 'V', 'X'), 30,
+//                               cv::Size(640, 480), true);
   spinner_.start();
 
   ros::Rate r(100);
@@ -370,8 +378,6 @@ void TrackerModelVX::run() {
           else if (target.point_status_.at(id) == fato::KpStatus::TRACK) {
             color = Scalar(0, 255, 0);
 
-//            line(flow_output, target.prev_points_.at(i),
-//                 target.active_points.at(i), Scalar(255, 0, 0), 1);
           } else if (target.point_status_.at(id) == fato::KpStatus::PNP)
             color = Scalar(0, 255, 255);
 
@@ -482,15 +488,7 @@ int main(int argc, char *argv[]) {
   ROS_INFO("Starting tracker input");
   ros::init(argc, argv, "fato_tracker_model_node");
 
-  string model_name, obj_file;
 
-  if (!ros::param::get("fato/model/h5_file", model_name)) {
-    throw std::runtime_error("cannot read h5 file param");
-  }
-
-  if (!ros::param::get("fato/model/obj_file", obj_file)) {
-    throw std::runtime_error("cannot read obj file param");
-  }
 
   fato::TrackerModelVX manager(model_name, obj_file);
 
