@@ -147,7 +147,9 @@ TrackerModelVX::TrackerModelVX(string descriptor_file, string model_file)
       spinner_(0),
       camera_matrix_initialized(false),
       obj_file_(descriptor_file),
-      params_() {
+      params_(),
+      cam_info_manager_(nh_)
+{
   cvStartWindowThread();
 
   publisher_ = nh_.advertise<sensor_msgs::Image>("fato_tracker/output_pnp", 1);
@@ -161,6 +163,8 @@ TrackerModelVX::TrackerModelVX(string descriptor_file, string model_file)
   service_server_ = nh_.advertiseService(
       "tracker_service", &TrackerModelVX::serviceCallback, this);
 
+  getCameraParameters(nh_);
+
   initRGB();
 
   params_.descriptors_file = descriptor_file;
@@ -169,7 +173,28 @@ TrackerModelVX::TrackerModelVX(string descriptor_file, string model_file)
   run();
 }
 
-void TrackerModelVX::initRGB() {
+void TrackerModelVX::getCameraParameters(ros::NodeHandle &nh)
+{
+    string camera_info_file;
+    if (!ros::param::get("fato/camera_info_url", camera_info_file)) {
+      throw std::runtime_error("cannot read camera infor url");
+    }
+
+    //cam_info_manager_ = camera_info_manager(nh);
+    cam_info_manager_.loadCameraInfo(camera_info_file);
+
+    const sensor_msgs::CameraInfo& camera_info_msg = cam_info_manager_.getCameraInfo();
+
+    camera_matrix_ =
+        cv::Mat(3, 4, CV_64F, (void *)camera_info_msg.P.data()).clone();
+    camera_matrix_initialized = true;
+
+    cout << "camera parameters loaded!" << endl;
+    cout << camera_matrix_ << endl;
+
+}
+
+void TrackerModelVX::initRGBSynch() {
   rgb_it_.reset(new image_transport::ImageTransport(nh_));
   sub_camera_info_.subscribe(nh_, camera_info_topic_, 1);
   /** kinect node settings */
@@ -181,6 +206,16 @@ void TrackerModelVX::initRGB() {
 
   sync_rgb_->registerCallback(
       boost::bind(&TrackerModelVX::rgbCallback, this, _1, _2));
+}
+
+void TrackerModelVX::initRGB()
+{
+    rgb_it_.reset(new image_transport::ImageTransport(nh_));
+
+    sub_rgb_.subscribe(*rgb_it_, rgb_topic_, 1,
+                       image_transport::TransportHints("raw"));
+    sub_rgb_.registerCallback(
+                boost::bind(&TrackerModelVX::rgbCallbackNoInfo, this, _1));
 }
 
 void TrackerModelVX::rgbCallback(
@@ -196,6 +231,14 @@ void TrackerModelVX::rgbCallback(
   readImage(rgb_msg, rgb);
   cvtColor(rgb, rgb_image_, CV_RGB2BGR);
   img_updated_ = true;
+}
+
+void TrackerModelVX::rgbCallbackNoInfo(const sensor_msgs::ImageConstPtr &rgb_msg)
+{
+    Mat rgb;
+    readImage(rgb_msg, rgb);
+    cvtColor(rgb, rgb_image_, CV_RGB2BGR);
+    img_updated_ = true;
 }
 
 bool TrackerModelVX::serviceCallback(

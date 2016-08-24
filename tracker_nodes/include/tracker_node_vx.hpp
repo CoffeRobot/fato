@@ -43,6 +43,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/core/core.hpp>
 #include <string>
+#include <camera_info_manager/camera_info_manager.h>
 
 #include <memory>
 
@@ -57,8 +58,13 @@ class TrackerModelVX : public TrackerNode {
   TrackerModelVX(std::string descriptor_file, std::string model_file);
 
  protected:
+
+  void getCameraParameters(ros::NodeHandle& nh);
+
   void rgbCallback(const sensor_msgs::ImageConstPtr& rgb_msg,
                    const sensor_msgs::CameraInfoConstPtr& camera_info_msg);
+
+  void rgbCallbackNoInfo(const sensor_msgs::ImageConstPtr& rgb_msg);
 
   void rgbdCallback(
           const sensor_msgs::ImageConstPtr &depth_msg,
@@ -70,6 +76,8 @@ class TrackerModelVX : public TrackerNode {
 
  private:
   void run();
+
+  void initRGBSynch();
 
   void initRGB();
 
@@ -110,6 +118,9 @@ class TrackerModelVX : public TrackerNode {
   TrackerVX::Params params_;
 
   bool stop_matcher;
+
+  camera_info_manager::CameraInfoManager cam_info_manager_;
+
 };
 
 } // end namespace
