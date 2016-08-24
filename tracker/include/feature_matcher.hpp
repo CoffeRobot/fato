@@ -42,6 +42,10 @@
 #include "config.h"
 #include "matcher.h"
 
+namespace libAKAZECU {
+    class AKAZE;
+}
+
 namespace fato {
 
 enum FEATURE_TYPE {
@@ -132,6 +136,59 @@ class FeatureMatcher {
  protected:
   FeatureMatcher(){};
 };
+
+
+
+class AkazeMatcher : public FeatureMatcher {
+public:
+ AkazeMatcher();
+
+ ~AkazeMatcher();
+
+ void init(int feature_id);
+
+ void extractTarget(const cv::Mat& img);
+
+ void setTarget(const cv::Mat& descriptors);
+
+ void match(const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
+            cv::Mat& query_descriptors,
+            std::vector<std::vector<cv::DMatch>>& matches);
+
+ std::pair<float, float> matchP(const cv::Mat& img,
+                                std::vector<cv::KeyPoint>& query_keypoints,
+                                cv::Mat& query_descriptors,
+                                std::vector<std::vector<cv::DMatch>>& matches);
+
+ std::vector<cv::KeyPoint>& getTargetPoints();
+
+ cv::Mat& getTargetDescriptors();
+
+ cv::Mat getTrainDescriptors();
+
+ void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
+              cv::Mat& descriptors);
+
+ float maxDistance(){return 512.0;}
+
+private:
+
+#ifdef __arm__
+ cv::BFMatcher cv_matcher_;
+#else
+ CustomMatcher matcher_custom_;
+#endif
+
+ int feature_id_;
+ std::string feature_name;
+ libAKAZECU::AKAZE* akaze_detector_;
+
+ cv::Mat train_descriptors_;
+ std::vector<cv::KeyPoint> train_keypoints_;
+
+ void initExtractor();
+};
+
 
 class BriskMatcher : public FeatureMatcher {
  public:

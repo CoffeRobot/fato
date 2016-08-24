@@ -16,6 +16,11 @@ find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 find_package(VisionWorks REQUIRED)
 
+
+# TODO Write FindAKAZECU.cmake
+set(AKAZECU_INCLUDE_DIRS /home/niklas/dev/src/akazecu/src /home/niklas/dev/src/akazecu/src/lib)
+set(AKAZECU_LIBRARIES /home/niklas/dev/src/akazecu/build/lib/libAKAZE.a /home/niklas/dev/src/akazecu/build/lib/libAKAZE_CUDA.a)
+
 message("Architecture: " ${CMAKE_SYSTEM_PROCESSOR})
 if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
@@ -48,6 +53,7 @@ include_directories(include
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR}
   ${VisionWorks_INCLUDE_DIR}
+  ${AKAZECU_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME}
@@ -72,4 +78,5 @@ target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
   ${VisionWorks_LIBRARIES}
+  ${AKAZECU_LIBRARIES}
 )
