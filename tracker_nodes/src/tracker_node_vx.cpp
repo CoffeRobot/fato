@@ -335,7 +335,7 @@ void TrackerModelVX::run() {
 
           circle(flow_output, target.active_points.at(i), 1, color);
 
-          vx_tracker_->printProfile();
+          
 
           if (frame_counter > 100) {
             frame_counter = 0;
@@ -344,6 +344,7 @@ void TrackerModelVX::run() {
         }
       }
 
+      vx_tracker_->printProfile();
 
       float total = target.real_pts_ + target.synth_pts_;
       float ratio = target.real_pts_ / total;
@@ -402,9 +403,6 @@ void TrackerModelVX::run() {
             blendRendered(rend_mat, flow_output);
 
         cv_bridge::CvImage cv_img, cv_rend, cv_flow;
-        cv_img.image = rgb_image_;
-        cv_img.encoding = sensor_msgs::image_encodings::BGR8;
-        publisher_.publish(cv_img.toImageMsg());
 
         cv_rend.image = rend_mat;
         cv_rend.encoding = sensor_msgs::image_encodings::MONO8;

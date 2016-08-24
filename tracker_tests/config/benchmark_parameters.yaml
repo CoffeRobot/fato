@@ -15,7 +15,7 @@ fato/max_scale: 0.6
 # simulated framerate of camera
 fato/framerate: 30
 # id camera for opencv
-fato/camera_id: 0
+fato/camera_id: 1
 # output file
 fato/result_file: /home/alessandro/debug/result.txt
 
