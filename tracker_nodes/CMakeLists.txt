@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
     tracker
     fato_rendering
     tracker_io
+    camera_info_manager
 )
 
 
