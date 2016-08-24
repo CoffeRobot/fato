@@ -146,7 +146,6 @@ TrackerModelVX::TrackerModelVX()
       mouse_end_(0, 0),
       spinner_(0),
       camera_matrix_initialized(false),
-      obj_file_(descriptor_file),
       params_(),
       cam_info_manager_(nh_)
 {
@@ -195,8 +194,8 @@ void TrackerModelVX::loadParameters(ros::NodeHandle &nh)
         cv::Mat(3, 4, CV_64F, (void *)camera_info_msg.P.data()).clone();
     camera_matrix_initialized = true;
 
-    params_.descriptors_file = descriptor_file;
-    params_.model_file = model_file;
+    params_.descriptors_file = model_name;
+    params_.model_file = obj_file;
 
     cout << "camera parameters loaded!" << endl;
     cout << camera_matrix_ << endl;
@@ -488,7 +487,7 @@ int main(int argc, char *argv[]) {
 
 
 
-  fato::TrackerModelVX manager(model_name, obj_file);
+  fato::TrackerModelVX manager();
 
   ros::shutdown();
 
