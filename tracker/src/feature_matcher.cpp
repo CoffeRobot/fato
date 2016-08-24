@@ -46,7 +46,14 @@ namespace fato {
 
 FeatureMatcher::~FeatureMatcher() {}
 
-BriskMatcher::BriskMatcher() {
+BriskMatcher::BriskMatcher()
+ {
+
+#ifdef __arm__
+  cv_matcher_ = cv::BFMatcher(NORM_HAMMING);
+  #endif
+
+
     feature_id_ = -1;
     initExtractor();
 }
@@ -86,7 +93,6 @@ void BriskMatcher::initExtractor() {
 
       cout << "FeatureMatcher: BRISK initialization " << endl;
       feature_name = "brisk";
-      matcher_ = DescriptorMatcher::create("BruteForce-Hamming");
 }
 
 void BriskMatcher::extract(const Mat &img, std::vector<KeyPoint> &keypoints,
@@ -103,9 +109,11 @@ void BriskMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
     return;
   }
   //TOFIX: opencv matcher does not work in 2.4
-  //matcher_->knnMatch(train_descriptors_, query_descriptors, matches, 1);
-  //matcher_custom_.match(train_descriptors_, query_descriptors, 2, matches);
+ #ifdef __arm__
+  cv_matcher_.knnMatch(query_descriptors, train_descriptors_, matches, 2);
+#else
   matcher_custom_.matchV2(query_descriptors, train_descriptors_, matches);
+#endif
 }
 
 std::pair<float,float> BriskMatcher::matchP(const Mat &img, std::vector<KeyPoint> &query_keypoints,
@@ -120,11 +128,12 @@ std::pair<float,float> BriskMatcher::matchP(const Mat &img, std::vector<KeyPoint
     return pair<float,float>(ext_time, 0);
   }
   //TOFIX: opencv matcher does not work in 2.4
-  //matcher_->knnMatch(train_descriptors_, query_descriptors, matches, 1);
-  //matcher_custom_.match(train_descriptors_, query_descriptors, 2, matches);
   begin = high_resolution_clock::now();
-  //matcher_custom_.match(query_descriptors, train_descriptors_, 2, matches);
+#ifdef __arm__
+  cv_matcher_.knnMatch(query_descriptors, train_descriptors_, matches, 2);
+#else
   matcher_custom_.matchV2(query_descriptors, train_descriptors_, matches);
+#endif
   end = high_resolution_clock::now();
   float mtc_time = duration_cast<nanoseconds>(end-begin).count();
 

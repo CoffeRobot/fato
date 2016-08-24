@@ -581,10 +581,10 @@ void readParameters(ParamsBench &params) {
 void loadParameters(ParamsBench &params) {
   params.camera_id = 0;
   params.object_model_file =
-      "/home/alessandro/projects/drone_ws/src/fato_tracker/data/ros_hydro/"
+      "/home/alessandro/projects/drone_ws/src/fato/data/ros_hydro/"
       "ros_hydro.obj";
   params.object_descriptors_file =
-      "/home/alessandro/projects/drone_ws/src/fato_tracker/data/ros_hydro/"
+      "/home/alessandro/projects/drone_ws/src/fato/data/ros_hydro/"
       "ros_hydro_features.h5";
   params.translation_x = 0.030;
   params.translation_y = 0.0;
@@ -599,7 +599,7 @@ void loadParameters(ParamsBench &params) {
 }
 
 int main(int argc, char **argv) {
-  // ros::init(argc, argv, "synthetic_benchmark");
+  ros::init(argc, argv, "synthetic_benchmark");
   // ros::NodeHandle nh;
 
   ParamsBench params;

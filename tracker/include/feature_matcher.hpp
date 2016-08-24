@@ -166,8 +166,12 @@ class BriskMatcher : public FeatureMatcher {
   float maxDistance(){return 512.0;}
 
  private:
-  cv::Ptr<cv::DescriptorMatcher> matcher_;
+
+#ifdef __arm__
+  cv::BFMatcher cv_matcher_;
+#else
   CustomMatcher matcher_custom_;
+#endif
 
   int feature_id_;
   std::string feature_name;

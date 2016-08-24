@@ -19,8 +19,8 @@ int main(int argc, char** argv)
 {
 
 
-    Mat fst  = imread("../../../src/data/imgs/img1.pgm",0);
-    Mat scd  = imread("../../../src/data/imgs/img2.pgm",0);
+    Mat fst  = imread("/home/alessandro/projects/drone_ws/src/fato/data/imgs/img1.ppm",0);
+    Mat scd  = imread("/home/alessandro/projects/drone_ws/src/fato/data/imgs/img2.ppm",0);
 
     BriskMatcher custom;
     Mat fst_dsc, scd_dsc;
@@ -41,6 +41,10 @@ int main(int argc, char** argv)
     matcher.knnMatch(fst_dsc, scd_dsc, cv_matches, 2);
     auto end_cv = my_clock::now();
 
+    cout << "kps " << fst_kps.size() << " " << scd_kps.size() << endl;
+    cout << "kps " << fst_dsc.cols << " " << scd_dsc.cols << endl; 
+    cout << "matches " << custom_matches.size() << " " << cv_matches.size() << endl;
+
     for(auto i = 0; i < custom_matches.size(); ++i)
     {
         DMatch mine = custom_matches.at(i)[0];
@@ -55,6 +59,9 @@ int main(int argc, char** argv)
     float ms_cv = duration_cast<nanoseconds>(end_cv - begin_cv).count();
 
     cout <<fixed << setprecision(3) << "opencv " << ms_cv/1000.0 << " mine " << ms_custom/1000.0 << endl;
+
+    imshow("debug", fst);
+    waitKey(0);
 
     return 0;
 }
