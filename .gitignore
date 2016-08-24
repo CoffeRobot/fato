@@ -62,3 +62,6 @@ CATKIN_IGNORE
 
 ## Directory-based project format for clion
 .idea/
+
+# Niklas specific files
+*niklas*
