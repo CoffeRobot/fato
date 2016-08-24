@@ -17,9 +17,15 @@ add_definitions(${EIGEN_DEFINITIONS})
 find_package(VisionWorks REQUIRED)
 
 
+set(TRACKER_CUDA_AKAZE CACHE PATH "path to gpu compiled opencv")
+
 # TODO Write FindAKAZECU.cmake
-set(AKAZECU_INCLUDE_DIRS /home/niklas/dev/src/akazecu/src /home/niklas/dev/src/akazecu/src/lib)
-set(AKAZECU_LIBRARIES /home/niklas/dev/src/akazecu/build/lib/libAKAZE.a /home/niklas/dev/src/akazecu/build/lib/libAKAZE_CUDA.a)
+if ("${TRACKER_CUDA_AKAZE}" STREQUAL "")
+  message("cuda akaze path not set!")
+else()
+  set(AKAZECU_INCLUDE_DIRS ${TRACKER_CUDA_AKAZE}/src ${TRACKER_CUDA_AKAZE}/src/lib)
+  set(AKAZECU_LIBRARIES ${TRACKER_CUDA_AKAZE}/build/lib/libAKAZE.a ${TRACKER_CUDA_AKAZE}/build/lib/libAKAZE_CUDA.a)
+endif()
 
 message("Architecture: " ${CMAKE_SYSTEM_PROCESSOR})
 if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
