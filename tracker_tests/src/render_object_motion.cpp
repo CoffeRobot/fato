@@ -324,11 +324,11 @@ void generateRenderedMovement(const ParamsBench &params,
 
   high_resolution_clock::time_point last_time = high_resolution_clock::now();
 
-  VideoCapture camera(0);
+  VideoCapture camera(params.camera_id);
 
   if (!camera.isOpened()) {
     cout << "cannot open camera!" << endl;
-    return;
+    //return;
   }
 
   namedWindow("debug", 1);
@@ -338,7 +338,7 @@ void generateRenderedMovement(const ParamsBench &params,
   int frame_count = 0;
 
   while (frame_count < num_frames) {
-    camera >> cam_img;
+   
 
     auto now = high_resolution_clock::now();
     float dt = 0.03;
@@ -384,7 +384,12 @@ void generateRenderedMovement(const ParamsBench &params,
     cv::Mat img_gray, out;
     cv::cvtColor(img_rgba, img_gray, CV_RGBA2BGR);
 
+if (camera.isOpened()) {
+    camera >> cam_img;
     blendImages(cam_img, img_gray, out);
+}
+else
+  img_gray.copyTo(out);
 
     data.addFrame(out, t_render);
 
@@ -579,7 +584,7 @@ void readParameters(ParamsBench &params) {
 }
 
 void loadParameters(ParamsBench &params) {
-  params.camera_id = 0;
+  params.camera_id = 1;
   params.object_model_file =
       "/home/alessandro/projects/drone_ws/src/fato/data/ros_hydro/"
       "ros_hydro.obj";
@@ -595,7 +600,7 @@ void loadParameters(ParamsBench &params) {
   params.max_scale = 0.6;
   params.framerate = 30;
   params.result_file = "/home/alessandro/debug/result.txt";
-  params.running_time = 2.0;
+  params.running_time = 20.0;
 }
 
 int main(int argc, char **argv) {

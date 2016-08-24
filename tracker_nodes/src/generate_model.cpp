@@ -411,7 +411,7 @@ int main(int argc, char **argv) {
 
     cv::imshow(window_name, img);
     writer.write(img);
-    cv::waitKey(30);
+    cv::waitKey(0);
   }
 
   std::cout << "Keypoints after response filtering: " << valid_point_count

@@ -55,11 +55,11 @@ namespace fato{
 
 class TrackerModelVX : public TrackerNode {
  public:
-  TrackerModelVX(std::string descriptor_file, std::string model_file);
+  TrackerModelVX();
 
  protected:
 
-  void getCameraParameters(ros::NodeHandle& nh);
+  void loadParameters(ros::NodeHandle& nh);
 
   void rgbCallback(const sensor_msgs::ImageConstPtr& rgb_msg,
                    const sensor_msgs::CameraInfoConstPtr& camera_info_msg);
