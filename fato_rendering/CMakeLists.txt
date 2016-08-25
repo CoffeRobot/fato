@@ -20,22 +20,27 @@ find_package(urdfdom REQUIRED)
 
 pkg_check_modules(GLEW REQUIRED glew)
 
+# path where built ogre is installed
 
-# OGRE SETUP DEFINED BY KARL
-pkg_check_modules(OGRE_OV OGRE OGRE-Overlay)
-# Old versions of OGRE (pre 1.9) included OGRE-Overlay in the main package
-# (i.e. there was no OGRE-Overlay component).  So if the above
-# pkg_check_modules() failed, try looking for just OGRE.
-if(NOT OGRE_OV_FOUND)
-  pkg_check_modules(OGRE_OV REQUIRED OGRE)
-endif(NOT OGRE_OV_FOUND)
-## Find OGRE Plugin path (not necessarily platform-independent, I guess)
-execute_process(COMMAND
-  pkg-config --variable=plugindir OGRE
-  OUTPUT_VARIABLE OGRE_PLUGIN_PATH
-  OUTPUT_STRIP_TRAILING_WHITESPACE
+if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
+  set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/usr/local/lib/OGRE/cmake/")
+  find_package(OGRE REQUIRED)
+else()
+  # OGRE SETUP DEFINED BY KARL
+  pkg_check_modules(OGRE_OV OGRE OGRE-Overlay)
+  #Old versions of OGRE (pre 1.9) included OGRE-Overlay in the main package
+  #i.e. there was no OGRE-Overlay component).  So if the above
+  #pkg_check_modules() failed, try looking for just OGRE.
+  if(NOT OGRE_OV_FOUND)
+    pkg_check_modules(OGRE_OV REQUIRED OGRE)
+  endif(NOT OGRE_OV_FOUND)
+  ## Find OGRE Plugin path (not necessarily platform-independent, I guess)
+  execute_process(COMMAND
+    pkg-config --variable=plugindir OGRE
+    OUTPUT_VARIABLE OGRE_PLUGIN_PATH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-
+endif()
 
 # Build the version number and other build-time constants into the
 # source for access at run-time.

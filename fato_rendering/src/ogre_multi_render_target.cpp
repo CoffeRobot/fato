@@ -46,7 +46,7 @@ OgreMultiRenderTarget::OgreMultiRenderTarget(std::string name, int width,
       scene_manager_{ scene_manager } {
   camera_ = scene_manager_->createCamera(name_);
 
-Ogre::Root::getSingleton().getRenderSystem()->getMutableCapabilities()->unsetCapability(Ogre::RSC_SEPARATE_SHADER_OBJECTS);
+//Ogre::Root::getSingleton().getRenderSystem()->getMutableCapabilities()->unsetCapability(Ogre::RSC_SEPARATE_SHADER_OBJECTS);
 
   multi_render_target_ =
       Ogre::Root::getSingleton().getRenderSystem()->createMultiRenderTarget(
