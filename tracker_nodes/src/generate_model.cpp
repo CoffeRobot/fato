@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
       boost::filesystem::remove(boost::filesystem::path(h5_file_name));
   }
 
-  fato::AkazeMatcher matcher;
+  fato::BriskMatcher matcher;
 
   // object vertices
   const render::RigidObject &obj_model = model_ogre.getRigidObject(0);

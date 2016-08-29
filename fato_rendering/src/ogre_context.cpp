@@ -59,11 +59,14 @@ OgreContext::OgreContext() {
 #ifdef Q_OS_MAC
   plugin_prefix += "lib";
 #endif
+  std::cout << "TRYING TO FUCKING LOAD OGRE PLUGIN! @ " << plugin_prefix + "RenderSystem_GL" << std::endl;
   ogre_root_->loadPlugin(plugin_prefix + "RenderSystem_GL");
 
   Ogre::RenderSystem *rs =
       ogre_root_->getRenderSystemByName("OpenGL Rendering Subsystem");
   ogre_root_->setRenderSystem(rs);
+
+  //std::cout << "TRYING TO FUCKING LOAD OGRE PLUGIN! @ " << plugin_prefix + "RenderSystem_GL" << std::endl;
 
   Ogre::NameValuePairList opts;
   opts["hidden"] = "true";
@@ -86,6 +89,8 @@ OgreContext::OgreContext() {
   Ogre::ResourceGroupManager::getSingleton().initialiseAllResourceGroups();
 
   scene_manager_ = ogre_root_->createSceneManager("DefaultSceneManager");
+
+  //std::cout << "TRYING TO FUCKING LOAD OGRE PLUGIN! @ " << plugin_prefix + "RenderSystem_GL" << std::endl;
 }
 
 OgreContext::~OgreContext() {}

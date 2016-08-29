@@ -36,7 +36,7 @@
 #include <fstream>
 #include <iomanip>
 #include <Eigen/Core>
-#include <Eigen/Dense>b
+#include <Eigen/Dense>
 #include <random>
 #include <cmath>
 
