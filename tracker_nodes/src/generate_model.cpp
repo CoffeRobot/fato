@@ -186,6 +186,7 @@ int main(int argc, char **argv) {
   // Create dummy GL context before cudaGL init
   render::WindowLessGLContext dummy(10, 10);
 
+
   // CUDA Init
   int device_id = 0;
   fato::initializeCUDARuntime(device_id);
