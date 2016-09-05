@@ -68,10 +68,10 @@ public:
   void updateCameraPose(const TranslationRotation3D &camera_pose);
 
   /**
-  /** * @brief getBoundingBoxesInCameraFrame
-  /** * @param object_poses
-  /** * @return (8x3) bounding box for each object
-  /** */
+   * * @brief getBoundingBoxesInCameraFrame
+   * * @param object_poses
+   * * @return (8x3) bounding box for each object
+   * */
   std::vector<std::vector<double> > getBoundingBoxesInCameraFrame(
       const std::vector<TranslationRotation3D> &object_poses);
 
