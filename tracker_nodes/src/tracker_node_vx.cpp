@@ -149,6 +149,7 @@ TrackerModelVX::TrackerModelVX()
       params_(),
       cam_info_manager_(nh_)
 {
+
   cvStartWindowThread();
 
   publisher_ = nh_.advertise<sensor_msgs::Image>("fato_tracker/output_pnp", 1);
@@ -184,6 +185,13 @@ void TrackerModelVX::loadParameters(ros::NodeHandle &nh)
     if (!ros::param::get("fato/model/obj_file", obj_file)) {
       throw std::runtime_error("cannot read obj file param");
     }
+
+    if (!ros::param::get("fato/model/descriptor_type", descriptor_type_)) {
+	descriptor_type_ = 0;
+	ROS_INFO("No descriptor type defined");
+    }
+
+    
 
     //cam_info_manager_ = camera_info_manager(nh);
     cam_info_manager_.loadCameraInfo(camera_info_file);
@@ -316,6 +324,7 @@ void TrackerModelVX::run() {
   while (ros::ok()) {
 
     if (img_updated_) {
+	std::cout << "updated camera\n";
       if (!camera_matrix_initialized)
         continue;
       else if (camera_matrix_initialized && !camera_is_set) {
@@ -333,13 +342,20 @@ void TrackerModelVX::run() {
         params_.cy = cam.at<double>(1, 2);
 
 
-        std::unique_ptr<FeatureMatcher> derived =
-            std::unique_ptr<BriskMatcher>(new BriskMatcher);
+        std::unique_ptr<FeatureMatcher> derived;
+	switch (descriptor_type_) {
+	    case 0:
+		derived.reset(new BriskMatcher);
+		break;
+	    case 1:
+		derived.reset(new AkazeMatcher);
+		break;
+	    default:
+		break;
+	}
 
         vx_tracker_ =
             unique_ptr<TrackerVX>(new TrackerVX(params_, std::move(derived)));
-
-        cout << "Tracker initialized!" << endl;
 
         camera_is_set = true;
       }
@@ -416,6 +432,11 @@ void TrackerModelVX::run() {
                             20, flow_output);
       // cout << target.active_to_model_.size() << endl;
 
+      cv_bridge::CvImage cv_flowz;
+      cv_flowz.image = flow_output;
+      cv_flowz.encoding = sensor_msgs::image_encodings::RGB8;
+      flow_publisher_.publish(cv_flowz.toImageMsg());
+
       if (target.active_to_model_.size()) {
         std::vector<Point3f> model_pts;
         std::vector<Point3f> rel_pts;
@@ -456,9 +477,9 @@ void TrackerModelVX::run() {
         cv_rend.encoding = sensor_msgs::image_encodings::MONO8;
         render_publisher_.publish(cv_rend.toImageMsg());
 
-        cv_flow.image = flow_output;
+        /*cv_flow.image = flow_output;
         cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
-        flow_publisher_.publish(cv_flow.toImageMsg());
+        flow_publisher_.publish(cv_flow.toImageMsg());*/
 
         //video_writer.write(flow_output);
 
@@ -483,11 +504,10 @@ void TrackerModelVX::run() {
 
 int main(int argc, char *argv[]) {
   ROS_INFO("Starting tracker input");
+  
   ros::init(argc, argv, "fato_tracker_model_node");
 
-
-
-  fato::TrackerModelVX manager();
+  fato::TrackerModelVX manager;
 
   ros::shutdown();
 
