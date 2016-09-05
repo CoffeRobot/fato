@@ -121,6 +121,8 @@ class TrackerModelVX : public TrackerNode {
 
   camera_info_manager::CameraInfoManager cam_info_manager_;
 
+    int descriptor_type_;
+    
 };
 
 } // end namespace
