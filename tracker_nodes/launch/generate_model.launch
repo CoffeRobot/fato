@@ -2,6 +2,8 @@
 
 <param name="fato/model/object_path" type="str" value="$(find fato_tracker_nodes)/../data/ros_hydro/ros_hydro.obj"/>
 <param name="fato/model/response" value="100.0"/>
+<!-- Descriptor type: 0 - Brisk, 1 - Akaze -->
+<param name="fato/model/descriptor_type" type="int" value="0" />
 
 <!-- uncomment to use the medium version-->
  <node name="tracker" pkg="fato_tracker_nodes" type="generate_model" output="screen">

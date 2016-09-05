@@ -214,6 +214,10 @@ int main(int argc, char **argv) {
   } else {
     throw std::runtime_error("Cannot read the parameters required");
   }
+  int descriptor_type = 0;
+  if (!ros::param::get("fato/model/descriptor_type", descriptor_type)) {
+      ROS_INFO("No descriptor type defined");
+  }
 
   // storage
   std::vector<float> all_keypoints;
@@ -242,7 +246,17 @@ int main(int argc, char **argv) {
       boost::filesystem::remove(boost::filesystem::path(h5_file_name));
   }
 
-  fato::AkazeMatcher matcher;
+  std::unique_ptr<fato::FeatureMatcher> matcher;
+  switch (descriptor_type) {
+      case 0:
+	  matcher.reset(new fato::BriskMatcher);
+	  break;
+      case 1:
+	  matcher.reset(new fato::AkazeMatcher);
+	  break;
+      default:
+	  break;
+  }
 
   // object vertices
   const render::RigidObject &obj_model = model_ogre.getRigidObject(0);
@@ -304,9 +318,9 @@ int main(int argc, char **argv) {
     cv::Mat img_gray;
     cv::cvtColor(img_rgba, img_gray, CV_RGBA2GRAY);
 
-    matcher.extractTarget(img_gray);
-    std::vector<cv::KeyPoint> &points = matcher.getTargetPoints();
-    cv::Mat &dscs = matcher.getTargetDescriptors();
+    matcher->extractTarget(img_gray);
+    std::vector<cv::KeyPoint> &points = matcher->getTargetPoints();
+    cv::Mat &dscs = matcher->getTargetDescriptors();
 
     img_descriptors.push_back(dscs);
 
