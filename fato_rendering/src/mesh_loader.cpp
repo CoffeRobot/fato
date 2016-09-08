@@ -59,7 +59,10 @@
 #include <assimp/IOStream.hpp>
 #include <assimp/IOSystem.hpp>
 #else
-#include <assimp/assimp.hpp>
+#include "assimp/IOStream.hpp"
+#include "assimp/IOSystem.hpp"
+
+#include "assimp/assimp.hpp"
 #include <assimp/aiScene.h>
 #include <assimp/aiPostProcess.h>
 #include <assimp/IOStream.h>

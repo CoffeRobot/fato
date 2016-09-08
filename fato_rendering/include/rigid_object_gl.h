@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2015, Alessandro Pieropan                                  */
+/*  Copyright (c) 2016, Alessandro Pieropan                                  */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -29,15 +29,49 @@
 /*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
+#ifndef RIGID_OBJECT_H
+#define RIGID_OBJECT_H
 
-#include <iostream>
-#include <string>
+#include "model.h"
+#include "shader.h"
+#include <eigen3/Eigen/Dense>
 
-using namespace std;
+namespace rendering{
+
+class RigidObject{
+
+public:
+
+    RigidObject(std::string model, std::string ver_shader, std::string frag_shader);
+
+    ~RigidObject();
+
+    void setVisible(bool is_visible);
+
+    bool isVisible();
+
+    void updatePose(Eigen::Transform<double, 3, Eigen::Affine> &pose);
+
+    std::vector<float> getBoundingBox();
+
+    Shader shader;
+    Model model;
+    glm::mat4 model_matrix_;
+    glm::vec3 mins_, maxs_;
+
+private:
+
+    void computeBoundingBox();
+
+    int object_id_;
+    bool is_visible_;
+
+    std::vector<float> bounding_box_;
 
 
 
-int main(int argc, char* argv[])
-{
+};
 
-}
+} // end namespace
+
+#endif // RIGID_OBJECT_H

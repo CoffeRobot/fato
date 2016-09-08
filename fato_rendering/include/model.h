@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2015, Karl Pauwels                                         */
+/*  Copyright (c) 2016, Alessandro Pieropan                                  */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -29,80 +29,76 @@
 /*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
+#ifndef MODEL_H
+#define MODEL_H
 
-#pragma once
-#include <OgreCamera.h>
-#include <cuda_runtime.h>
-#include <OgreRectangle2D.h>
-#include <memory>
+// Std. Includes
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <map>
+#include <vector>
+using namespace std;
+// GL Includes
+#include <GL/glew.h>  // Contains all the necessery OpenGL includes
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
-#include "../include/ogre_context.h"
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
-namespace render {
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
-class OgreRendererWindow {
+#include "mesh.h"
+
+namespace rendering {
+
+GLint TextureFromFile(const char* path, string directory);
+
+class Model {
  public:
-  OgreRendererWindow(std::string name, int width, int height,
-                     std::unique_ptr<Ogre::Root> &ogre_root,
-                     Ogre::SceneManager *scene_manager);
+  /*  Functions   */
+  // Constructor, expects a filepath to a 3D model.
+  Model(GLchar* path);
 
-  ~OgreRendererWindow();
+  // Draws the model, and thus all its meshes
+  void draw(Shader shader);
 
-  void updateCamera(const Ogre::Vector3 &camera_position,
-                    const Ogre::Quaternion &camera_orientation,
-                    const Ogre::Matrix4 &projection_matrix);
+  int getMeshCount();
 
-  void render();
-
-  Ogre::SceneManager *scene_manager_;
-  Ogre::Camera *camera_;
-  Ogre::RenderWindow *window_;
-  int width_, height_;
-  std::string name_;
-};
-
-class OgreMultiRenderTarget {
- public:
-  OgreMultiRenderTarget(std::string name, int width, int height,
-                        Ogre::SceneManager *scene_manager);
-
-  ~OgreMultiRenderTarget();
-
-  void updateCamera(const Ogre::Vector3 &camera_position,
-                    const Ogre::Quaternion &camera_orientation,
-                    const Ogre::Matrix4 &projection_matrix);
-
-  void render();
-
-  void render(Ogre::RenderWindow* window);
-
-  enum class ArrayType {
-    normal_x,
-    normal_y,
-    normal_z,
-    z_buffer,
-    segment_ind,
-    texture
-  };
-
-  void mapCudaArrays(std::vector<cudaArray **> cuda_arrays);
-  void unmapCudaArrays();
-
-  const std::string name_;
+  Mesh& getMesh(int idex);
 
  private:
-  const int width_;
-  const int height_;
-  const int n_rtt_textures_;
+  /*  Model Data  */
+  vector<Mesh> meshes;
+  string directory;
+  vector<Texture> textures_loaded;  // Stores all the textures loaded so far,
+                                    // optimization to make sure textures aren't
+                                    // loaded more than once.
 
-  Ogre::SceneManager *scene_manager_;
-  Ogre::Camera *camera_;
-  Ogre::MultiRenderTarget *multi_render_target_;
-  std::vector<cudaGraphicsResource *> cuda_resources_;
+  /*  Functions   */
+  // Loads a model with supported ASSIMP extensions from file and stores the
+  // resulting meshes in the meshes vector.
+  void loadModel(string path);
 
-  Ogre::Rectangle2D *debug_textured_objects_;
-  Ogre::SceneNode *debug_object_node_;
+  // Processes a node in a recursive fashion. Processes each individual mesh
+  // located at the node and repeats this process on its children nodes (if
+  // any).
+  void processNode(aiNode* node, const aiScene* scene);
+
+  Mesh processMesh(aiMesh* mesh, const aiScene* scene);
+
+  // Checks all material textures of a given type and loads the textures if
+  // they're not loaded yet.
+  // The required info is returned as a Texture struct.
+  vector<Texture> loadMaterialTextures(aiMaterial* mat, aiTextureType type,
+                                       string typeName);
 };
 
+}  // end namespace
 
-}
+#endif  // MODEL_H

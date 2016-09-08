@@ -54,8 +54,6 @@
 #include <chrono>
 #include <ros/ros.h>
 
-#include <cuda_runtime.h>
-
 using namespace std;
 using namespace cv;
 using namespace std::chrono;
@@ -112,7 +110,7 @@ Eigen::Matrix3d getRotationView(float rot_x, float rot_y) {
   Eigen::Matrix3d Rx_180 = Eigen::Matrix<double, 3, 3>::Identity();
   Rx_180(1, 1) = -1.0;
   Rx_180(2, 2) = -1.0;
-  // rot_view *= Rx_180;
+  rot_view *= Rx_180;
 
   return rot_view;
 }
@@ -155,12 +153,6 @@ bool getTransformedObjectBox(Eigen::Transform<double, 3, Eigen::Affine> &pose,
   TR.at(0).setR_mat(rot_render);
 
   boxes = rendering_engine.getBoundingBoxesInCameraImage(TR);
-}
-
-bool getTransformedObjectBoxNew(
-    Eigen::Transform<double, 3, Eigen::Affine> &pose,
-    rendering::Renderer &renderer, vector<double> &bbox) {
-  bbox = renderer.getBoundingBoxInCameraImage(0, pose);
 }
 
 void getPose(float rot_x, float rot_y,
@@ -221,63 +213,6 @@ void downloadRenderedImg(pose::MultipleRigidModelsOgre &model_ogre,
   d_texture.copyTo(h_texture);
 }
 
-void downloadRenderedImg(rendering::Renderer &renderer,
-                         std::vector<uchar4> &h_texture) {
-  util::Device1D<uchar4> d_texture(height * width);
-
-  vision::downloadTextureToRGBA(d_texture.data(), renderer.getTexture(), width,
-                                height);
-  h_texture.resize(height * width);
-  d_texture.copyTo(h_texture);
-}
-
-void drawBox(vector<double> &box, Mat &out) {
-  Point2d pt0(box[0], box[1]);
-  Point2d pt1(box[2], box[3]);
-  Point2d pt2(box[4], box[5]);
-  Point2d pt3(box[6], box[7]);
-  Point2d pt4(box[8], box[9]);
-  Point2d pt5(box[10], box[11]);
-  Point2d pt6(box[12], box[13]);
-  Point2d pt7(box[14], box[15]);
-
-  line(out, pt0, pt2, Scalar(0, 255, 0), 1);
-  line(out, pt2, pt6, Scalar(0, 255, 0), 1);
-  line(out, pt6, pt4, Scalar(0, 255, 0), 1);
-  line(out, pt4, pt0, Scalar(0, 255, 0), 1);
-
-  line(out, pt1, pt3, Scalar(0, 255, 0), 1);
-  line(out, pt3, pt7, Scalar(0, 255, 0), 1);
-  line(out, pt7, pt5, Scalar(0, 255, 0), 1);
-  line(out, pt5, pt1, Scalar(0, 255, 0), 1);
-}
-
-template <typename T>
-int isOut(vector<T> &box) {
-  for (int i = 0; i < 8; ++i) {
-    if (box[2 * i] < 0) return LEFT;
-    if (box[2 * i] > width) return RIGHT;
-    if (box[2 * i + 1] < 0) return UP;
-    if (box[2 * i + 1] > height) return DOWN;
-  }
-
-  return 0;
-}
-
-void blendImages(const Mat &cam, const Mat &render, Mat &out) {
-  cam.copyTo(out);
-
-  for (auto i = 0; i < cam.cols; ++i) {
-    for (auto j = 0; j < cam.rows; ++j) {
-      Vec3b rend_px = render.at<Vec3b>(j, i);
-      if (rend_px[0] != 0 || rend_px[1] != 0 || rend_px[2] != 0) {
-        Vec3b &out_px = out.at<Vec3b>(j, i);
-        out_px = rend_px;
-      }
-    }
-  }
-}
-
 void generateRenderedMovement(const ParamsBench &params,
                               pose::MultipleRigidModelsOgre &rendering_engine,
                               RenderData &data) {
@@ -310,12 +245,29 @@ void generateRenderedMovement(const ParamsBench &params,
   t_render = tra_z_shift * rot_view * tra_center;
 
   cout << "OGRE translation " << endl;
-  for (int i = 0; i < 3; ++i) {
-    for (int j = 0; j < 4; ++j) {
-      cout << t_render(i, j) << " ";
-    }
-    cout << "\n";
+  for(int i = 0; i < 3; ++i)
+  {
+      for(int j = 0; j < 4; ++j)
+      {
+          cout << t_render(i,j) << " ";
+      }
+      cout << "\n";
   }
+
+  Ogre::Quaternion q(Ogre::Degree(180), Ogre::Vector3::UNIT_X);
+
+  Ogre::Matrix3 rot;
+  q.ToRotationMatrix(rot);
+
+  cout << "ogre rotation matrix " << endl;
+  for(auto i = 0; i < 3; ++i)
+  {
+      for(auto j = 0; j < 3; ++j)
+          cout << (float)*rot[i,j] << " ";
+       cout << "\n";
+  }
+  cout << "\n";
+
 
   renderObject(t_render, rendering_engine);
 
@@ -329,7 +281,7 @@ void generateRenderedMovement(const ParamsBench &params,
   vector<vector<double>> boxes;
   getTransformedObjectBox(t_render, rendering_engine, boxes);
 
-  drawBox(boxes[0], img_gray);
+  //drawBox(boxes[0], img_gray);
 
   float max_vel_h = params.translation_x;
   float max_vel_v = params.translation_y;
@@ -351,7 +303,6 @@ void generateRenderedMovement(const ParamsBench &params,
   double min_scale = getZshif(rot_view, params.min_scale, tra_center);
   double max_scale = getZshif(rot_view, params.max_scale, tra_center);
 
-  return;
 
   high_resolution_clock::time_point last_time = high_resolution_clock::now();
 
@@ -368,7 +319,7 @@ void generateRenderedMovement(const ParamsBench &params,
   int num_frames = params.framerate * params.running_time;
   int frame_count = 0;
 
-  while (frame_count < num_frames) {
+  while (1) {
     auto now = high_resolution_clock::now();
     float dt = 0.03;
     // duration_cast<microseconds>(now - last_time).count() / 1000000.0f;
@@ -387,19 +338,19 @@ void generateRenderedMovement(const ParamsBench &params,
 
     rot_view = getRotationView(angle, 0);
 
-    Eigen::Translation<double, 3> tra_z_shift(x_pos, y_pos, z_pos);
+    Eigen::Translation<double, 3> tra_z_shift(0.1, 0.1, 0.7);
     t_render = tra_z_shift * rot_view * tra_center;
     renderObject(t_render, rendering_engine);
     getTransformedObjectBox(t_render, rendering_engine, boxes);
 
-    if (isOut(boxes[0]) == LEFT)
-      x_vel = max_vel_h;
-    else if (isOut(boxes[0]) == RIGHT)
-      x_vel = -max_vel_h;
-    if (isOut(boxes[0]) == UP)
-      y_vel = max_vel_v;
-    else if (isOut(boxes[0]) == DOWN)
-      y_vel = -max_vel_v;
+//    if (isOut(boxes[0]) == LEFT)
+//      x_vel = max_vel_h;
+//    else if (isOut(boxes[0]) == RIGHT)
+//      x_vel = -max_vel_h;
+//    if (isOut(boxes[0]) == UP)
+//      y_vel = max_vel_v;
+//    else if (isOut(boxes[0]) == DOWN)
+//      y_vel = -max_vel_v;
 
     if (z_pos > min_scale) {
       z_vel = -max_vel_d;
@@ -415,7 +366,7 @@ void generateRenderedMovement(const ParamsBench &params,
 
     if (camera.isOpened()) {
       camera >> cam_img;
-      blendImages(cam_img, img_gray, out);
+      //blendImages(cam_img, img_gray, out);
     } else
       img_gray.copyTo(out);
 
@@ -429,144 +380,63 @@ void generateRenderedMovement(const ParamsBench &params,
   }
 }
 
-void trackGeneratedData(RenderData &data, fato::TrackerVX &vx_tracker) {
-  vector<cv::Scalar> axis;
-  axis.push_back(cv::Scalar(255, 255, 0));
-  axis.push_back(cv::Scalar(0, 255, 255));
-  axis.push_back(cv::Scalar(255, 0, 255));
 
-  Mat camera_matrix(3, 3, CV_64FC1);
-
-  for (auto i = 0; i < 3; ++i) {
-    for (auto j = 0; j < 3; ++j) {
-      camera_matrix.at<double>(i, j) = 0;
-    }
-  }
-
-  camera_matrix.at<double>(0, 0) = fx;
-  camera_matrix.at<double>(1, 1) = fy;
-  camera_matrix.at<double>(0, 2) = cx;
-  camera_matrix.at<double>(1, 2) = cy;
-  camera_matrix.at<double>(2, 2) = 1;
-
-  vector<Mat> &images = data.images;
-
-  //  VideoCapture camera(0);
-
-  //  if (!camera.isOpened()) {
-  //    cout << "cannot open camera!" << endl;
-  //    return;
-  //  }
-
-  // Mat im;
-  //  while(1)
-  //  {
-
-  //      camera >> im;
-  //      vx_tracker.next(im);
-  //      const fato::Target &target = vx_tracker.getTarget();
-  //      vx_tracker.printProfile();
-  //      //imshow("debug", im);
-  //      auto c = waitKey(1);
-  //      if (c == 'q') break;
-  //  }
-
-  for (Mat &im : images) {
-    vx_tracker.next(im);
-    vx_tracker.printProfile();
-
-    Mat out;
-    im.copyTo(out);
-
-    const fato::Target &target = vx_tracker.getTarget();
-
-    if (target.target_found_) {
-      cout << "object found\n" << camera_matrix << endl;
-      auto w_pose = target.weighted_pose.toCV();
-      fato::drawObjectPose(target.centroid_, camera_matrix, w_pose.first,
-                           w_pose.second, axis, out);
-    } else {
-      cout << "object  not found" << endl;
-    }
-
-    imshow("debug", out);
-    auto c = waitKey(10);
-    if (c == 'q') break;
-  }
-}
 
 void useNewRenderer(const ParamsBench &params) {
   rendering::Renderer renderer(width, height, fx, fy, cx, cy, near_plane,
                                far_plane);
-  renderer.initRenderContext(640, 480,
-                             "/home/alessandro/projects/drone_ws/src/"
-                             "fato_tracker/data/shaders/framebuffer.vs",
-                             "/home/alessandro/projects/drone_ws/src/"
-                             "fato_tracker/data/shaders/framebuffer.frag");
+  renderer.initRenderContext(640, 480);
   renderer.addModel(params.object_model_file,
                     "/home/alessandro/projects/fato_tracker/fato_rendering/"
                     "ogre_media/shaders/model.vs",
                     "/home/alessandro/projects/fato_tracker/fato_rendering/"
                     "ogre_media/shaders/model.frag");
 
-  rendering::RigidObject &obj = renderer.getObject(0);
+  rendering::RigidObject& obj = renderer.getObject(0);
 
   cout << "object meshes " << obj.model.getMeshCount() << endl;
 
   vector<float> bbox = obj.getBoundingBox();
 
-  Eigen::Map<const Eigen::MatrixXf> bounding_box_f(bbox.data(), 3, 8);
+  Eigen::Map<const Eigen::MatrixXf> bounding_box_f(
+      bbox.data(), 3, 8);
 
   bounding_box = bounding_box_f.cast<double>();
 
-  for (auto val : bbox) cout << val << " ";
+
+  for(auto val : bbox)
+      cout << val << " ";
   cout << "\n";
 
-  glm::vec3 translation_center = (-(obj.mins_ + obj.maxs_)) / 2.0f;
+  glm::vec3 translation_center = (-(obj.mins_ + obj.maxs_))/2.0f;
 
-  Eigen::Translation<double, 3> tra_center(
-      translation_center.x, translation_center.y, translation_center.z);
+  Eigen::Translation<double, 3> tra_center(translation_center.x,
+                                           translation_center.y,
+                                           translation_center.z);
 
-  Eigen::Transform<double, 3, Eigen::Affine> t_render;
+   Eigen::Transform<double, 3, Eigen::Affine> t_render;
 
-  Eigen::Matrix3d rot_view = getRotationView(0, 0);
+   Eigen::Matrix3d rot_view = getRotationView(0, 0);
 
-  double z_shift = getZshif(rot_view, 0.8, tra_center);
-  Eigen::Translation<double, 3> tra_z_shift(0, 0, -z_shift);
-  //  // compose render transform (tra_center -> rot_view -> tra_z_shift)
-  t_render = tra_z_shift * rot_view * tra_center;
+   double z_shift = getZshif(rot_view, 1, tra_center);
+   Eigen::Translation<double, 3> tra_z_shift(0, 0, z_shift);
+//  // compose render transform (tra_center -> rot_view -> tra_z_shift)
+   t_render = tra_z_shift * rot_view * tra_center;
 
-  obj.updatePose(t_render);
+   cout << "OpenGL translation " << endl;
+   for(int i = 0; i < 3; ++i)
+   {
+       for(int j = 0; j < 4; ++j)
+       {
+           cout << t_render(i,j) << " ";
+       }
+       cout << "\n";
+   }
 
-  //  renderObject(t_render, rendering_engine);
+   obj.updatePose(t_render);
 
-  //  cv::Mat img_rgba(height, width, CV_8UC4, h_texture.data());
-  //  cv::Mat img_gray;
-  //  cv::cvtColor(img_rgba, img_gray, CV_RGBA2BGR);
 
-  //  getTransformedObjectBox(t_render, rendering_engine, boxes);
 
-  //  drawBox(boxes[0], img_gray);
-
-  float max_vel_h = params.translation_x;
-  float max_vel_v = params.translation_y;
-  float max_vel_d = params.translation_z;
-  float rot_x_vel = params.rotation_x;  // degrees
-  float rot_y_vel = params.rotation_y;
-
-  float x_vel = max_vel_h;  // velocity per second
-  float y_vel = max_vel_v;
-  float z_vel = max_vel_d;
-
-  float milliseconds = 0.010;
-
-  float x_pos = 0;
-  float y_pos = 0;
-  float z_pos = -z_shift;
-  float x_rot = 0;
-
-  double min_scale = getZshif(rot_view, params.min_scale, tra_center);
-  double max_scale = getZshif(rot_view, params.max_scale, tra_center);
 
   high_resolution_clock::time_point last_time = high_resolution_clock::now();
 
@@ -582,67 +452,22 @@ void useNewRenderer(const ParamsBench &params) {
   int num_frames = params.framerate * params.running_time;
   int frame_count = 0;
 
-  std::vector<double> box1;
-
   while (frame_count < num_frames) {
     auto now = high_resolution_clock::now();
 
-    float dt = 0.03;
-    duration_cast<microseconds>(now - last_time).count() / 1000000.0f;
 
-    if (dt > milliseconds) {
-      x_pos += x_vel * float(dt);
-      y_pos += y_vel * float(dt);
-      z_pos += z_vel * float(dt);
-      x_rot += rot_x_vel * float(dt);
-      last_time = now;
-    }
-
-    float angle = x_rot * deg2rad;
-
-    if (x_rot >= 360) x_rot = 0;
-
-    rot_view = getRotationView(angle, 0);
-
-    Eigen::Translation<double, 3> tra_z_shift(x_pos, y_pos, z_pos);
-    t_render = tra_z_shift * rot_view * tra_center;
-    obj.updatePose(t_render);
     renderer.render();
 
-    std::vector<uchar4> h_texture(height * width);
-    cout << "before downloading image" << endl;
-    downloadRenderedImg(renderer, h_texture);
 
-    // renderObject(t_render, rendering_engine);
-    getTransformedObjectBoxNew(t_render, renderer, box1);
-
-    if (isOut(box1) == LEFT)
-      x_vel = max_vel_h;
-    else if (isOut(box1) == RIGHT)
-      x_vel = -max_vel_h;
-    if (isOut(box1) == UP)
-      y_vel = max_vel_v;
-    else if (isOut(box1) == DOWN)
-      y_vel = -max_vel_v;
-
-    if (z_pos > min_scale) {
-      z_vel = -max_vel_d;
-    } else if (z_pos < max_scale) {
-      z_vel = max_vel_d;
-    }
-
-    // downloadRenderedImg(rendering_engine, h_texture);
-    Mat out(height, width, CV_8UC4, h_texture.data());
-    // Mat out(height, width, CV_8UC3);
-
-    //    data.addFrame(out, t_render);
-
+    Mat out(480, 640, CV_8UC3);
     imshow("debug", out);
-    auto c = waitKey(0);
-    //    if (c == 'q') break;
+    auto c = waitKey(30);
+//    if (c == 'q') break;
 
-    frame_count++;
-  }
+   frame_count++;
+ }
+
+
 }
 
 void testObjectMovement(const ParamsBench &params) {
@@ -662,7 +487,7 @@ void testObjectMovement(const ParamsBench &params) {
   std::unique_ptr<fato::FeatureMatcher> matcher =
       std::unique_ptr<fato::BriskMatcher>(new fato::BriskMatcher);
 
-  useNewRenderer(params);
+  //useNewRenderer(params);
 
   fato::TrackerVX vx_tracker(tracker_params, std::move(matcher));
 
@@ -676,9 +501,12 @@ void testObjectMovement(const ParamsBench &params) {
   vector<float> bbox = obj_model.getBoundingBox();
 
   cout << "ogre bbox" << endl;
-  for (auto val : bbox) cout << val << " ";
+  for(auto val : bbox)
+      cout << val << " ";
 
   // trackGeneratedData(data, vx_tracker);
+
+
 }
 
 void readParameters(ParamsBench &params) {
@@ -740,7 +568,7 @@ void loadParameters(ParamsBench &params) {
   params.object_descriptors_file =
       "/home/alessandro/projects/drone_ws/src/fato_tracker/data/ros_hydro/"
       "ros_hydro_features.h5";
-  params.translation_x = 0.0;
+  params.translation_x = 0.00;
   params.translation_y = 0.0;
   params.translation_z = 0.0;
   params.rotation_x = 0.0;

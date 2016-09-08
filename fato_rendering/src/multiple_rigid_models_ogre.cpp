@@ -64,6 +64,9 @@ MultipleRigidModelsOgre::MultipleRigidModelsOgre(int image_width,
       camera_orientation_ *
       Ogre::Quaternion(Ogre::Degree(180), Ogre::Vector3::UNIT_X);
 
+  //cout << "camera orientation " << endl;
+
+
   updateProjectionMatrix(fx, fy, cx, cy, near_plane, far_plane);
 
   int n_arrays = 6;
@@ -142,6 +145,8 @@ void MultipleRigidModelsOgre::updateCamera(Ogre::Vector3 position,
   projection_matrix_ = projection_matrix;
   ogre_multi_render_target_->updateCamera(camera_position_, camera_orientation_,
                                           projection_matrix_);
+//  debug_rendering_->updateCamera(camera_position_, camera_orientation_,
+//                                 projection_matrix_);
 }
 
 void MultipleRigidModelsOgre::updateCameraPose(
@@ -150,6 +155,8 @@ void MultipleRigidModelsOgre::updateCameraPose(
   camera_orientation_ = camera_pose.ogreRotation();
   ogre_multi_render_target_->updateCamera(camera_position_, camera_orientation_,
                                           projection_matrix_);
+//  debug_rendering_->updateCamera(camera_position_, camera_orientation_,
+//                                 projection_matrix_);
 }
 
 std::vector<std::vector<double> >

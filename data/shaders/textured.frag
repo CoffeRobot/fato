@@ -30,79 +30,33 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-#pragma once
-#include <OgreCamera.h>
-#include <cuda_runtime.h>
-#include <OgreRectangle2D.h>
-#include <memory>
+#version 400
+in float vertexSegmentIndex;
+in vec3 vertexNormal;
+in vec2 vertexTexCoord;
 
-#include "../include/ogre_context.h"
+uniform sampler2D tex0;
 
-namespace render {
+layout(location=0) out float out_normal_x;
+layout(location=1) out float out_normal_y;
+layout(location=2) out float out_normal_z;
+layout(location=3) out float out_z_buffer;
+layout(location=4) out float out_segment_ind;
+layout(location=5) out float out_grayscale;
 
-class OgreRendererWindow {
- public:
-  OgreRendererWindow(std::string name, int width, int height,
-                     std::unique_ptr<Ogre::Root> &ogre_root,
-                     Ogre::SceneManager *scene_manager);
+void main()
+{
+    // no longer guaranteed unit length due to interpolation
+    vec3 normal = normalize(vertexNormal);
+    out_normal_x = normal.x;
+    out_normal_y = normal.y;
+    out_normal_z = normal.z;
+    out_z_buffer = gl_FragCoord.z;
+    out_segment_ind = vertexSegmentIndex;
 
-  ~OgreRendererWindow();
+    vec4 color = texture2D(tex0,vertexTexCoord);
+    out_grayscale = 0.299f*color.x + 0.587f*color.y + 0.114f*color.z;
 
-  void updateCamera(const Ogre::Vector3 &camera_position,
-                    const Ogre::Quaternion &camera_orientation,
-                    const Ogre::Matrix4 &projection_matrix);
-
-  void render();
-
-  Ogre::SceneManager *scene_manager_;
-  Ogre::Camera *camera_;
-  Ogre::RenderWindow *window_;
-  int width_, height_;
-  std::string name_;
-};
-
-class OgreMultiRenderTarget {
- public:
-  OgreMultiRenderTarget(std::string name, int width, int height,
-                        Ogre::SceneManager *scene_manager);
-
-  ~OgreMultiRenderTarget();
-
-  void updateCamera(const Ogre::Vector3 &camera_position,
-                    const Ogre::Quaternion &camera_orientation,
-                    const Ogre::Matrix4 &projection_matrix);
-
-  void render();
-
-  void render(Ogre::RenderWindow* window);
-
-  enum class ArrayType {
-    normal_x,
-    normal_y,
-    normal_z,
-    z_buffer,
-    segment_ind,
-    texture
-  };
-
-  void mapCudaArrays(std::vector<cudaArray **> cuda_arrays);
-  void unmapCudaArrays();
-
-  const std::string name_;
-
- private:
-  const int width_;
-  const int height_;
-  const int n_rtt_textures_;
-
-  Ogre::SceneManager *scene_manager_;
-  Ogre::Camera *camera_;
-  Ogre::MultiRenderTarget *multi_render_target_;
-  std::vector<cudaGraphicsResource *> cuda_resources_;
-
-  Ogre::Rectangle2D *debug_textured_objects_;
-  Ogre::SceneNode *debug_object_node_;
-};
-
-
+    // add 1 to more easily identify rendering mask (will be equal to zero)
+    out_grayscale += 1.0f;
 }

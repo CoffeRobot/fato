@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2015, Karl Pauwels                                         */
+/*  Copyright (c) 2016, Alessandro Pieropan                                  */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -29,80 +29,52 @@
 /*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
+#ifndef TRACKER_RENDERER_H
+#define TRACKER_RENDERER_H
 
-#pragma once
 #include <OgreCamera.h>
-#include <cuda_runtime.h>
-#include <OgreRectangle2D.h>
-#include <memory>
+#include <OgreRenderTexture.h>
 
-#include "../include/ogre_context.h"
+#include "rigid_object.h"
+#include "base_render.h"
 
-namespace render {
-
-class OgreRendererWindow {
+class TrackerRenderer : public BaseRenderer {
  public:
-  OgreRendererWindow(std::string name, int width, int height,
-                     std::unique_ptr<Ogre::Root> &ogre_root,
-                     Ogre::SceneManager *scene_manager);
+  TrackerRenderer(void);
+  virtual ~TrackerRenderer(void);
 
-  ~OgreRendererWindow();
+  virtual void go();
 
-  void updateCamera(const Ogre::Vector3 &camera_position,
-                    const Ogre::Quaternion &camera_orientation,
-                    const Ogre::Matrix4 &projection_matrix);
+  void addModel(std::string model_filename);
 
-  void render();
+  void loadModels();
 
-  Ogre::SceneManager *scene_manager_;
-  Ogre::Camera *camera_;
-  Ogre::RenderWindow *window_;
-  int width_, height_;
-  std::string name_;
-};
+ protected:
+  virtual void createScene(void);
+  virtual bool configure(void);
+  virtual void createCamera(void);
+  virtual void createViewports(void);
+  virtual void setupResources(void);
+  virtual void loadResources(void);
+  virtual bool setup(void);
+  virtual void chooseSceneManager(void);
 
-class OgreMultiRenderTarget {
- public:
-  OgreMultiRenderTarget(std::string name, int width, int height,
-                        Ogre::SceneManager *scene_manager);
 
-  ~OgreMultiRenderTarget();
-
-  void updateCamera(const Ogre::Vector3 &camera_position,
-                    const Ogre::Quaternion &camera_orientation,
-                    const Ogre::Matrix4 &projection_matrix);
-
-  void render();
-
-  void render(Ogre::RenderWindow* window);
-
-  enum class ArrayType {
-    normal_x,
-    normal_y,
-    normal_z,
-    z_buffer,
-    segment_ind,
-    texture
-  };
-
-  void mapCudaArrays(std::vector<cudaArray **> cuda_arrays);
-  void unmapCudaArrays();
-
-  const std::string name_;
+  void updateCamera(double fx, double fy, double cx, double cy,
+                    double near_plane, double far_plane);
 
  private:
-  const int width_;
-  const int height_;
-  const int n_rtt_textures_;
+  double fx_, fy_, cx_, cy_;
+  Ogre::Vector3 camera_position_;
+  Ogre::Quaternion camera_orientation_;
+  Ogre::Matrix4 projection_matrix_;
+  int image_width_, image_height_;
 
-  Ogre::SceneManager *scene_manager_;
-  Ogre::Camera *camera_;
   Ogre::MultiRenderTarget *multi_render_target_;
-  std::vector<cudaGraphicsResource *> cuda_resources_;
 
-  Ogre::Rectangle2D *debug_textured_objects_;
-  Ogre::SceneNode *debug_object_node_;
+  std::string camera_name_;
+
+  std::vector<std::unique_ptr<render::RigidObject> > rigid_objects_;
 };
 
-
-}
+#endif  // TRACKER_RENDERER_H

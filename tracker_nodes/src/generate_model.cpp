@@ -40,6 +40,7 @@
 #include <stdexcept>
 #include <limits>
 #include <fstream>
+#include <thread>
 
 // TOFIX: find why qtcreator cannot pickup header files
 //#include <multiple_rigid_models_ogre.h>
@@ -291,6 +292,8 @@ int main(int argc, char **argv) {
   std::vector<std::vector<float>> projected_points;
   std::vector<cv::Mat> img_descriptors;
 
+  auto elapsed = 0;
+
   for (int view_ind = 0; view_ind < rot_x.size(); ++view_ind) {
     // compose render transform (tra_center -> rot_view -> tra_z_shift)
     Eigen::Transform<double, 3, Eigen::Affine> t_render;
@@ -298,6 +301,8 @@ int main(int argc, char **argv) {
     // tra_z_shift * rot_view * tra_center;
 
     renderObject(t_render, model_ogre);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     std::vector<uchar4> h_texture(height * width);
     downloadRenderedImg(model_ogre, h_texture);
@@ -426,7 +431,7 @@ int main(int argc, char **argv) {
     }
 
     writer.write(img);
-    cv::waitKey(0);
+    cv::waitKey(10);
   }
 
   std::cout << "Keypoints after response filtering: " << valid_point_count

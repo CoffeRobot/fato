@@ -44,6 +44,8 @@ public:
   ~OgreContext();
 
   Ogre::SceneManager *scene_manager_;
+  Ogre::RenderWindow* window_;
+  std::unique_ptr<Ogre::Root> ogre_root_;
 
 private:
   void setupDummyWindowId();
@@ -55,7 +57,8 @@ private:
                                           const Ogre::NameValuePairList *params,
                                           int max_attempts);
 
-  std::unique_ptr<Ogre::Root> ogre_root_;
+
+
 
   // ID for a dummy window of size 1x1, used to keep Ogre happy.
   unsigned long dummy_window_id_;

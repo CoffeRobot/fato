@@ -33,10 +33,21 @@
 #pragma once
 #include <math.h>
 #include <cuda_runtime.h>
+#include <cstdio>
 
 namespace vision {
 
 typedef unsigned char uchar;
+
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess)
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
 
 const float NAN_FLOAT = nanf("");
 
@@ -67,6 +78,10 @@ void convertFloatArrayToGrayRGBA(uchar4 *d_out_image, cudaArray *in_array,
                                  int width, int height, float lower_lim = 0.0f,
                                  float upper_lim = 1.0f);
 
+void convertFloatArrayToGrayRGB(uchar3 *d_out_image, cudaArray *in_array,
+                                 int width, int height, float lower_lim = 0.0f,
+                                 float upper_lim = 1.0f);
+
 void convertFloatArrayToGray(uchar *d_out_image, cudaArray *in_array, int width,
                              int height, float lower_lim = 0.0f,
                              float upper_lim = 1.0f);
@@ -78,6 +93,11 @@ void convertFloatArrayToGrayVX(uchar *d_out_image, cudaArray *in_array, int widt
 void convertKinectFloatToRGBA(uchar4 *d_out_image, const float *d_in_image,
                               int width, int height, int pitch, float lowerLim,
                               float upperLim);
+
+
+// downloading textures
+void downloadTextureToRGBA(uchar4 *d_out_image, cudaArray *in_array,
+                           int width, int height);
 
 // converts flow to rgba, discarding below minMag magnitude
 

@@ -30,79 +30,24 @@
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
 
-#pragma once
-#include <OgreCamera.h>
-#include <cuda_runtime.h>
-#include <OgreRectangle2D.h>
-#include <memory>
+#version 400
+in vec4 position;
+in vec3 normal;
+in vec2 uv0;
 
-#include "../include/ogre_context.h"
+uniform mat4 worldViewProj;
+uniform mat4 invTraWorldView;
+uniform vec4 segmentIndex;
 
-namespace render {
+out float vertexSegmentIndex;
+out vec3 vertexNormal;
+out vec2 vertexTexCoord;
 
-class OgreRendererWindow {
- public:
-  OgreRendererWindow(std::string name, int width, int height,
-                     std::unique_ptr<Ogre::Root> &ogre_root,
-                     Ogre::SceneManager *scene_manager);
+void main()
+{
 
-  ~OgreRendererWindow();
+  gl_Position = projection * view * model * vec4(position, 1.0f);
 
-  void updateCamera(const Ogre::Vector3 &camera_position,
-                    const Ogre::Quaternion &camera_orientation,
-                    const Ogre::Matrix4 &projection_matrix);
-
-  void render();
-
-  Ogre::SceneManager *scene_manager_;
-  Ogre::Camera *camera_;
-  Ogre::RenderWindow *window_;
-  int width_, height_;
-  std::string name_;
-};
-
-class OgreMultiRenderTarget {
- public:
-  OgreMultiRenderTarget(std::string name, int width, int height,
-                        Ogre::SceneManager *scene_manager);
-
-  ~OgreMultiRenderTarget();
-
-  void updateCamera(const Ogre::Vector3 &camera_position,
-                    const Ogre::Quaternion &camera_orientation,
-                    const Ogre::Matrix4 &projection_matrix);
-
-  void render();
-
-  void render(Ogre::RenderWindow* window);
-
-  enum class ArrayType {
-    normal_x,
-    normal_y,
-    normal_z,
-    z_buffer,
-    segment_ind,
-    texture
-  };
-
-  void mapCudaArrays(std::vector<cudaArray **> cuda_arrays);
-  void unmapCudaArrays();
-
-  const std::string name_;
-
- private:
-  const int width_;
-  const int height_;
-  const int n_rtt_textures_;
-
-  Ogre::SceneManager *scene_manager_;
-  Ogre::Camera *camera_;
-  Ogre::MultiRenderTarget *multi_render_target_;
-  std::vector<cudaGraphicsResource *> cuda_resources_;
-
-  Ogre::Rectangle2D *debug_textured_objects_;
-  Ogre::SceneNode *debug_object_node_;
-};
-
-
+  vertexSegmentIndex = segmentIndex.x;
+  vertexTexCoord = uv0;
 }

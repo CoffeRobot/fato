@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2015, Karl Pauwels                                         */
+/*  Copyright (c) 2016, Alessandro Pieropan                                  */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -29,80 +29,30 @@
 /*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
+#ifndef SHADER_H
+#define SHADER_H
 
-#pragma once
-#include <OgreCamera.h>
-#include <cuda_runtime.h>
-#include <OgreRectangle2D.h>
-#include <memory>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <iostream>
 
-#include "../include/ogre_context.h"
+#include <GL/glew.h>
 
-namespace render {
+namespace rendering{
 
-class OgreRendererWindow {
- public:
-  OgreRendererWindow(std::string name, int width, int height,
-                     std::unique_ptr<Ogre::Root> &ogre_root,
-                     Ogre::SceneManager *scene_manager);
+class Shader
+{
+public:
+    GLuint program_id_;
+    // Constructor generates the shader on the fly
+    Shader(const GLchar* vertexPath, const GLchar* fragmentPath);
 
-  ~OgreRendererWindow();
-
-  void updateCamera(const Ogre::Vector3 &camera_position,
-                    const Ogre::Quaternion &camera_orientation,
-                    const Ogre::Matrix4 &projection_matrix);
-
-  void render();
-
-  Ogre::SceneManager *scene_manager_;
-  Ogre::Camera *camera_;
-  Ogre::RenderWindow *window_;
-  int width_, height_;
-  std::string name_;
+    // Uses the current shader
+    void use();
 };
-
-class OgreMultiRenderTarget {
- public:
-  OgreMultiRenderTarget(std::string name, int width, int height,
-                        Ogre::SceneManager *scene_manager);
-
-  ~OgreMultiRenderTarget();
-
-  void updateCamera(const Ogre::Vector3 &camera_position,
-                    const Ogre::Quaternion &camera_orientation,
-                    const Ogre::Matrix4 &projection_matrix);
-
-  void render();
-
-  void render(Ogre::RenderWindow* window);
-
-  enum class ArrayType {
-    normal_x,
-    normal_y,
-    normal_z,
-    z_buffer,
-    segment_ind,
-    texture
-  };
-
-  void mapCudaArrays(std::vector<cudaArray **> cuda_arrays);
-  void unmapCudaArrays();
-
-  const std::string name_;
-
- private:
-  const int width_;
-  const int height_;
-  const int n_rtt_textures_;
-
-  Ogre::SceneManager *scene_manager_;
-  Ogre::Camera *camera_;
-  Ogre::MultiRenderTarget *multi_render_target_;
-  std::vector<cudaGraphicsResource *> cuda_resources_;
-
-  Ogre::Rectangle2D *debug_textured_objects_;
-  Ogre::SceneNode *debug_object_node_;
-};
-
 
 }
+
+
+#endif // SHADER_H

@@ -29,7 +29,65 @@
 /*  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE    */
 /*  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.     */
 /*****************************************************************************/
-#ifndef BASERENDER_H
-#define BASERENDER_H
+#ifndef MESH_H
+#define MESH_H
 
-#endif // BASERENDER_H
+// Std. Includes
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <vector>
+// GL Includes
+#include <GL/glew.h>  // Contains all the necessery OpenGL includes
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+#include <assimp/types.h>
+
+#include "shader.h"
+
+namespace rendering {
+
+struct Vertex {
+  // Position
+  glm::vec3 Position;
+  // Normal
+  glm::vec3 Normal;
+  // TexCoords
+  glm::vec2 TexCoords;
+};
+
+struct Texture {
+  GLuint id;
+  std::string type;
+  aiString path;
+};
+
+class Mesh {
+ public:
+  /*  Mesh Data  */
+  std::vector<Vertex> vertices_;
+  std::vector<GLuint> indices_;
+  std::vector<Texture> textures_;
+
+  /*  Functions  */
+  // Constructor
+  Mesh(std::vector<Vertex> vertices_, std::vector<GLuint> indices_,
+       std::vector<Texture> textures_);
+
+  // Render the mesh
+  void draw(Shader shader);
+
+ private:
+  /*  Render data  */
+  GLuint VAO, VBO, EBO;
+
+  /*  Functions    */
+  // Initializes all the buffer objects/arrays
+  void setupMesh();
+};
+
+}  // end namespace
+
+#endif  // MESH_H
