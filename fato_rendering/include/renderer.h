@@ -90,6 +90,10 @@ class Renderer {
 
   RigidObject& getObject(int id);
 
+  void downloadDepthBuffer(std::vector<float>& buffer);
+
+  void downloadDepthBufferCuda(std::vector<float>& buffer);
+
   std::vector<double> getBoundingBoxInCameraImage(
       int obj_id, Eigen::Transform<double, 3, Eigen::Affine>& pose);
 
@@ -118,11 +122,12 @@ class Renderer {
   void unmapCudaArrays();
 
 
-  int width_, height_;
+  int width_, height_, screen_width_, screen_height_;
   float fx_, fy_, cx_, cy_;
   float near_plane_, far_plane_;
+  float z_conv1_, z_conv2_;
 
-  GLuint fbo_, color_buffer_, depth_buffer_, screen_vao_, screen_vbo_;
+  GLuint fbo_, color_buffer_, depth_buffer_, screen_vao_, screen_vbo_, depth_image_buffer_;
 
   cudaGraphicsResource* color_buffer_cuda_;
   cudaGraphicsResource* depth_buffer_cuda_;

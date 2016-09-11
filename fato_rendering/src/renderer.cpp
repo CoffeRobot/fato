@@ -33,6 +33,7 @@
 
 #include <stdexcept>
 #include <sstream>
+#include <limits>
 #include <cuda_gl_interop.h>
 
 using namespace std;
@@ -57,6 +58,7 @@ Renderer::Renderer(int image_width, int image_height, float fx, float fy,
 Renderer::~Renderer() {
   glDeleteRenderbuffers(1, &color_buffer_);
   glDeleteRenderbuffers(1, &depth_buffer_);
+  glDeleteRenderbuffers(1, &depth_image_buffer_);
   // Bind to 0 -> back buffer
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glDeleteFramebuffers(1, &fbo_);
@@ -67,6 +69,9 @@ Renderer::~Renderer() {
 void Renderer::initRenderContext(int width, int height, string screen_vs_name,
                                  string screen_frag_name) {
   // cout << "getting here" << endl;
+
+  screen_width_ = width;
+  screen_height_ = height;
 
   glfwInit();
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -118,6 +123,12 @@ void Renderer::updateProjectionMatrix(float fx, float fy, float cx, float cy,
   projection_matrix_[3][2] =
       -2.0 * far_plane * near_plane / (far_plane - near_plane);
   projection_matrix_[2][3] = -1;
+
+  double f = (double)(far_plane);
+  double n = (double)(near_plane);
+
+  z_conv1_ = (float)((-f * n) / (f - n));
+  z_conv2_ = (float)(-(f + n) / (2 * (f - n)) - 0.5);
 }
 
 void Renderer::updateProjectionMatrix(glm::mat4 projection) {
@@ -133,9 +144,17 @@ void Renderer::render() {
   glfwPollEvents();
 
   glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+  // the fragment shader renders two color buffers, one with the depth buffer in
+  // it
+  // hack to transfer the depth buffer to cuda
+  GLenum drawBuffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+  glDrawBuffers(2, drawBuffers);
+
   // Clear the colorbuffer
   glClearColor(0.00f, 0.00f, 0.00f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+
 
   for (RigidObject& obj : objects_) {
     if (!obj.isVisible()) continue;
@@ -154,6 +173,10 @@ void Renderer::render() {
     // sending to shader model matrix
     glUniformMatrix4fv(glGetUniformLocation(shader.program_id_, "model"), 1,
                        GL_FALSE, glm::value_ptr(obj.model_matrix_));
+    // sending to shader parameters to calculate depth from z buffer
+    glUniform1f(glGetUniformLocation(shader.program_id_, "z_conv1"),z_conv1_);
+    glUniform1f(glGetUniformLocation(shader.program_id_, "z_conv2"),z_conv2_);
+
     // drawing the model with the current shader
     obj.model.draw(shader);
   }
@@ -161,6 +184,7 @@ void Renderer::render() {
   // render to texture to show on the screen, used for debugging purposes.
   // it is not needed
   // glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+
   renderToTexture();
 
   mapCudaArrays();
@@ -179,6 +203,43 @@ RigidObject& Renderer::getObject(int id) {
     return objects_[id];
   else
     throw runtime_error("Renderer: object id out of bound!");
+}
+
+void Renderer::downloadDepthBuffer(std::vector<float>& buffer) {
+  int num_elems = screen_width_ * screen_height_;
+  buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
+
+  //    glBindFramebuffer(GL_FRAMEBUFFER, depth_buffer_);
+  //    glReadPixels(0, 0, screen_width_, screen_height_, GL_DEPTH_COMPONENT24,
+  //                 GL_UNSIGNED_BYTE, buffer.data());
+  //    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  glBindTexture(GL_TEXTURE_2D, depth_image_buffer_);
+  // read from bound texture to CPU
+  glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, buffer.data());
+  // unbind texture again
+  glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void Renderer::downloadDepthBufferCuda(std::vector<float>& buffer) {
+  int num_elems = screen_width_ * screen_height_;
+
+  buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
+
+  //  gpuErrchk(cudaMemcpy(buffer.data(), cuda_gl_depth_array_,
+  //                       sizeof(float) * num_elems, cudaMemcpyDeviceToHost));
+
+  std::cout << *cuda_gl_depth_array_ << std::endl;
+
+  cudaChannelFormatDesc channelDesc =
+      cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+  cudaArray* cArray;
+  cudaMallocArray(&cArray, &channelDesc, screen_width_, screen_height_,
+                  cudaArrayDefault);
+
+  gpuErrchk(cudaMemcpyFromArray(buffer.data(), cArray, 0, 0, num_elems,
+                                cudaMemcpyDeviceToHost));
+  cudaFreeArray(cArray);
 }
 
 std::vector<double> Renderer::getBoundingBoxInCameraImage(
@@ -218,12 +279,14 @@ void Renderer::renderToTexture() {
   glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
 
+  cout << "before rendering depth buffer" << endl;
   screen_shader_->use();
   glBindVertexArray(screen_vao_);
   glDisable(GL_DEPTH_TEST);
-  glBindTexture(GL_TEXTURE_2D, color_buffer_);
+  glBindTexture(GL_TEXTURE_2D, depth_image_buffer_);
   glDrawArrays(GL_TRIANGLES, 0, 6);
   glBindVertexArray(0);
+  cout << "after rendering depth buffer" << endl;
 }
 
 void Renderer::createCustomFramebuffer(int screen_width, int screen_height) {
@@ -241,6 +304,16 @@ void Renderer::createCustomFramebuffer(int screen_width, int screen_height) {
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
                          color_buffer_, 0);
 
+  glGenTextures(1, &depth_image_buffer_);
+  glBindTexture(GL_TEXTURE_2D, depth_image_buffer_);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, screen_width, screen_height, 0,
+               GL_RED, GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  // glBindTexture(GL_TEXTURE_2D, 0);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D,
+                         depth_image_buffer_, 0);
+
   //  glGenTextures(1, &depth_buffer_);
   //  glBindTexture(GL_TEXTURE_2D, depth_buffer_);
   //  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, screen_width,
@@ -252,14 +325,31 @@ void Renderer::createCustomFramebuffer(int screen_width, int screen_height) {
   //  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
   //                         depth_buffer_, 0);
 
-  glGenRenderbuffers(1, &depth_buffer_);
-  glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, screen_width,
-                        screen_height);
-  glBindRenderbuffer(GL_RENDERBUFFER, 0);
+  glGenTextures(1, &depth_buffer_);
+  glBindTexture(GL_TEXTURE_2D, depth_buffer_);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE, GL_LUMINANCE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE,
+                  GL_COMPARE_R_TO_TEXTURE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+  // NULL means reserve texture memory, but texels are undefined
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, screen_width,
+               screen_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+                         depth_buffer_, 0 /*mipmap level*/);
 
-  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-    std::runtime_error("ERROR::FRAMEBUFFER:: Framebuffer is not complete!");
+  //  glGenRenderbuffers(1, &depth_buffer_);
+  //  glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_);
+  //  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F,
+  //  screen_width,
+  //                        screen_height);
+  //  glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+  //  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+  //    std::runtime_error("ERROR::FRAMEBUFFER:: Framebuffer is not complete!");
 
   // setting back buffer as the active one
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -299,13 +389,12 @@ void Renderer::bindCuda() {
                                         GL_TEXTURE_2D,
                                         cudaGraphicsRegisterFlagsReadOnly));
 
-  //    gpuErrchk(cudaGraphicsGLRegisterImage(&depth_buffer_cuda_,
-  //    depth_buffer_,
-  //                                          GL_TEXTURE_2D,
-  //                                          cudaGraphicsRegisterFlagsReadOnly));
+  gpuErrchk(cudaGraphicsGLRegisterImage(&depth_buffer_cuda_,
+                                        depth_image_buffer_, GL_TEXTURE_2D,
+                                        cudaGraphicsRegisterFlagsReadOnly));
 
-  gpuErrchk(cudaGraphicsGLRegisterBuffer(&depth_buffer_cuda_, depth_buffer_,
-                                         cudaGraphicsRegisterFlagsReadOnly));
+  //  gpuErrchk(cudaGraphicsGLRegisterBuffer(&depth_buffer_cuda_, depth_buffer_,
+  //                                         cudaGraphicsRegisterFlagsReadOnly));
 
   cuda_gl_color_array_ = new cudaArray*;
   cuda_gl_depth_array_ = new cudaArray*;
@@ -319,9 +408,16 @@ void Renderer::mapCudaArrays() {
                                                   color_buffer_cuda_, 0, 0));
 
   gpuErrchk(cudaGraphicsMapResources(1, &depth_buffer_cuda_, 0));
-  size_t nbites;
-  gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)cuda_gl_depth_array_,
-                                                 &nbites, depth_buffer_cuda_));
+  gpuErrchk(cudaGraphicsSubResourceGetMappedArray(cuda_gl_depth_array_,
+                                                  depth_buffer_cuda_, 0, 0));
+
+
+
+//    gpuErrchk(cudaGraphicsMapResources(1, &depth_buffer_cuda_, 0));
+//    size_t nbites;
+//    gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)cuda_gl_depth_array_,
+//                                                   &nbites,
+//                                                   depth_buffer_cuda_));
 }
 
 void Renderer::unmapCudaArrays() {

@@ -37,6 +37,7 @@
 #include "../../tracker/include/flow_graph.hpp"
 #include "../../tracker/include/nvx_utilities.hpp"
 #include "../../cuda/include/utility_kernels.h"
+#include "../../cuda/include/utility_kernels_pose.h"
 #include "../../tracker/include/tracker_model_vx.h"
 #include "../../utilities/include/draw_functions.h"
 #include "../../fato_rendering/include/renderer.h"
@@ -230,6 +231,19 @@ void downloadRenderedImg(rendering::Renderer &renderer,
   h_texture.resize(height * width);
   d_texture.copyTo(h_texture);
 }
+
+void downloadDepthBuffer(rendering::Renderer &renderer,std::vector<float>& depth_buffer)
+{
+
+    util::Device1D<float> rendered_depth(height*width);
+    pose::convertZbufferToZ(rendered_depth.data(),
+                            renderer.getDepthBuffer(), width,
+                            height, cx, cy, near_plane,
+                            far_plane);
+    depth_buffer.resize(height*width);
+    rendered_depth.copyTo(depth_buffer);
+}
+
 
 void drawBox(vector<double> &box, Mat &out) {
   Point2d pt0(box[0], box[1]);
@@ -504,10 +518,10 @@ void useNewRenderer(const ParamsBench &params) {
                              "/home/alessandro/projects/drone_ws/src/"
                              "fato_tracker/data/shaders/framebuffer.frag");
   renderer.addModel(params.object_model_file,
-                    "/home/alessandro/projects/fato_tracker/fato_rendering/"
-                    "ogre_media/shaders/model.vs",
-                    "/home/alessandro/projects/fato_tracker/fato_rendering/"
-                    "ogre_media/shaders/model.frag");
+                    "/home/alessandro/projects/drone_ws/src/fato_tracker/data/"
+                    "shaders/model.vs",
+                    "/home/alessandro/projects/drone_ws/src/fato_tracker/data/"
+                    "shaders/model.frag");
 
   rendering::RigidObject &obj = renderer.getObject(0);
 
@@ -532,6 +546,7 @@ void useNewRenderer(const ParamsBench &params) {
   Eigen::Matrix3d rot_view = getRotationView(0, 0);
 
   double z_shift = getZshif(rot_view, 0.8, tra_center);
+  cout << "z_shift " << z_shift << endl;
   Eigen::Translation<double, 3> tra_z_shift(0, 0, -z_shift);
   //  // compose render transform (tra_center -> rot_view -> tra_z_shift)
   t_render = tra_z_shift * rot_view * tra_center;
@@ -584,7 +599,7 @@ void useNewRenderer(const ParamsBench &params) {
 
   std::vector<double> box1;
 
-  while (frame_count < num_frames) {
+  while (frame_count < 1) {
     auto now = high_resolution_clock::now();
 
     float dt = 0.03;
@@ -607,11 +622,39 @@ void useNewRenderer(const ParamsBench &params) {
     Eigen::Translation<double, 3> tra_z_shift(x_pos, y_pos, z_pos);
     t_render = tra_z_shift * rot_view * tra_center;
     obj.updatePose(t_render);
+
     renderer.render();
 
     std::vector<uchar4> h_texture(height * width);
-    cout << "before downloading image" << endl;
+
     downloadRenderedImg(renderer, h_texture);
+
+    cout << "near plane " << near_plane << " far_plane " << far_plane << endl;
+
+    vector<float> z_buffer, depth_buffer;
+    renderer.downloadDepthBuffer(z_buffer);
+    downloadDepthBuffer(renderer, depth_buffer);
+
+    ofstream file("/home/alessandro/debug/framebuffer.txt");
+
+    int count = 0;
+    stringstream ss;
+    ss << setprecision(3) << fixed;
+    for (int i = 0; i < width; ++i) {
+      for (int j = 0; j < height; ++j) {
+        int id = i + j * width;
+        ss << z_buffer[id] << "[" << depth_buffer[id] << "] ";
+      }
+      ss << "\n";
+    }
+
+    file << ss.str();
+    file.close();
+
+    for (auto z : z_buffer) {
+      if (!isnan(z)) count++;
+    }
+    cout << "pixels > 0: " << count << endl;
 
     // renderObject(t_render, rendering_engine);
     getTransformedObjectBoxNew(t_render, renderer, box1);
