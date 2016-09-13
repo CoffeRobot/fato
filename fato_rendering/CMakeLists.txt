@@ -5,6 +5,7 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
   roscpp
   resource_retriever
+  fato_cuda
 )
 
 #if(TRACKER_VERBOSE_LOGGING)
@@ -59,6 +60,7 @@ endif()
 set(ENV_CONFIG_FILE ${CMAKE_CURRENT_BINARY_DIR}/env_config.cpp)
 #set(ROS_DISTRO $ENV{ROS_DISTRO})
 set(OGRE_PLUGIN_PATH "${OGRE_PLUGIN_DIR_REL}")
+set(RENDERER_RESOURCES_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../data/")
 configure_file(src/env_config.cpp.in ${ENV_CONFIG_FILE} @ONLY)
 
 

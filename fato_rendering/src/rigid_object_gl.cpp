@@ -58,9 +58,11 @@ void RigidObject::updatePose(Eigen::Transform<double, 3, Eigen::Affine>& pose) {
   }
   model_matrix_[3][3] = 1;
 
-  //    model_matrix_ = glm::translate(
-  //        model_matrix_,
-  //        glm::vec3(0.0f, 0.0f, 2.f));
+}
+
+void RigidObject::updatePose(glm::mat4 &pose)
+{
+    model_matrix_ = pose;
 }
 
 vector<float> RigidObject::getBoundingBox() { return bounding_box_; }

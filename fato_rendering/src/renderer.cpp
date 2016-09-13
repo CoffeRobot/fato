@@ -36,6 +36,9 @@
 #include <limits>
 #include <cuda_gl_interop.h>
 
+#include "device_1d.h"
+#include "../../cuda/include/utility_kernels.h"
+
 using namespace std;
 
 namespace rendering {
@@ -57,7 +60,7 @@ Renderer::Renderer(int image_width, int image_height, float fx, float fy,
 
 Renderer::~Renderer() {
   glDeleteRenderbuffers(1, &color_buffer_);
-  glDeleteRenderbuffers(1, &depth_buffer_);
+  //glDeleteRenderbuffers(1, &depth_buffer_);
   glDeleteRenderbuffers(1, &depth_image_buffer_);
   // Bind to 0 -> back buffer
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -79,7 +82,7 @@ void Renderer::initRenderContext(int width, int height, string screen_vs_name,
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-  window_ = glfwCreateWindow(width, height, "TrackerRenderer", nullptr,
+  window_ = glfwCreateWindow(width, height, "Opengl Window", nullptr,
                              nullptr);  // Windowed
   glfwMakeContextCurrent(window_);
 
@@ -154,8 +157,6 @@ void Renderer::render() {
   glClearColor(0.00f, 0.00f, 0.00f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
-
   for (RigidObject& obj : objects_) {
     if (!obj.isVisible()) continue;
 
@@ -174,8 +175,8 @@ void Renderer::render() {
     glUniformMatrix4fv(glGetUniformLocation(shader.program_id_, "model"), 1,
                        GL_FALSE, glm::value_ptr(obj.model_matrix_));
     // sending to shader parameters to calculate depth from z buffer
-    glUniform1f(glGetUniformLocation(shader.program_id_, "z_conv1"),z_conv1_);
-    glUniform1f(glGetUniformLocation(shader.program_id_, "z_conv2"),z_conv2_);
+    glUniform1f(glGetUniformLocation(shader.program_id_, "z_conv1"), z_conv1_);
+    glUniform1f(glGetUniformLocation(shader.program_id_, "z_conv2"), z_conv2_);
 
     // drawing the model with the current shader
     obj.model.draw(shader);
@@ -205,41 +206,39 @@ RigidObject& Renderer::getObject(int id) {
     throw runtime_error("Renderer: object id out of bound!");
 }
 
-void Renderer::downloadDepthBuffer(std::vector<float>& buffer) {
-  int num_elems = screen_width_ * screen_height_;
-  buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
+void Renderer::downloadDepthBuffer(std::vector<float>& h_buffer) {
+    int num_elems = screen_width_ * screen_height_;
 
-  //    glBindFramebuffer(GL_FRAMEBUFFER, depth_buffer_);
-  //    glReadPixels(0, 0, screen_width_, screen_height_, GL_DEPTH_COMPONENT24,
-  //                 GL_UNSIGNED_BYTE, buffer.data());
-  //    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    vector<float> tmp_buffer;
+    tmp_buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
+    h_buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
 
-  glBindTexture(GL_TEXTURE_2D, depth_image_buffer_);
-  // read from bound texture to CPU
-  glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, buffer.data());
-  // unbind texture again
-  glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_2D, depth_image_buffer_);
+    // read from bound texture to CPU
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, tmp_buffer.data());
+    // unbind texture again
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // flipping why due to different coordinate system
+    for(auto i = 0; i < height_;++i)
+    {
+        for(auto j = 0; j < width_; ++j)
+        {
+            auto id = j + i * width_;
+            auto inv_id = j + (height_ - 1 - i) * width_;
+
+            h_buffer[id] = tmp_buffer[inv_id];
+        }
+    }
 }
 
-void Renderer::downloadDepthBufferCuda(std::vector<float>& buffer) {
-  int num_elems = screen_width_ * screen_height_;
+void Renderer::downloadTexture(std::vector<uchar4>& h_texture) {
+  util::Device1D<uchar4> d_texture(height_ * width_);
 
-  buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
-
-  //  gpuErrchk(cudaMemcpy(buffer.data(), cuda_gl_depth_array_,
-  //                       sizeof(float) * num_elems, cudaMemcpyDeviceToHost));
-
-  std::cout << *cuda_gl_depth_array_ << std::endl;
-
-  cudaChannelFormatDesc channelDesc =
-      cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
-  cudaArray* cArray;
-  cudaMallocArray(&cArray, &channelDesc, screen_width_, screen_height_,
-                  cudaArrayDefault);
-
-  gpuErrchk(cudaMemcpyFromArray(buffer.data(), cArray, 0, 0, num_elems,
-                                cudaMemcpyDeviceToHost));
-  cudaFreeArray(cArray);
+  vision::downloadTextureToRGBA(d_texture.data(), getTexture(), width_,
+                                height_);
+  h_texture.resize(height_ * width_);
+  d_texture.copyTo(h_texture);
 }
 
 std::vector<double> Renderer::getBoundingBoxInCameraImage(
@@ -279,14 +278,14 @@ void Renderer::renderToTexture() {
   glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
 
-  cout << "before rendering depth buffer" << endl;
+//  /cout << "before rendering depth buffer" << endl;
   screen_shader_->use();
   glBindVertexArray(screen_vao_);
   glDisable(GL_DEPTH_TEST);
-  glBindTexture(GL_TEXTURE_2D, depth_image_buffer_);
+  glBindTexture(GL_TEXTURE_2D, color_buffer_);
   glDrawArrays(GL_TRIANGLES, 0, 6);
   glBindVertexArray(0);
-  cout << "after rendering depth buffer" << endl;
+  //cout << "after rendering depth buffer" << endl;
 }
 
 void Renderer::createCustomFramebuffer(int screen_width, int screen_height) {
@@ -306,52 +305,14 @@ void Renderer::createCustomFramebuffer(int screen_width, int screen_height) {
 
   glGenTextures(1, &depth_image_buffer_);
   glBindTexture(GL_TEXTURE_2D, depth_image_buffer_);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, screen_width, screen_height, 0,
-               GL_RED, GL_FLOAT, NULL);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, screen_width, screen_height, 0, GL_RED,
+               GL_FLOAT, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   // glBindTexture(GL_TEXTURE_2D, 0);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D,
                          depth_image_buffer_, 0);
 
-  //  glGenTextures(1, &depth_buffer_);
-  //  glBindTexture(GL_TEXTURE_2D, depth_buffer_);
-  //  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, screen_width,
-  //               screen_height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE,
-  //               NULL);
-  //  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  //  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  //  //glBindTexture(GL_TEXTURE_2D, 0);
-  //  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-  //                         depth_buffer_, 0);
-
-  glGenTextures(1, &depth_buffer_);
-  glBindTexture(GL_TEXTURE_2D, depth_buffer_);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE, GL_LUMINANCE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE,
-                  GL_COMPARE_R_TO_TEXTURE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-  // NULL means reserve texture memory, but texels are undefined
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, screen_width,
-               screen_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-                         depth_buffer_, 0 /*mipmap level*/);
-
-  //  glGenRenderbuffers(1, &depth_buffer_);
-  //  glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer_);
-  //  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F,
-  //  screen_width,
-  //                        screen_height);
-  //  glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-  //  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-  //    std::runtime_error("ERROR::FRAMEBUFFER:: Framebuffer is not complete!");
-
-  // setting back buffer as the active one
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
@@ -410,14 +371,6 @@ void Renderer::mapCudaArrays() {
   gpuErrchk(cudaGraphicsMapResources(1, &depth_buffer_cuda_, 0));
   gpuErrchk(cudaGraphicsSubResourceGetMappedArray(cuda_gl_depth_array_,
                                                   depth_buffer_cuda_, 0, 0));
-
-
-
-//    gpuErrchk(cudaGraphicsMapResources(1, &depth_buffer_cuda_, 0));
-//    size_t nbites;
-//    gpuErrchk(cudaGraphicsResourceGetMappedPointer((void**)cuda_gl_depth_array_,
-//                                                   &nbites,
-//                                                   depth_buffer_cuda_));
 }
 
 void Renderer::unmapCudaArrays() {

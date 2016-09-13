@@ -16,4 +16,5 @@ void main()
     color = vec4(texture(tex0, vertexTexCoord));
     // calculating depth from camera from z buffer and saving in second image
     depthColor = z_conv1 / (gl_FragCoord.z + z_conv2);
+    //depthColor = gl_FragCoord.z;
 }

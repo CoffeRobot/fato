@@ -45,4 +45,9 @@ std::string get_ogre_plugin_path() {
   // CMakeLists.txt in this directory.
   return "@OGRE_PLUGIN_PATH@";
 }
+
+std::string get_resources_path() {
+  return "@RENDERER_RESOURCES_PATH@";
+}
+
 }

@@ -289,7 +289,6 @@ void TrackerModelVX::run() {
   ros::Rate r(100);
 
   bool camera_is_set = false;
-  bool background_learned = false;
 
   Mat flow_output;
 
@@ -360,6 +359,10 @@ void TrackerModelVX::run() {
 
       const Target &target = vx_tracker_->getTarget();
 
+      Pose p = target.weighted_pose;
+
+      glm::mat4 pose_glm = p.toGL();
+
       flow_output = rgb_image_.clone();
 
       if (target.target_found_) {
@@ -392,7 +395,11 @@ void TrackerModelVX::run() {
         }
       }
 
-      vx_tracker_->printProfile();
+      //vx_tracker_->printProfile();
+
+
+      //imshow("depth buffer", out_depth);
+      //waitKey(1);
 
       float total = target.real_pts_ + target.synth_pts_;
       float ratio = target.real_pts_ / total;
@@ -452,7 +459,9 @@ void TrackerModelVX::run() {
 
         cv_bridge::CvImage cv_img, cv_rend, cv_flow;
 
-        cv_rend.image = rend_mat;
+        Mat out_depth = vx_tracker_->getDepthBuffer();
+
+        cv_rend.image = out_depth;
         cv_rend.encoding = sensor_msgs::image_encodings::MONO8;
         render_publisher_.publish(cv_rend.toImageMsg());
 
@@ -485,9 +494,7 @@ int main(int argc, char *argv[]) {
   ROS_INFO("Starting tracker input");
   ros::init(argc, argv, "fato_tracker_model_node");
 
-
-
-  fato::TrackerModelVX manager();
+  fato::TrackerModelVX manager;
 
   ros::shutdown();
 

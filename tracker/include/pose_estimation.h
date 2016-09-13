@@ -38,6 +38,7 @@
 #include <Eigen/Dense>
 #include <utility>
 
+#include "glm/glm.hpp"
 #include "../../utilities/include/constants.h"
 
 namespace fato {
@@ -173,7 +174,14 @@ public:
      */
     std::vector<double> getBeta();
 
+    glm::mat4 toGL() const;
+
     Eigen::Matrix4d getPose(){return pose_;}
+
+    void setPose(Eigen::Matrix4d& pose)
+    {
+        pose_ = pose;
+    }
 
     void transform(Eigen::Matrix4d& transform);
 

@@ -492,7 +492,7 @@ void testObjectMovement(const ParamsBench &params) {
   fato::TrackerVX vx_tracker(tracker_params, std::move(matcher));
 
   pose::MultipleRigidModelsOgre &rendering_engine =
-      *vx_tracker.rendering_engine_;
+      *vx_tracker.ogre_renderer_;
   RenderData data;
   generateRenderedMovement(params, rendering_engine, data);
 

@@ -90,6 +90,10 @@ void convertFloatArrayToGrayVX(uchar *d_out_image, cudaArray *in_array, int widt
                                int height, int step, float lower_lim = 0.0f,
                                float upper_lim = 1.0f);
 
+void convertRGBArrayToGrayVX(uchar *d_out_image, cudaArray *in_array,
+                             int width, int height, int step, float lower_lim,
+                             float upper_lim);
+
 void convertKinectFloatToRGBA(uchar4 *d_out_image, const float *d_in_image,
                               int width, int height, int pitch, float lowerLim,
                               float upperLim);
@@ -98,6 +102,8 @@ void convertKinectFloatToRGBA(uchar4 *d_out_image, const float *d_in_image,
 // downloading textures
 void downloadTextureToRGBA(uchar4 *d_out_image, cudaArray *in_array,
                            int width, int height);
+
+void downloadDepthTexture(float* d_out_image, cudaArray* in_array, int width, int height);
 
 // converts flow to rgba, discarding below minMag magnitude
 

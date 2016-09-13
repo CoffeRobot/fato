@@ -18,7 +18,7 @@
   <build_depend>libogre-dev</build_depend>
   <build_depend>resource_retriever</build_depend>
   <build_depend>kdl_parser</build_depend>
-  <build_depend>utilities</build_depend>
+  <build_depend>fato_cuda</build_depend>
 
   <run_depend>utilities</run_depend>
   <run_depend>clustering</run_depend>
@@ -30,6 +30,5 @@
   <run_depend>resource_retriever</run_depend>
   <run_depend>kdl_parser</run_depend>
   <run_depend>fato_cuda</run_depend>
-  <run_depend>utilities</run_depend>
 
 </package>

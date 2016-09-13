@@ -51,7 +51,6 @@
   <build_depend>tracker_cpu</build_depend>
   <build_depend>utilities</build_depend>
   <build_depend>tracker_io</build_depend>
-  <build_depend>cuda_sift</build_depend>
   <build_depend>message_generation</build_depend>
   <build_depend>fato_rendering</build_depend>
 
@@ -66,7 +65,6 @@
   <run_depend>tracker_cpu</run_depend>
   <run_depend>utilities</run_depend>
   <run_depend>tracker_io</run_depend>
-  <run_depend>cuda_sift</run_depend>
   <run_depend>message_generation</run_depend>
   <run_depend>fato_rendering</run_depend>
 

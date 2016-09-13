@@ -41,6 +41,7 @@
 #include "../../tracker/include/tracker_model_vx.h"
 #include "../../utilities/include/draw_functions.h"
 #include "../../fato_rendering/include/renderer.h"
+#include "../../fato_rendering/include/env_config.h"
 
 #include <NVX/nvxcu.h>
 #include <NVX/nvx_opencv_interop.hpp>
@@ -83,10 +84,16 @@ struct ParamsBench {
 struct RenderData {
   vector<Mat> images;
   vector<Eigen::Transform<double, 3, Eigen::Affine>> poses;
+  vector<glm::mat4> glm_poses;
 
   void addFrame(Mat &img, Eigen::Transform<double, 3, Eigen::Affine> &pose) {
-    images.push_back(img);
+    images.push_back(img.clone());
     poses.push_back(pose);
+  }
+
+  void addFrame(Mat &img, glm::mat4 &pose) {
+    images.push_back(img.clone());
+    glm_poses.push_back(pose);
   }
 };
 
@@ -97,8 +104,8 @@ double fx = 500.0;
 double fy = 500.0;
 double cx = width / 2.0;
 double cy = height / 2.0;
-double near_plane = 0.01;   // for init only
-double far_plane = 1000.0;  // for init only
+double near_plane = 0.01;  // for init only
+double far_plane = 10.0;   // for init only
 float deg2rad = M_PI / 180.0;
 float rad2deg = 180.0 / M_PI;
 Eigen::Matrix<double, 3, 8> bounding_box;
@@ -232,18 +239,14 @@ void downloadRenderedImg(rendering::Renderer &renderer,
   d_texture.copyTo(h_texture);
 }
 
-void downloadDepthBuffer(rendering::Renderer &renderer,std::vector<float>& depth_buffer)
-{
-
-    util::Device1D<float> rendered_depth(height*width);
-    pose::convertZbufferToZ(rendered_depth.data(),
-                            renderer.getDepthBuffer(), width,
-                            height, cx, cy, near_plane,
-                            far_plane);
-    depth_buffer.resize(height*width);
-    rendered_depth.copyTo(depth_buffer);
+void downloadDepthBuffer(rendering::Renderer &renderer,
+                         std::vector<float> &depth_buffer) {
+  util::Device1D<float> rendered_depth(height * width);
+  pose::convertZbufferToZ(rendered_depth.data(), renderer.getDepthBuffer(),
+                          width, height, cx, cy, near_plane, far_plane);
+  depth_buffer.resize(height * width);
+  rendered_depth.copyTo(depth_buffer);
 }
-
 
 void drawBox(vector<double> &box, Mat &out) {
   Point2d pt0(box[0], box[1]);
@@ -509,19 +512,15 @@ void trackGeneratedData(RenderData &data, fato::TrackerVX &vx_tracker) {
   }
 }
 
-void useNewRenderer(const ParamsBench &params) {
+void useNewRenderer(const ParamsBench &params, RenderData &data) {
   rendering::Renderer renderer(width, height, fx, fy, cx, cy, near_plane,
                                far_plane);
-  renderer.initRenderContext(640, 480,
-                             "/home/alessandro/projects/drone_ws/src/"
-                             "fato_tracker/data/shaders/framebuffer.vs",
-                             "/home/alessandro/projects/drone_ws/src/"
-                             "fato_tracker/data/shaders/framebuffer.frag");
+  renderer.initRenderContext(
+      640, 480, render::get_resources_path() + "shaders/framebuffer.vs",
+      render::get_resources_path() + "shaders/framebuffer.frag");
   renderer.addModel(params.object_model_file,
-                    "/home/alessandro/projects/drone_ws/src/fato_tracker/data/"
-                    "shaders/model.vs",
-                    "/home/alessandro/projects/drone_ws/src/fato_tracker/data/"
-                    "shaders/model.frag");
+                    render::get_resources_path() + "shaders/model.vs",
+                    render::get_resources_path() + "shaders/model.frag");
 
   rendering::RigidObject &obj = renderer.getObject(0);
 
@@ -553,16 +552,6 @@ void useNewRenderer(const ParamsBench &params) {
 
   obj.updatePose(t_render);
 
-  //  renderObject(t_render, rendering_engine);
-
-  //  cv::Mat img_rgba(height, width, CV_8UC4, h_texture.data());
-  //  cv::Mat img_gray;
-  //  cv::cvtColor(img_rgba, img_gray, CV_RGBA2BGR);
-
-  //  getTransformedObjectBox(t_render, rendering_engine, boxes);
-
-  //  drawBox(boxes[0], img_gray);
-
   float max_vel_h = params.translation_x;
   float max_vel_v = params.translation_y;
   float max_vel_d = params.translation_z;
@@ -575,8 +564,8 @@ void useNewRenderer(const ParamsBench &params) {
 
   float milliseconds = 0.010;
 
-  float x_pos = 0;
-  float y_pos = 0;
+  float x_pos = 0.0;
+  float y_pos = 0.0;
   float z_pos = -z_shift;
   float x_rot = 0;
 
@@ -599,7 +588,7 @@ void useNewRenderer(const ParamsBench &params) {
 
   std::vector<double> box1;
 
-  while (frame_count < 1) {
+  while (frame_count < num_frames) {
     auto now = high_resolution_clock::now();
 
     float dt = 0.03;
@@ -628,33 +617,56 @@ void useNewRenderer(const ParamsBench &params) {
     std::vector<uchar4> h_texture(height * width);
 
     downloadRenderedImg(renderer, h_texture);
+    Mat out(height, width, CV_8UC4, h_texture.data());
+    // cout << "near plane " << near_plane << " far_plane " << far_plane <<
+    // endl;
 
-    cout << "near plane " << near_plane << " far_plane " << far_plane << endl;
-
-    vector<float> z_buffer, depth_buffer;
+    vector<float> z_buffer;
     renderer.downloadDepthBuffer(z_buffer);
-    downloadDepthBuffer(renderer, depth_buffer);
 
-    ofstream file("/home/alessandro/debug/framebuffer.txt");
+    float average_depth = 0;
+    float count = 0;
 
-    int count = 0;
+    stringstream ss1;
+    ss1 << fixed;
+    for (auto i = 0; i < height; ++i) {
+      for (auto j = 0; j < width; ++j) {
+        int id = j + i * width;
+
+        auto val = z_buffer[id];
+
+        if (val != 0) {
+          average_depth += val;
+          ss1 << val << " ";
+          count++;
+        }
+      }
+      ss1 << "\n";
+    }
+    // cout << ss1.str() << "\n\n";
+
+    //    for(auto val : z_buffer)
+    //    {
+    //        if(val != 0)
+    //        {
+    //            average_depth += val;
+    //            count++;
+    //        }
+    //    }
+
+    double average = average_depth / double(count);
+
     stringstream ss;
-    ss << setprecision(3) << fixed;
-    for (int i = 0; i < width; ++i) {
-      for (int j = 0; j < height; ++j) {
-        int id = i + j * width;
-        ss << z_buffer[id] << "[" << depth_buffer[id] << "] ";
+    cout << "average depth in buffer " << average_depth << " count " << count
+         << " average " << average << endl;
+    ss << "\n original pose \n";
+    for (auto i = 0; i < 4; ++i) {
+      for (auto j = 0; j < 4; ++j) {
+        ss << t_render(j, i) << " ";
       }
       ss << "\n";
     }
-
-    file << ss.str();
-    file.close();
-
-    for (auto z : z_buffer) {
-      if (!isnan(z)) count++;
-    }
-    cout << "pixels > 0: " << count << endl;
+    cout << fixed << setprecision(2) << ss.str();
 
     // renderObject(t_render, rendering_engine);
     getTransformedObjectBoxNew(t_render, renderer, box1);
@@ -674,17 +686,112 @@ void useNewRenderer(const ParamsBench &params) {
       z_vel = max_vel_d;
     }
 
-    // downloadRenderedImg(rendering_engine, h_texture);
-    Mat out(height, width, CV_8UC4, h_texture.data());
-    // Mat out(height, width, CV_8UC3);
+    data.addFrame(out, t_render);
 
-    //    data.addFrame(out, t_render);
-
-    imshow("debug", out);
-    auto c = waitKey(0);
+    imshow("debug opencv", out);
+    auto c = waitKey(1);
     //    if (c == 'q') break;
 
     frame_count++;
+  }
+}
+
+void trackGeneratedData(RenderData &data,
+                        fato::TrackerVX::Params &tracker_params) {
+  vector<cv::Scalar> axis;
+  axis.push_back(cv::Scalar(255, 255, 0));
+  axis.push_back(cv::Scalar(0, 255, 255));
+  axis.push_back(cv::Scalar(255, 0, 255));
+
+  Mat camera_matrix(3, 3, CV_64FC1);
+
+  for (auto i = 0; i < 3; ++i) {
+    for (auto j = 0; j < 3; ++j) {
+      camera_matrix.at<double>(i, j) = 0;
+    }
+  }
+
+  camera_matrix.at<double>(0, 0) = fx;
+  camera_matrix.at<double>(1, 1) = fy;
+  camera_matrix.at<double>(0, 2) = cx;
+  camera_matrix.at<double>(1, 2) = cy;
+  camera_matrix.at<double>(2, 2) = 1;
+
+  vector<Mat> &images = data.images;
+
+  std::unique_ptr<fato::FeatureMatcher> matcher =
+      std::unique_ptr<fato::BriskMatcher>(new fato::BriskMatcher);
+  fato::TrackerVX vx_tracker(tracker_params, std::move(matcher));
+
+  int count = 0;
+  for (Mat &im : images) {
+    vx_tracker.next(im);
+    // vx_tracker.printProfile();
+
+    Mat out, rendered_pose;
+    im.copyTo(out);
+
+    const fato::Target &target = vx_tracker.getTarget();
+
+    if (target.target_found_) {
+      // cout << "object found\n" << camera_matrix << endl;
+      auto w_pose = target.weighted_pose.toCV();
+      fato::drawObjectPose(target.centroid_, camera_matrix, w_pose.first,
+                           w_pose.second, axis, out);
+
+      glm::mat4 glm_pose = target.weighted_pose.toGL();
+      auto pose = data.poses.at(count);
+      stringstream ss;
+      ss << fixed << setprecision(2) << "weighted_pose \n";
+      ;
+      for (auto i = 0; i < 4; ++i) {
+        for (auto j = 0; j < 4; ++j) {
+          ss << glm_pose[i][j] << " ";
+        }
+        ss << "\n";
+      }
+      ss << "\n original pose \n";
+      for (auto i = 0; i < 4; ++i) {
+        for (auto j = 0; j < 4; ++j) {
+          ss << pose(j, i) << " ";
+        }
+        ss << "\n";
+      }
+      // cout << ss.str() << endl;
+
+      Eigen::Matrix4d Rx_180 = Eigen::Matrix<double, 4, 4>::Identity();
+      Rx_180(1, 1) = -1.0;
+      Rx_180(2, 2) = -1.0;
+
+      glm::mat4 rotation;
+      rotation = glm::rotate(rotation, 180.0f, glm::vec3(1, 0, 0));
+
+      auto rotated_pose = target.weighted_pose;
+      rotated_pose.transform(Rx_180);
+
+      glm::mat4 rotated = rotated_pose.toGL();
+      //      ss << "\n rotated pose \n";
+      //      for(auto i = 0; i < 4; ++i)
+      //      {
+      //          for(auto j = 0; j < 4; ++j)
+      //          {
+      //            ss << rotated[i][j] << " ";
+      //          }
+      //          ss << "\n";
+      //      }
+      cout << ss.str() << endl;
+
+      rendered_pose = vx_tracker.getRenderedPose();
+
+    } else {
+      cout << "object  not found" << endl;
+    }
+
+    count++;
+    if(rendered_pose.cols > 0)
+        imshow("debug tracking", rendered_pose);
+    auto c = waitKey(0);
+    if (c == 'q') break;
   }
 }
 
@@ -702,24 +809,32 @@ void testObjectMovement(const ParamsBench &params) {
   tracker_params.cy = cy;
   tracker_params.parallel = false;
 
-  std::unique_ptr<fato::FeatureMatcher> matcher =
-      std::unique_ptr<fato::BriskMatcher>(new fato::BriskMatcher);
-
-  useNewRenderer(params);
-
-  fato::TrackerVX vx_tracker(tracker_params, std::move(matcher));
-
-  pose::MultipleRigidModelsOgre &rendering_engine =
-      *vx_tracker.rendering_engine_;
   RenderData data;
-  generateRenderedMovement(params, rendering_engine, data);
+  useNewRenderer(params, data);
+  cout << "generated frames: " << data.images.size() << endl;
+  //  cout << "showing generated data " << endl;
 
-  const render::RigidObject &obj_model = rendering_engine.getRigidObject(0);
+  //  for(auto& im : data.images)
+  //    {
+  //      imshow("data windown", im);
+  //      waitKey(10);
+  //  }
 
-  vector<float> bbox = obj_model.getBoundingBox();
+  trackGeneratedData(data, tracker_params);
 
-  cout << "ogre bbox" << endl;
-  for (auto val : bbox) cout << val << " ";
+  //  fato::TrackerVX vx_tracker(tracker_params, std::move(matcher));
+
+  //  pose::MultipleRigidModelsOgre &rendering_engine =
+  //  *vx_tracker.ogre_renderer_;
+  //  RenderData data;
+  //  generateRenderedMovement(params, rendering_engine, data);
+
+  //  const render::RigidObject &obj_model = rendering_engine.getRigidObject(0);
+
+  //  vector<float> bbox = obj_model.getBoundingBox();
+
+  //  cout << "ogre bbox" << endl;
+  //  for (auto val : bbox) cout << val << " ";
 
   // trackGeneratedData(data, vx_tracker);
 }
@@ -785,19 +900,21 @@ void loadParameters(ParamsBench &params) {
       "ros_hydro_features.h5";
   params.translation_x = 0.0;
   params.translation_y = 0.0;
-  params.translation_z = 0.0;
+  params.translation_z = 0.00;
   params.rotation_x = 0.0;
   params.rotation_y = 0.0;
   params.min_scale = 0.0;
   params.max_scale = 0.0;
   params.framerate = 30;
   params.result_file = "/home/alessandro/debug/result.txt";
-  params.running_time = 20.0;
+  params.running_time = 3.0;
 }
 
 int main(int argc, char **argv) {
   ros::init(argc, argv, "synthetic_benchmark");
   // ros::NodeHandle nh;
+
+  std::cout << "renderer env variable " << render::get_resources_path() << endl;
 
   ParamsBench params;
   // readParameters(params);

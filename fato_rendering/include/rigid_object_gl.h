@@ -52,6 +52,8 @@ public:
 
     void updatePose(Eigen::Transform<double, 3, Eigen::Affine> &pose);
 
+    void updatePose(glm::mat4& pose);
+
     std::vector<float> getBoundingBox();
 
     Shader shader;
