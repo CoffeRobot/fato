@@ -395,7 +395,7 @@ void TrackerModelVX::run() {
         }
       }
 
-      //vx_tracker_->printProfile();
+      vx_tracker_->printProfile();
 
 
       //imshow("depth buffer", out_depth);
@@ -459,9 +459,9 @@ void TrackerModelVX::run() {
 
         cv_bridge::CvImage cv_img, cv_rend, cv_flow;
 
-        Mat out_depth = vx_tracker_->getDepthBuffer();
+        //Mat out_depth = vx_tracker_->getDepthBuffer();
 
-        cv_rend.image = out_depth;
+        cv_rend.image = rend_mat;
         cv_rend.encoding = sensor_msgs::image_encodings::MONO8;
         render_publisher_.publish(cv_rend.toImageMsg());
 

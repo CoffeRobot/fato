@@ -209,27 +209,27 @@ RigidObject& Renderer::getObject(int id) {
 void Renderer::downloadDepthBuffer(std::vector<float>& h_buffer) {
     int num_elems = screen_width_ * screen_height_;
 
-    vector<float> tmp_buffer;
-    tmp_buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
+//    vector<float> tmp_buffer;
+//    tmp_buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
     h_buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
 
     glBindTexture(GL_TEXTURE_2D, depth_image_buffer_);
     // read from bound texture to CPU
-    glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, tmp_buffer.data());
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, h_buffer.data());
     // unbind texture again
     glBindTexture(GL_TEXTURE_2D, 0);
 
     // flipping why due to different coordinate system
-    for(auto i = 0; i < height_;++i)
-    {
-        for(auto j = 0; j < width_; ++j)
-        {
-            auto id = j + i * width_;
-            auto inv_id = j + (height_ - 1 - i) * width_;
+//    for(auto i = 0; i < height_;++i)
+//    {
+//        for(auto j = 0; j < width_; ++j)
+//        {
+//            auto id = j + i * width_;
+//            auto inv_id = j + (height_ - 1 - i) * width_;
 
-            h_buffer[id] = tmp_buffer[inv_id];
-        }
-    }
+//            h_buffer[id] = tmp_buffer[inv_id];
+//        }
+//    }
 }
 
 void Renderer::downloadTexture(std::vector<uchar4>& h_texture) {

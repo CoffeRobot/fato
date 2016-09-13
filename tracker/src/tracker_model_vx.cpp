@@ -537,11 +537,11 @@ void TrackerVX::trackSequential() {
       target_object_.real_pts_ = beta.first;
       target_object_.synth_pts_ = synth_beta.first;
 
-      cout << "printing betas " << endl;
-      for (auto val : beta.second) cout << setprecision(5) << val << " ";
-      cout << "\n printing synth betas " << endl;
-      for (auto val : synth_beta.second) cout << setprecision(5) << val << " ";
-      cout << "\n";
+//      cout << "printing betas " << endl;
+//      for (auto val : beta.second) cout << setprecision(5) << val << " ";
+//      cout << "\n printing synth betas " << endl;
+//      for (auto val : synth_beta.second) cout << setprecision(5) << val << " ";
+//      cout << "\n";
 
       if (total_features == 0)
         target_object_.target_found_ = false;
@@ -939,7 +939,9 @@ pair<int, vector<double>> TrackerVX::poseFromSynth() {
   for (auto pt : prev_pts) {
     int x = floor(pt.x);
     int y = floor(pt.y);
-    float depth = host_rendered_depth_.at(x + y * params_.image_width);
+    float inv_y = image_h_ - 1 - y;
+    //float depth = host_rendered_depth_.at(x + y * params_.image_width);
+    float depth = host_rendered_depth_.at(x + inv_y * image_w_);
     //depth = 0.3715f;
 //    /cout << depth << endl;
 
@@ -1135,7 +1137,8 @@ void TrackerVX::updatePointsDepthFromZBuffer(Target& t, Pose& p) {
     // corner as 0,0 therefore y is flipped
     float inv_y = image_h_ - 1 - y;
 
-    float depth = host_rendered_depth_.at(x + y * image_w_);
+    //float depth = host_rendered_depth_.at(x + y * image_w_);
+    float depth = host_rendered_depth_.at(x + inv_y * image_w_);
 
     // cout << depth << endl;
 
