@@ -92,7 +92,11 @@ class Renderer {
 
   void downloadDepthBuffer(std::vector<float>& h_buffer);
 
+  void downloadDepthBufferCuda(std::vector<float>& h_buffer);
+
   void downloadTexture(std::vector<uchar4>& h_texture);
+
+  void downloadTextureCuda(std::vector<uchar4>& h_texture);
 
   std::vector<double> getBoundingBoxInCameraImage(
       int obj_id, Eigen::Transform<double, 3, Eigen::Affine>& pose);

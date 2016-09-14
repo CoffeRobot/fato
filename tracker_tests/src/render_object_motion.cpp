@@ -623,10 +623,13 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
 
     vector<float> z_buffer;
     renderer.downloadDepthBuffer(z_buffer);
+    vector<float> z_buffer2;
+    renderer.downloadDepthBufferCuda(z_buffer2);
 
     float average_depth = 0;
     float count = 0;
 
+    ofstream file("/home/alessandro/debug/cuda_buffer.txt");
     stringstream ss1;
     ss1 << fixed;
     for (auto i = 0; i < height; ++i) {
@@ -634,15 +637,13 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
         int id = j + i * width;
 
         auto val = z_buffer[id];
-
-        if (val != 0) {
-          average_depth += val;
-          ss1 << val << " ";
-          count++;
-        }
+        auto val2 = z_buffer[id];
+        ss1 << val << "[" << val2 << "] ";
       }
       ss1 << "\n";
     }
+    file << ss1.str();
+    file.close();
     // cout << ss1.str() << "\n\n";
 
     //    for(auto val : z_buffer)
@@ -688,8 +689,15 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
 
     data.addFrame(out, t_render);
 
+    vector<uchar4> h_texture2;
+    renderer.downloadTextureCuda(h_texture2);
+    Mat out2(height, width, CV_8UC4, h_texture2.data());
+
     imshow("debug opencv", out);
-    auto c = waitKey(1);
+    imshow("debug opencv_cuda", out2);
+
+
+    auto c = waitKey(0);
     //    if (c == 'q') break;
 
     frame_count++;
@@ -790,7 +798,7 @@ void trackGeneratedData(RenderData &data,
     count++;
     if(rendered_pose.cols > 0)
         imshow("debug tracking", rendered_pose);
-    auto c = waitKey(0);
+    auto c = waitKey(1);
     if (c == 'q') break;
   }
 }

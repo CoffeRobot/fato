@@ -35,9 +35,11 @@
 #include <sstream>
 #include <limits>
 #include <cuda_gl_interop.h>
+#include <cuda_runtime.h>
 
 #include "device_1d.h"
 #include "../../cuda/include/utility_kernels.h"
+#include "../../cuda/include/gl_interop.h"
 
 using namespace std;
 
@@ -232,6 +234,26 @@ void Renderer::downloadDepthBuffer(std::vector<float>& h_buffer) {
 //    }
 }
 
+void Renderer::downloadDepthBufferCuda(std::vector<float> &h_buffer)
+{
+    float* d_buffer;
+    h_buffer.resize(height_*width_);
+    int size = sizeof(float) * height_ * width_;
+    cudaError_t error = cudaMalloc((void **)&d_buffer, size);
+    if (error != cudaSuccess)
+      throw gpu::cudaException("Renderer::downloadDepthBuffer(243): ", error);
+
+    gpu::downloadDepthTexture(d_buffer, *cuda_gl_depth_array_, width_, height_);
+
+    error = cudaMemcpy(h_buffer.data(), d_buffer, size,
+                                   cudaMemcpyDeviceToHost);
+
+    if (error != cudaSuccess)
+      throw gpu::cudaException("Renderer::downloadDepthBuffer(251): ", error);
+
+    cudaFree(d_buffer);
+}
+
 void Renderer::downloadTexture(std::vector<uchar4>& h_texture) {
   util::Device1D<uchar4> d_texture(height_ * width_);
 
@@ -239,6 +261,26 @@ void Renderer::downloadTexture(std::vector<uchar4>& h_texture) {
                                 height_);
   h_texture.resize(height_ * width_);
   d_texture.copyTo(h_texture);
+}
+
+void Renderer::downloadTextureCuda(std::vector<uchar4> &h_texture)
+{
+    uchar4* d_buffer;
+    h_texture.resize(height_*width_);
+    int size = sizeof(uchar4) * height_ * width_;
+    cudaError_t error = cudaMalloc((void **)&d_buffer, size);
+    if (error != cudaSuccess)
+      throw gpu::cudaException("Renderer::downloadDepthBuffer(243): ", error);
+
+    gpu::downloadTextureToRGBA(d_buffer, *cuda_gl_color_array_, width_, height_);
+
+    error = cudaMemcpy(h_texture.data(), d_buffer, size,
+                                   cudaMemcpyDeviceToHost);
+
+    if (error != cudaSuccess)
+      throw gpu::cudaException("Renderer::downloadDepthBuffer(251): ", error);
+
+    cudaFree(d_buffer);
 }
 
 std::vector<double> Renderer::getBoundingBoxInCameraImage(
@@ -381,6 +423,7 @@ void Renderer::unmapCudaArrays() {
 cudaArray* Renderer::getTexture() { return (*cuda_gl_color_array_); }
 
 cudaArray* Renderer::getDepthBuffer() { return (*cuda_gl_depth_array_); }
+
 
 string Renderer::str(GLenum error) {
   switch (error) {

@@ -160,6 +160,7 @@ include_directories(include
 cuda_add_library(${PROJECT_NAME}
   src/utility_kernels_pose.cu
   src/utility_kernels.cu
+  src/gl_interop.cu
   OPTIONS ${CUDA_OPTIONS}
 )
 
