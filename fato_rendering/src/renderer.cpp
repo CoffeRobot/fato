@@ -144,7 +144,7 @@ void Renderer::updateCamera(glm::vec3 position, glm::vec3 orientation,
                             glm::mat4 projection_matrix) {}
 
 void Renderer::render() {
-  unmapCudaArrays();
+  //unmapCudaArrays();
   // Check and call events
   glfwPollEvents();
 
@@ -190,7 +190,7 @@ void Renderer::render() {
 
   renderToTexture();
 
-  mapCudaArrays();
+  //mapCudaArrays();
 
   glfwSwapBuffers(window_);
 }
@@ -261,6 +261,13 @@ void Renderer::downloadTexture(std::vector<uchar4>& h_texture) {
                                 height_);
   h_texture.resize(height_ * width_);
   d_texture.copyTo(h_texture);
+
+  cudaError err = cudaGetLastError();
+  if (err != cudaSuccess) {
+    gpu::cudaException("downloadTexture", err);
+    std::cout << "downloadTexture(-) :" + std::string(cudaGetErrorString(err)) << std::endl;
+   exit(0);
+  }
 }
 
 void Renderer::downloadTextureCuda(std::vector<uchar4> &h_texture)
@@ -268,17 +275,31 @@ void Renderer::downloadTextureCuda(std::vector<uchar4> &h_texture)
     uchar4* d_buffer;
     h_texture.resize(height_*width_);
     int size = sizeof(uchar4) * height_ * width_;
+    size_t pitch;
+
+    cudaError err = cudaGetLastError();
+
+    if (err != cudaSuccess)
+    {
+      throw gpu::cudaException("Renderer::downloadTextureCuda(276): ", err);
+      exit(0);
+    }
+
     cudaError_t error = cudaMalloc((void **)&d_buffer, size);
     if (error != cudaSuccess)
-      throw gpu::cudaException("Renderer::downloadDepthBuffer(243): ", error);
+      throw gpu::cudaException("Renderer::downloadTextureCuda(243): ", error);
 
     gpu::downloadTextureToRGBA(d_buffer, *cuda_gl_color_array_, width_, height_);
+
+    // error = cudaMemset(d_buffer, 255, size);
+    // if (error != cudaSuccess)
+    //   throw gpu::cudaException("Renderer::downloadDepthBuffer(280): ", error);
 
     error = cudaMemcpy(h_texture.data(), d_buffer, size,
                                    cudaMemcpyDeviceToHost);
 
     if (error != cudaSuccess)
-      throw gpu::cudaException("Renderer::downloadDepthBuffer(251): ", error);
+      throw gpu::cudaException("Renderer::downloadTextureCuda(251): ", error);
 
     cudaFree(d_buffer);
 }
@@ -403,6 +424,8 @@ void Renderer::bindCuda() {
   cuda_gl_depth_array_ = new cudaArray*;
 
   mapCudaArrays();
+
+  unmapCudaArrays();
 }
 
 void Renderer::mapCudaArrays() {

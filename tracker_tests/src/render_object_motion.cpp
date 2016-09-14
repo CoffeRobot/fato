@@ -618,6 +618,8 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
 
     downloadRenderedImg(renderer, h_texture);
     Mat out(height, width, CV_8UC4, h_texture.data());
+    vector<uchar4> h_texture2;
+    renderer.downloadTextureCuda(h_texture2);
     // cout << "near plane " << near_plane << " far_plane " << far_plane <<
     // endl;
 
@@ -689,9 +691,24 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
 
     data.addFrame(out, t_render);
 
-    vector<uchar4> h_texture2;
-    renderer.downloadTextureCuda(h_texture2);
+   
     Mat out2(height, width, CV_8UC4, h_texture2.data());
+
+    ofstream file2("/home/alessandro/debug/cuda_buffer_rgb.txt");
+    stringstream ss2;
+    ss1 << fixed;
+    for (auto i = 0; i < height; ++i) {
+      for (auto j = 0; j < width; ++j) {
+        int id = j + i * width;
+
+        uchar4 val = h_texture[id];
+        uchar4 val2 = h_texture2[id];
+        ss2 << (int)val.x << "," << (int)val.y << "," << (int)val.z << "[" << (int)val2.x << "," << (int)val2.y << "," << (int)val2.z << "] ";
+      }
+      ss2 << "\n";
+    }
+    file2 << ss2.str();
+    file2.close();
 
     imshow("debug opencv", out);
     imshow("debug opencv_cuda", out2);
@@ -901,10 +918,10 @@ void readParameters(ParamsBench &params) {
 void loadParameters(ParamsBench &params) {
   params.camera_id = 1;
   params.object_model_file =
-      "/home/alessandro/projects/drone_ws/src/fato_tracker/data/ros_hydro/"
+      "/home/alessandro/projects/drone_ws/src/fato/data/ros_hydro/"
       "ros_hydro.obj";
   params.object_descriptors_file =
-      "/home/alessandro/projects/drone_ws/src/fato_tracker/data/ros_hydro/"
+      "/home/alessandro/projects/drone_ws/src/fato/data/ros_hydro/"
       "ros_hydro_features.h5";
   params.translation_x = 0.0;
   params.translation_y = 0.0;

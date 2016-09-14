@@ -33,6 +33,7 @@
 //#define UNROLL_INNER
 //#define IMUL(a, b) __mul24(a, b)
 #include "gl_interop.h"
+#include <iostream>
 
 namespace gpu {
 
@@ -56,7 +57,7 @@ __global__ void copyTextureToFloat(float *out_image, int width, int height) {
   const int inv_y = height - 1;
 
   if (x < width && y < height) {
-      float val = tex2D(d_float_texture, (float)x + 0.5f, (float)(y) + 0.5f);
+      float val = tex2D(d_float_texture, (float)x + 0.5f, (float)y + 0.5f);
     out_image[y * width + x] = val;
   }
 }
@@ -68,8 +69,12 @@ __global__ void copyTextureToRGBA(uchar4 *out_image, int width, int height) {
   const int inv_y = height - 1;
 
   if (x < width && y < height) {
-    out_image[y * width + x] =
-        tex2D(d_rgba_texture, (float)x + 0.5f, (float)(inv_y - y) + 0.5f);
+    uchar4 val;
+    val.x = 255;
+    val.w = 255;
+    val.y = 255;
+    val.z = 255;
+    out_image[y * width + x] = tex2D(d_rgba_texture, (float)x + 0.5f, (float)(inv_y - y) + 0.5f);
   }
 }
 
@@ -85,15 +90,28 @@ std::runtime_error cudaException(std::string functionName,
 
 void downloadTextureToRGBA(uchar4 *d_out_image, cudaArray *in_array, int width,
                            int height) {
+  
   // Bind textures to arrays
-  cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<uchar4>();
-  cudaBindTextureToArray(d_rgba_texture, in_array, channelFloat);
-  // std::cout << "after binding texture to array" << std::endl;
+      cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(8,8,8,8,cudaChannelFormatKindUnsigned );
+  cudaError_t err = cudaBindTextureToArray(d_rgba_texture, in_array, channelDesc);
+  
+  if (err != cudaSuccess) {
+    cudaException("downloadTexture", err);
+    std::cout << "downloadTextureToRGBA(102) :" + std::string(cudaGetErrorString(err)) << std::endl;
+    exit(0);
+  }
 
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
   // std::cout << "calling the kernel " << std::endl;
   copyTextureToRGBA << <dimGrid, dimBlock>>> (d_out_image, width, height);
+
+  err = cudaGetLastError();
+  if (err != cudaSuccess) {
+    cudaException("downloadTexture", err);
+    std::cout << "downloadTextureToRGBA(114) :" + std::string(cudaGetErrorString(err)) << std::endl;
+    exit(0);
+  }
 
   cudaUnbindTexture(d_rgba_texture);
 }
@@ -114,69 +132,7 @@ void downloadDepthTexture(float *d_out_image, cudaArray *in_array, int width,
     cudaUnbindTexture(d_float_texture);
 }
 
-//void convertFloatArrayToGrayRGB(uchar3 *d_out_image, cudaArray *in_array,
-//                                int width, int height, float lower_lim,
-//                                float upper_lim) {
-//  // Bind textures to arrays
-//  cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
-//  std::cout << "before binding texture " << std::endl;
-//  cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
 
-//  dim3 dimBlock(16, 8, 1);
-//  dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
-//  std::cout << "calling the kernel " << std::endl;
-////  convertFloatArrayToGrayRGB_kernel << <dimGrid, dimBlock>>>
-////      (d_out_image, width, height, lower_lim, upper_lim);
-
-//  cudaUnbindTexture(d_float_texture0);
-//}
-
-//void convertFloatArrayToGrayVX(uchar *d_out_image, cudaArray *in_array,
-//                               int width, int height, int step, float lower_lim,
-//                               float upper_lim) {
-//  // Bind textures to arrays
-//  cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
-//  cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
-
-//  dim3 dimBlock(16, 8, 1);
-//  dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
-
-////  convertFloatArrayToGrayVX_kernel << <dimGrid, dimBlock>>>
-////      (d_out_image, width, height, step, lower_lim, upper_lim);
-
-//  cudaUnbindTexture(d_float_texture0);
-//}
-
-//void convertRGBArrayToGrayVX(uchar *d_out_image, cudaArray *in_array,
-//                             int width, int height, int step, float lower_lim,
-//                             float upper_lim)
-//{
-//    cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<uchar4>();
-//    cudaBindTextureToArray(d_rgba_texture, in_array, channelFloat);
-
-//    dim3 dimBlock(16, 8, 1);
-//    dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
-
-////    convertRGBAArrayToGrayVX_kernel << <dimGrid, dimBlock>>>
-////        (d_out_image, width, height, step, lower_lim, upper_lim);
-
-//    cudaUnbindTexture(d_rgba_texture);
-//}
-
-//void convertFloatArrayToGray(uchar *d_out_image, cudaArray *in_array, int width,
-//                             int height, float lower_lim, float upper_lim) {
-//  // Bind textures to arrays
-//  cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
-//  cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
-
-//  dim3 dimBlock(16, 8, 1);
-//  dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
-
-////  convertFloatArrayToGray_kernel << <dimGrid, dimBlock>>>
-////      (d_out_image, width, height, lower_lim, upper_lim);
-
-//  cudaUnbindTexture(d_float_texture0);
-//}
 
 
 
