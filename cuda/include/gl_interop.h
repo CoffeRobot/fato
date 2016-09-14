@@ -37,7 +37,10 @@
 #include <iostream>
 #include <stdexcept>
 
+namespace fato {
 namespace gpu {
+
+typedef unsigned char uchar;
 
 void downloadDepthTexture(float *d_out_image, cudaArray *in_array, int width,
                           int height);
@@ -45,9 +48,13 @@ void downloadDepthTexture(float *d_out_image, cudaArray *in_array, int width,
 void downloadTextureToRGBA(uchar4 *d_out_image, cudaArray *in_array, int width,
                            int height) ;
 
-std::runtime_error cudaException(std::string functionName,
+void convertRGBArrayToGrayVX(uchar *d_out_image, cudaArray *in_array,
+                             int width, int height, int step);
+
+std::runtime_error cudaException(const char* file, int line,
                                  cudaError_t error);
 
 } // end of namespace
+} // end fato
 
 #endif  // GL_INTEROP_H

@@ -614,19 +614,16 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
 
     renderer.render();
 
-    std::vector<uchar4> h_texture(height * width);
+    //std::vector<uchar4> h_texture(height * width);
 
-    downloadRenderedImg(renderer, h_texture);
+    vector<uchar4> h_texture;
+    renderer.downloadTextureCuda(h_texture);
     Mat out(height, width, CV_8UC4, h_texture.data());
-    vector<uchar4> h_texture2;
-    renderer.downloadTextureCuda(h_texture2);
     // cout << "near plane " << near_plane << " far_plane " << far_plane <<
     // endl;
-
-    vector<float> z_buffer;
-    renderer.downloadDepthBuffer(z_buffer);
-    vector<float> z_buffer2;
-    renderer.downloadDepthBufferCuda(z_buffer2);
+    vector<float> z_buffer, z_buffer2;
+    renderer.downloadDepthBufferCuda(z_buffer);
+    renderer.downloadDepthBuffer(z_buffer2);
 
     float average_depth = 0;
     float count = 0;
@@ -634,42 +631,41 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
     ofstream file("/home/alessandro/debug/cuda_buffer.txt");
     stringstream ss1;
     ss1 << fixed;
+
+
+
     for (auto i = 0; i < height; ++i) {
       for (auto j = 0; j < width; ++j) {
         int id = j + i * width;
 
         auto val = z_buffer[id];
-        auto val2 = z_buffer[id];
-        ss1 << val << "[" << val2 << "] ";
+        auto val2 = z_buffer2[id];
+        ss1 << val << "[" << val2 << "] " ;
+
+        if(val != val2)
+            count ++;
       }
       ss1 << "\n";
     }
     file << ss1.str();
     file.close();
-    // cout << ss1.str() << "\n\n";
 
-    //    for(auto val : z_buffer)
-    //    {
-    //        if(val != 0)
-    //        {
-    //            average_depth += val;
-    //            count++;
-    //        }
-    //    }
+    cout << "different pixels value: " << count << " of " << height*width << endl;
 
-    double average = average_depth / double(count);
 
-    stringstream ss;
-    cout << "average depth in buffer " << average_depth << " count " << count
-         << " average " << average << endl;
-    ss << "\n original pose \n";
-    for (auto i = 0; i < 4; ++i) {
-      for (auto j = 0; j < 4; ++j) {
-        ss << t_render(j, i) << " ";
-      }
-      ss << "\n";
-    }
-    cout << fixed << setprecision(2) << ss.str();
+//    double average = average_depth / double(count);
+
+//    stringstream ss;
+//    cout << "average depth in buffer " << average_depth << " count " << count
+//         << " average " << average << endl;
+//    ss << "\n original pose \n";
+//    for (auto i = 0; i < 4; ++i) {
+//      for (auto j = 0; j < 4; ++j) {
+//        ss << t_render(j, i) << " ";
+//      }
+//      ss << "\n";
+//    }
+//    cout << fixed << setprecision(2) << ss.str();
 
     // renderObject(t_render, rendering_engine);
     getTransformedObjectBoxNew(t_render, renderer, box1);
@@ -691,9 +687,6 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
 
     data.addFrame(out, t_render);
 
-   
-    Mat out2(height, width, CV_8UC4, h_texture2.data());
-
     ofstream file2("/home/alessandro/debug/cuda_buffer_rgb.txt");
     stringstream ss2;
     ss1 << fixed;
@@ -702,8 +695,8 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
         int id = j + i * width;
 
         uchar4 val = h_texture[id];
-        uchar4 val2 = h_texture2[id];
-        ss2 << (int)val.x << "," << (int)val.y << "," << (int)val.z << "[" << (int)val2.x << "," << (int)val2.y << "," << (int)val2.z << "] ";
+        //uchar4 val2 = h_texture2[id];
+        ss2 << (int)val.x << "," << (int)val.y << "," << (int)val.z << " ";//"[" << (int)val2.x << "," << (int)val2.y << "," << (int)val2.z << "] ";
       }
       ss2 << "\n";
     }
@@ -711,7 +704,7 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
     file2.close();
 
     imshow("debug opencv", out);
-    imshow("debug opencv_cuda", out2);
+    //imshow("debug opencv_cuda", out2);
 
 
     auto c = waitKey(0);
@@ -918,11 +911,9 @@ void readParameters(ParamsBench &params) {
 void loadParameters(ParamsBench &params) {
   params.camera_id = 1;
   params.object_model_file =
-      "/home/alessandro/projects/drone_ws/src/fato/data/ros_hydro/"
-      "ros_hydro.obj";
+      render::get_resources_path() + "models/ros_hydro/ros_hydro.obj";
   params.object_descriptors_file =
-      "/home/alessandro/projects/drone_ws/src/fato/data/ros_hydro/"
-      "ros_hydro_features.h5";
+      render::get_resources_path() + "models/ros_hydro/ros_hydro_features.h5";
   params.translation_x = 0.0;
   params.translation_y = 0.0;
   params.translation_z = 0.00;

@@ -53,6 +53,7 @@
 #include "../include/utilities.h"
 #include "../include/nvx_utilities.hpp"
 #include "../../cuda/include/utility_kernels.h"
+#include "../../cuda/include/gl_interop.h"
 #include "../../cuda/include/utility_kernels_pose.h"
 #include "../../fato_rendering/include/env_config.h"
 
@@ -753,9 +754,9 @@ void TrackerVX::renderPredictedPose() {
   vxAccessImagePatch(rendered_next, &rect, 0, &dst_addr, (void**)&dst_ptr,
                      NVX_WRITE_ONLY_CUDA);
 
-  vision::convertRGBArrayToGrayVX((uchar*)dst_ptr, renderer_->getTexture(),
+  fato::gpu::convertRGBArrayToGrayVX((uchar*)dst_ptr, renderer_->getTexture(),
                                   params_.image_width, params_.image_height,
-                                  dst_addr.stride_y, 1.0, 2.0);
+                                  dst_addr.stride_y);
   vxCommitImagePatch(rendered_next, &rect, 0, &dst_addr, dst_ptr);
 
   // saving zbuffer to adjust points depth in the real image
@@ -929,8 +930,6 @@ pair<int, vector<double>> TrackerVX::poseFromSynth() {
 
   synth_graph_->getValidPoints(params_.flow_threshold, prev_pts, next_pts);
 
-  //cout << "synthetic depth" << endl;
-
   int count = 0;
 
   vector<float> depth_pts;
@@ -940,10 +939,7 @@ pair<int, vector<double>> TrackerVX::poseFromSynth() {
     int x = floor(pt.x);
     int y = floor(pt.y);
     float inv_y = image_h_ - 1 - y;
-    //float depth = host_rendered_depth_.at(x + y * params_.image_width);
-    float depth = host_rendered_depth_.at(x + inv_y * image_w_);
-    //depth = 0.3715f;
-//    /cout << depth << endl;
+    float depth = host_rendered_depth_.at(x + inv_y * params_.image_width);
 
     depth_pts.push_back(depth);
   }

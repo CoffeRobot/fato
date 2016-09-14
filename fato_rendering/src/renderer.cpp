@@ -241,15 +241,18 @@ void Renderer::downloadDepthBufferCuda(std::vector<float> &h_buffer)
     int size = sizeof(float) * height_ * width_;
     cudaError_t error = cudaMalloc((void **)&d_buffer, size);
     if (error != cudaSuccess)
-      throw gpu::cudaException("Renderer::downloadDepthBuffer(243): ", error);
+      throw fato::gpu::cudaException(__FILE__, __LINE__, error);
 
-    gpu::downloadDepthTexture(d_buffer, *cuda_gl_depth_array_, width_, height_);
+    fato::gpu::downloadDepthTexture(d_buffer, *cuda_gl_depth_array_, width_, height_);
 
     error = cudaMemcpy(h_buffer.data(), d_buffer, size,
                                    cudaMemcpyDeviceToHost);
 
     if (error != cudaSuccess)
-      throw gpu::cudaException("Renderer::downloadDepthBuffer(251): ", error);
+    {
+        throw fato::gpu::cudaException(__FILE__, __LINE__, error);
+        exit(0);
+    }
 
     cudaFree(d_buffer);
 }
@@ -264,7 +267,7 @@ void Renderer::downloadTexture(std::vector<uchar4>& h_texture) {
 
   cudaError err = cudaGetLastError();
   if (err != cudaSuccess) {
-    gpu::cudaException("downloadTexture", err);
+    fato::gpu::cudaException(__FILE__, __LINE__, err);
     std::cout << "downloadTexture(-) :" + std::string(cudaGetErrorString(err)) << std::endl;
    exit(0);
   }
@@ -281,15 +284,15 @@ void Renderer::downloadTextureCuda(std::vector<uchar4> &h_texture)
 
     if (err != cudaSuccess)
     {
-      throw gpu::cudaException("Renderer::downloadTextureCuda(276): ", err);
+      throw fato::gpu::cudaException(__FILE__, __LINE__, err);
       exit(0);
     }
 
     cudaError_t error = cudaMalloc((void **)&d_buffer, size);
     if (error != cudaSuccess)
-      throw gpu::cudaException("Renderer::downloadTextureCuda(243): ", error);
+      throw fato::gpu::cudaException(__FILE__, __LINE__, err);
 
-    gpu::downloadTextureToRGBA(d_buffer, *cuda_gl_color_array_, width_, height_);
+    fato::gpu::downloadTextureToRGBA(d_buffer, *cuda_gl_color_array_, width_, height_);
 
     // error = cudaMemset(d_buffer, 255, size);
     // if (error != cudaSuccess)
@@ -299,7 +302,7 @@ void Renderer::downloadTextureCuda(std::vector<uchar4> &h_texture)
                                    cudaMemcpyDeviceToHost);
 
     if (error != cudaSuccess)
-      throw gpu::cudaException("Renderer::downloadTextureCuda(251): ", error);
+      throw fato::gpu::cudaException(__FILE__, __LINE__, err);
 
     cudaFree(d_buffer);
 }
