@@ -131,6 +131,7 @@ void TrackerVX::loadDescriptors(const string& h5_file) {
 
   target_object_.init(pts, init_descriptors);
 
+  
   feature_detector_->setTarget(init_descriptors);
 
   std::cout << "Model loaded with " << target_object_.model_points_.size()
@@ -284,7 +285,8 @@ void TrackerVX::next(Mat& rgb) {
   // TODO: visionworks is slow right now due to a bug, grayscale conversion must
   // be moved to gpu later
   auto begin = chrono::high_resolution_clock::now();
-  cvtColor(rgb, next_gray_, CV_BGR2GRAY);
+  next_gray_ = rgb;
+  //cvtColor(rgb, next_gray_, CV_BGR2GRAY);
   vx_image vxiSrc;
   vxiSrc = nvx_cv::createVXImageFromCVMat(gpu_context_, rgb);
   NVXIO_CHECK_REFERENCE(vxGetReferenceFromDelay(camera_img_delay_, 0));
@@ -660,6 +662,9 @@ void TrackerVX::updatedDetectedPoints(
   float max_distance = feature_detector_->maxDistance();
   int valid = 0;
 
+  float maxconf = 0.f;
+  float distsum = 0.f;
+  
   for (size_t i = 0; i < matches.size(); i++) {
     const DMatch& fst_match = matches.at(i).at(0);
     const DMatch& scd_match = matches.at(i).at(1);
@@ -677,7 +682,10 @@ void TrackerVX::updatedDetectedPoints(
       continue;
 
     float confidence = 1 - (matches[i][0].distance / max_distance);
-
+    distsum += matches[i][0].distance;
+    
+    maxconf = max(maxconf,confidence);
+    
     if (confidence < params_.match_confidence) continue;
 
     auto ratio = (fst_match.distance / scd_match.distance);
@@ -695,6 +703,11 @@ void TrackerVX::updatedDetectedPoints(
       valid++;
     }
   }
+
+  std::cout << "Found valid keypoints: " << valid << std::endl;
+  std::cout << "Max confidence: " << maxconf << std::endl;
+  std::cout << "Distance sum: " << distsum << std::endl;
+  
   auto end = chrono::high_resolution_clock::now();
   profile_.matching_update =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();

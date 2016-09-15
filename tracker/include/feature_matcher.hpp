@@ -114,7 +114,7 @@ class FeatureMatcher {
 
   virtual void extractTarget(const cv::Mat& img) = 0;
 
-  virtual void setTarget(const cv::Mat& descriptors) = 0;
+    virtual void setTarget(const cv::Mat& descriptors) = 0;
 
   virtual void match(const cv::Mat& img,
                      std::vector<cv::KeyPoint>& query_keypoints,
@@ -149,7 +149,7 @@ public:
 
  void extractTarget(const cv::Mat& img);
 
- void setTarget(const cv::Mat& descriptors);
+    void setTarget(const cv::Mat& descriptors);
 
  void match(const cv::Mat& img, std::vector<cv::KeyPoint>& query_keypoints,
             cv::Mat& query_descriptors,
@@ -169,7 +169,7 @@ public:
  void extract(const cv::Mat& img, std::vector<cv::KeyPoint>& keypoints,
               cv::Mat& descriptors);
 
- float maxDistance(){return 512.0;}
+    float maxDistance(){return 486.f;}
 
 private:
 
@@ -185,6 +185,9 @@ private:
 
  cv::Mat train_descriptors_;
  std::vector<cv::KeyPoint> train_keypoints_;
+
+    cv::Mat train_desc_gpu_;
+    cv::Mat query_desc_gpu_;
 
  void initExtractor();
 };

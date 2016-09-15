@@ -244,7 +244,7 @@ void TrackerModelVX::rgbCallback(
 
   Mat rgb;
   readImage(rgb_msg, rgb);
-  cvtColor(rgb, rgb_image_, CV_RGB2BGR);
+  cvtColor(rgb, rgb_image_, CV_GRAY2BGR);
   img_updated_ = true;
 }
 
@@ -252,7 +252,7 @@ void TrackerModelVX::rgbCallbackNoInfo(const sensor_msgs::ImageConstPtr &rgb_msg
 {
     Mat rgb;
     readImage(rgb_msg, rgb);
-    cvtColor(rgb, rgb_image_, CV_RGB2BGR);
+    cvtColor(rgb, rgb_image_, CV_GRAY2BGR);
     img_updated_ = true;
 }
 

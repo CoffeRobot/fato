@@ -36,7 +36,10 @@
 
 #include <iostream>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <chrono>
+
+#include <cuda_runtime.h>
 
 #include "AKAZE.h"
 
@@ -157,14 +160,7 @@ cv::Mat &BriskMatcher::getTargetDescriptors() { return train_descriptors_; }
 // ============================================= Akaze ================================================ //
 // ============================================= ===== ================================================ //
 
-AkazeMatcher::AkazeMatcher()
- {
-
-#ifdef __arm__
-  cv_matcher_ = cv::BFMatcher(NORM_HAMMING);
-  #endif
-
-
+AkazeMatcher::AkazeMatcher() {
     feature_id_ = -1;
     initExtractor();
 }
@@ -198,9 +194,24 @@ void AkazeMatcher::extractTarget(const Mat &img) {
   extract(img, train_keypoints_, train_descriptors_);
 }
 
-void AkazeMatcher::setTarget(const Mat& descriptors)
+    
+    void AkazeMatcher::setTarget(const Mat& descriptors)
 {
     train_descriptors_ = descriptors.clone();
+
+    size_t pitch;
+    unsigned char* desct_d;
+    cudaMallocPitch(&desct_d, &pitch, 64, descriptors.rows);
+    cudaMemset2D(desct_d, pitch, 0, 64, descriptors.rows);
+    cudaMemcpy2D(desct_d, pitch, descriptors.data, descriptors.cols,
+		 descriptors.cols, descriptors.rows, cudaMemcpyHostToDevice);
+    train_desc_gpu_ = cv::Mat (descriptors.rows,pitch,CV_8U,desct_d);
+
+    unsigned char* descq_d;
+    cudaMallocPitch(&descq_d, &pitch, 64, 8*1024);
+    cudaMemset2D(descq_d, pitch, 0, 64, 8*1024);
+    query_desc_gpu_ = cv::Mat (8*1024,pitch,CV_8U,descq_d);
+
 }
 
 void AkazeMatcher::initExtractor() {
@@ -225,6 +236,10 @@ void AkazeMatcher::extract(const Mat &img, std::vector<KeyPoint> &keypoints,
   akaze_detector_->Feature_Detection(keypoints);
   akaze_detector_->Compute_Descriptors(keypoints,descriptors);
 
+  cudaMemset2D(query_desc_gpu_.data, query_desc_gpu_.cols, 0, 64, query_desc_gpu_.rows);
+  cudaMemcpy2DAsync(query_desc_gpu_.data, query_desc_gpu_.cols, descriptors.data, descriptors.cols,
+		    descriptors.cols, descriptors.rows, cudaMemcpyHostToDevice);
+  
 }
 
 void AkazeMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
@@ -234,12 +249,19 @@ void AkazeMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
   if (query_descriptors.rows == 0) {
     return;
   }
-  //TOFIX: opencv matcher does not work in 2.4
- #ifdef __arm__
-  cv_matcher_.knnMatch(query_descriptors, train_descriptors_, matches, 2);
-#else
-  matcher_custom_.matchV2(query_descriptors, train_descriptors_, matches);
-#endif
+
+  matches.clear();
+  akaze_detector_->Match(query_descriptors, train_descriptors_, query_descriptors.cols, matches);
+
+  float closest = 500.0;
+  for (int i=0; i<matches.size(); ++i) {
+      closest = min(closest,matches[i][0].distance);
+      //std::cout << i << ":" << matches[i][0].distance << "  ";
+  }
+
+  std::cout << "mindist: " << closest << std::endl;
+ 
+  
 }
 
 std::pair<float,float> AkazeMatcher::matchP(const Mat &img, std::vector<KeyPoint> &query_keypoints,

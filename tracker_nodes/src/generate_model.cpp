@@ -388,8 +388,8 @@ int main(int argc, char **argv) {
 
       bool is_valid = true;
 
-      if (kp.response > response_thresh) is_valid = false;
-
+      if (kp.response < response_thresh) is_valid = false;
+      else std::cout << "response: " << kp.response << "(" << response_thresh << ")" << std::endl;
       int id = 3 * j;
 
       if (fato::is_nan(points.at(id)) || fato::is_nan(points.at(id + 1)) ||
@@ -410,22 +410,23 @@ int main(int argc, char **argv) {
 
       // drawing stuff kept separated from saving stuff
       if (is_valid) {
-        float scaled_response = (kp.response - min_response) /
+	float scaled_response = (kp.response - min_response) /
                                 static_cast<float>(max_response - min_response);
         uchar b = 255 * (scaled_response);
         uchar r = 255 * (1 - scaled_response);
         cv::Scalar color(b, 0, r);
-        cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), kp.size, color, 1, 8);
-        cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 1, color, -1, 8);
+        //cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), kp.size, color, 1, 8);
+        //cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 1, color, -1, 8);
       } else {
-        cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 3, cv::Scalar(0, 255, 0),
-                   -1, 8);
+	  //cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 3, cv::Scalar(0, 255, 0),
+	  //       -1, 8);
       }
     }
 
     cv::imshow(window_name, img);
-    writer.write(img);
-    cv::waitKey(0);
+    //writer.write(img);
+    //cv::imwrite("/home/niklas/dev/src/ros_ws/hydra.pgm",img);
+    //cv::waitKey(0);
   }
 
   std::cout << "Keypoints after response filtering: " << valid_point_count
