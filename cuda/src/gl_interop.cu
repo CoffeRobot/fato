@@ -140,9 +140,9 @@ void downloadTextureToRGBA(uchar4 *d_out_image, cudaArray *in_array, int width,
 void downloadDepthTexture(float *d_out_image, cudaArray *in_array, int width,
                           int height) {
   // Bind textures to arrays
-  cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
-  // cudaChannelFormatDesc channelDesc =
-  // cudaCreateChannelDesc(32,0,0,0,cudaChannelFormatKindFloat);
+  //cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
+   cudaChannelFormatDesc channelDesc =
+  cudaCreateChannelDesc(32,0,0,0,cudaChannelFormatKindFloat);
   cudaError_t err =
       cudaBindTextureToArray(d_float_texture, in_array, channelDesc);
   if (err != cudaSuccess) {

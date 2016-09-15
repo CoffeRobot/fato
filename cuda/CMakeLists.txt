@@ -31,9 +31,11 @@ set(GENCODE_SM53 -gencode=arch=compute_53,code=sm_53)
 set(CUDA_NVCC_FLAGS -O3;--compiler-options;-fPIC;-ftz=true;-prec-sqrt=false;-prec-div=false)
 set(CUDA_PROPAGATE_HOST_FLAGS OFF) # don't propagate c++11 options to nvcc
 if (${CUDA_VERSION_MAJOR} LESS 7)
-    set(CUDA_OPTIONS ${GENCODE_SM35} ${VERBOSE_PTXAS})
+    #set(CUDA_OPTIONS ${GENCODE_SM35} ${VERBOSE_PTXAS})
+    set(CUDA_OPTIONS ${GENCODE_SM53} ${VERBOSE_PTXAS})
 else()
-    set(CUDA_OPTIONS ${GENCODE_SM35} ${GENCODE_SM50} ${GENCODE_SM52} ${VERBOSE_PTXAS})
+  set(CUDA_OPTIONS ${GENCODE_SM53} ${VERBOSE_PTXAS})
+    #set(CUDA_OPTIONS ${GENCODE_SM35} ${GENCODE_SM50} ${GENCODE_SM52} ${VERBOSE_PTXAS})
 endif()
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")

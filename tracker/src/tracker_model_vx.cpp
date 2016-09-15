@@ -1205,7 +1205,7 @@ TrackerVX::Params::Params() {
   lk_epsilon = 0.01;
 
   // Common parameters for corner detector node
-  array_capacity = 2000;
+  array_capacity = 200;
   detector_cell_size = 7;
   use_harris_detector = false;
 
