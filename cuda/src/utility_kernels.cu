@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2015, Karl Pauwels                                         */
+/*  Copyright (c) 2016, Karl Pauwels, Alessandro Pieropan                    */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -34,6 +34,7 @@
 //#define IMUL(a, b) __mul24(a, b)
 #include "utility_kernels.h"
 #include <stdexcept>
+#include <iostream>
 
 namespace vision {
 
@@ -408,6 +409,55 @@ __global__ void convertFloatArrayToGrayRGBA_kernel(uchar4 *out_image, int width,
   }
 }
 
+__global__ void copyTextureToRGBA(uchar4 *out_image, int width, int height) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+  // opengl and cuda have inverted image coordinate systems
+  const int inv_y = height - 1;
+
+  if (x < width && y < height) {
+    out_image[y * width + x] =
+        tex2D(d_rgba_texture, (float)x + 0.5f, (float)(inv_y - y) + 0.5f);
+  }
+}
+
+__global__ void copyTextureToFloat(float *out_image, int width, int height) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+  // opengl and cuda have inverted image coordinate systems
+  const int inv_y = height - 1;
+
+  if (x < width && y < height) {
+      float val = tex2D(d_float_texture0, (float)x + 0.5f, (float)(inv_y - y) + 0.5f);
+    out_image[y * width + x] = val;
+  }
+}
+
+// Convert float array to RGBA grayscale
+__global__ void convertFloatArrayToGrayRGB_kernel(uchar3 *out_image, int width,
+                                                  int height, float lower_lim,
+                                                  float upper_lim) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  uchar3 temp;
+
+  if (x < width && y < height) {
+    float val = tex2D(d_float_texture0, (float)x + 0.5f, (float)y + 0.5f);
+
+    // rescale value from [lowerLim,upperLim] to [0,255]
+    val -= lower_lim;
+    val /= (upper_lim - lower_lim);
+    val *= 255.0;
+
+    temp.x = val;
+    temp.y = val;
+    temp.z = val;
+
+    out_image[y * width + x] = temp;
+  }
+}
+
 // Convert float array to grayscale
 __global__ void convertFloatArrayToGray_kernel(uchar *out_image, int width,
                                                int height, float lower_lim,
@@ -429,13 +479,15 @@ __global__ void convertFloatArrayToGray_kernel(uchar *out_image, int width,
 
 // Convert float array to grayscale
 __global__ void convertFloatArrayToGrayVX_kernel(uchar *out_image, int width,
-                                               int height, int step, float lower_lim,
-                                               float upper_lim) {
+                                                 int height, int step,
+                                                 float lower_lim,
+                                                 float upper_lim) {
   const int x = blockIdx.x * blockDim.x + threadIdx.x;
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (x < width && y < height) {
     float val = tex2D(d_float_texture0, (float)x + 0.5f, (float)y + 0.5f);
+
 
     uchar *dst_row = (uchar *)(out_image + y * step);
 
@@ -443,6 +495,26 @@ __global__ void convertFloatArrayToGrayVX_kernel(uchar *out_image, int width,
     val -= lower_lim;
     val /= (upper_lim - lower_lim);
     val *= 255.0;
+
+    dst_row[x] = (uchar)val;
+  }
+}
+
+__global__ void convertRGBAArrayToGrayVX_kernel(uchar *out_image, int width,
+                                                 int height, int step,
+                                                 float lower_lim,
+                                                 float upper_lim) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (x < width && y < height) {
+    const int inv_y = height - 1;
+    uchar4 rgba = tex2D(d_rgba_texture, (float)x + 0.5f, (float)(inv_y - y) + 0.5f);
+
+    float val = 0.299f * (float)rgba.x + 0.587f * (float)rgba.y +
+              0.114f * (float)rgba.y;
+
+    uchar *dst_row = (uchar *)(out_image + y * step);
 
     dst_row[x] = (uchar)val;
   }
@@ -1051,6 +1123,36 @@ void convertKinectFloatToRGBA(uchar4 *d_out_image, const float *d_in_image,
       (d_out_image, d_in_image, width, height, pitch, lowerLim, upperLim);
 }
 
+void downloadTextureToRGBA(uchar4 *d_out_image, cudaArray *in_array, int width,
+                           int height) {
+  // Bind textures to arrays
+  cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<uchar4>();
+  cudaBindTextureToArray(d_rgba_texture, in_array, channelFloat);
+  // std::cout << "after binding texture to array" << std::endl;
+
+  dim3 dimBlock(16, 8, 1);
+  dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
+  // std::cout << "calling the kernel " << std::endl;
+  copyTextureToRGBA << <dimGrid, dimBlock>>> (d_out_image, width, height);
+
+  cudaUnbindTexture(d_rgba_texture);
+}
+
+void downloadDepthTexture(float *d_out_image, cudaArray *in_array, int width,
+                          int height)
+{
+    // Bind textures to arrays
+    cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
+    cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
+
+    dim3 dimBlock(16, 8, 1);
+    dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
+
+    copyTextureToFloat << <dimGrid, dimBlock>>> (d_out_image, width, height);
+
+    cudaUnbindTexture(d_float_texture0);
+}
+
 void convertFloatToRGBA(uchar4 *d_out_image, const float *d_in_image, int width,
                         int height) {
   dim3 dimBlock(16, 8, 1);
@@ -1087,31 +1189,65 @@ void convertFloatArrayToGrayRGBA(uchar4 *d_out_image, cudaArray *in_array,
                                  float upper_lim) {
   // Bind textures to arrays
   cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
-  cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
+  std::cout << "before binding texture " << std::endl;
+  gpuErrchk(cudaBindTextureToArray(d_float_texture0, in_array, channelFloat));
 
   dim3 dimBlock(16, 8, 1);
   dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
-
+  std::cout << "calling the kernel " << std::endl;
   convertFloatArrayToGrayRGBA_kernel << <dimGrid, dimBlock>>>
       (d_out_image, width, height, lower_lim, upper_lim);
 
   cudaUnbindTexture(d_float_texture0);
 }
 
-void convertFloatArrayToGrayVX(uchar *d_out_image, cudaArray *in_array, int width,
-                               int height, int step, float lower_lim, float upper_lim)
+void convertFloatArrayToGrayRGB(uchar3 *d_out_image, cudaArray *in_array,
+                                int width, int height, float lower_lim,
+                                float upper_lim) {
+  // Bind textures to arrays
+  cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
+  std::cout << "before binding texture " << std::endl;
+  cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
+
+  dim3 dimBlock(16, 8, 1);
+  dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
+  std::cout << "calling the kernel " << std::endl;
+  convertFloatArrayToGrayRGB_kernel << <dimGrid, dimBlock>>>
+      (d_out_image, width, height, lower_lim, upper_lim);
+
+  cudaUnbindTexture(d_float_texture0);
+}
+
+void convertFloatArrayToGrayVX(uchar *d_out_image, cudaArray *in_array,
+                               int width, int height, int step, float lower_lim,
+                               float upper_lim) {
+  // Bind textures to arrays
+  cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
+  cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
+
+  dim3 dimBlock(16, 8, 1);
+  dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
+
+  convertFloatArrayToGrayVX_kernel << <dimGrid, dimBlock>>>
+      (d_out_image, width, height, step, lower_lim, upper_lim);
+
+  cudaUnbindTexture(d_float_texture0);
+}
+
+void convertRGBArrayToGrayVX(uchar *d_out_image, cudaArray *in_array,
+                             int width, int height, int step, float lower_lim,
+                             float upper_lim)
 {
-    // Bind textures to arrays
-    cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<float>();
-    cudaBindTextureToArray(d_float_texture0, in_array, channelFloat);
+    cudaChannelFormatDesc channelFloat = cudaCreateChannelDesc<uchar4>();
+    cudaBindTextureToArray(d_rgba_texture, in_array, channelFloat);
 
     dim3 dimBlock(16, 8, 1);
     dim3 dimGrid(iDivUp(width, dimBlock.x), iDivUp(height, dimBlock.y), 1);
 
-    convertFloatArrayToGrayVX_kernel << <dimGrid, dimBlock>>>
+    convertRGBAArrayToGrayVX_kernel << <dimGrid, dimBlock>>>
         (d_out_image, width, height, step, lower_lim, upper_lim);
 
-    cudaUnbindTexture(d_float_texture0);
+    cudaUnbindTexture(d_rgba_texture);
 }
 
 void convertFloatArrayToGray(uchar *d_out_image, cudaArray *in_array, int width,

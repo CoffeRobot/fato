@@ -46,6 +46,7 @@ namespace render {
 OgreContext::OgreContext() {
   setupDummyWindowId();
 
+
   Ogre::LogManager *log_manager = Ogre::LogManager::getSingletonPtr();
   if (log_manager == NULL)
     log_manager = new Ogre::LogManager();
@@ -59,19 +60,17 @@ OgreContext::OgreContext() {
 #ifdef Q_OS_MAC
   plugin_prefix += "lib";
 #endif
-  std::cout << "TRYING TO FUCKING LOAD OGRE PLUGIN! @ " << plugin_prefix + "RenderSystem_GL" << std::endl;
+
   ogre_root_->loadPlugin(plugin_prefix + "RenderSystem_GL");
 
   Ogre::RenderSystem *rs =
       ogre_root_->getRenderSystemByName("OpenGL Rendering Subsystem");
   ogre_root_->setRenderSystem(rs);
 
-  //std::cout << "TRYING TO FUCKING LOAD OGRE PLUGIN! @ " << plugin_prefix + "RenderSystem_GL" << std::endl;
-
   Ogre::NameValuePairList opts;
-  opts["hidden"] = "true";
-  ogre_root_->initialise(false);
-  makeRenderWindow(dummy_window_id_, 1, 1);
+  opts["hidden"] = "false";
+  window_ = ogre_root_->initialise(false);
+  makeRenderWindow(dummy_window_id_, 1, 2);
 
   // Set default mipmap level (note: some APIs ignore this)
   Ogre::TextureManager::getSingleton().setDefaultNumMipmaps(5);
@@ -90,7 +89,6 @@ OgreContext::OgreContext() {
 
   scene_manager_ = ogre_root_->createSceneManager("DefaultSceneManager");
 
-  //std::cout << "TRYING TO FUCKING LOAD OGRE PLUGIN! @ " << plugin_prefix + "RenderSystem_GL" << std::endl;
 }
 
 OgreContext::~OgreContext() {}
@@ -144,7 +142,9 @@ Ogre::RenderWindow *OgreContext::makeRenderWindow(intptr_t window_id,
   static int windowCounter = 0; // Every RenderWindow needs a unique name, oy.
 
   Ogre::NameValuePairList params;
-  Ogre::RenderWindow *window = NULL;
+  //Ogre::RenderWindow *window = NULL;
+  window_ = NULL;
+
 
   std::stringstream window_handle_stream;
   window_handle_stream << window_id;
@@ -177,38 +177,39 @@ Ogre::RenderWindow *OgreContext::makeRenderWindow(intptr_t window_id,
   bool is_stereo = false;
   if (!force_no_stereo_) {
     params["stereoMode"] = "Frame Sequential";
-    window = tryMakeRenderWindow(stream.str(), width, height, &params, 100);
+    window_ = tryMakeRenderWindow(stream.str(), width, height, &params, 100);
     params.erase("stereoMode");
 
-    if (window) {
+    if (window_) {
 #if OGRE_STEREO_ENABLE
       is_stereo = window->isStereoEnabled();
 #endif
       if (!is_stereo) {
         // Created a non-stereo window.  Discard it and try again (below)
         // without the stereo parameter.
-        ogre_root_->detachRenderTarget(window);
-        window->destroy();
-        window = NULL;
+        ogre_root_->detachRenderTarget(window_);
+        window_->destroy();
+        window_ = NULL;
         stream << "x";
         is_stereo = false;
       }
     }
   }
 
-  if (window == NULL) {
-    window = tryMakeRenderWindow(stream.str(), width, height, &params, 100);
+  if (window_ == NULL) {
+    std::cout << "creating ogre window" << std::endl;
+    window_ = tryMakeRenderWindow(stream.str(), width, height, &params, 100);
   }
 
-  if (window == NULL) {
-    //    ROS_ERROR( "Unable to create the rendering window after 100 tries." );
+  if (window_ == NULL) {
+    std::cout <<  "Unable to create the rendering window after 100 tries."  << std::endl;
     assert(false);
   }
 
-  if (window) {
-    window->setActive(true);
-    // window->setVisible(true);
-    window->setAutoUpdated(false);
+  if (window_) {
+    window_->setActive(true);
+    window_->setVisible(true);
+    window_->setAutoUpdated(false);
   }
 
   bool stereo_supported_ = is_stereo;
@@ -216,7 +217,7 @@ Ogre::RenderWindow *OgreContext::makeRenderWindow(intptr_t window_id,
   //  ROS_INFO_ONCE("Stereo is %s", stereo_supported_ ? "SUPPORTED" : "NOT
   // SUPPORTED");
 
-  return window;
+  return window_;
 }
 
 Ogre::RenderWindow *OgreContext::tryMakeRenderWindow(

@@ -642,6 +642,28 @@ std::pair<Eigen::Matrix3d, Eigen::Vector3d> Pose::toEigen() const
     return pair<Eigen::Matrix3d, Eigen::Vector3d>(rotation_temp, translation_vect);
 }
 
+glm::mat4 Pose::toGL() const
+{
+
+    Eigen::Matrix4d Rx_180 = Eigen::Matrix<double, 4, 4>::Identity();
+          Rx_180(1, 1) = -1.0;
+          Rx_180(2, 2) = -1.0;
+    auto pose = Rx_180 * pose_;
+
+    glm::mat4 pose_glm;
+
+    for(auto i = 0; i < 4; ++i)
+    {
+        for(auto j = 0; j < 4; ++j)
+        {
+          pose_glm[j][i] = pose(i,j);
+        }
+    }
+
+    return pose_glm;
+}
+
+
 void Pose::transform(Eigen::Matrix4d& transform) { pose_ = transform * pose_; }
 
 
@@ -665,6 +687,12 @@ void Pose::transform(std::vector<double> &beta)
         transform(3,i) = 0;
     }
     transform(3,3) = 1;
+
+//    Eigen::Matrix4d Rx_180 = Eigen::Matrix<double, 4, 4>::Identity();
+//    Rx_180(1, 1) = -1.0;
+//    Rx_180(2, 2) = -1.0;
+
+//    transform = Rx_180 * transform;
 
     pose_ = transform * pose_;
 }

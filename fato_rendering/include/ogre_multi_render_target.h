@@ -33,14 +33,39 @@
 #pragma once
 #include <OgreCamera.h>
 #include <cuda_runtime.h>
+#include <OgreRectangle2D.h>
+#include <memory>
+
+#include "../include/ogre_context.h"
 
 namespace render {
 
-class OgreMultiRenderTarget {
+class OgreRendererWindow {
+ public:
+  OgreRendererWindow(std::string name, int width, int height,
+                     std::unique_ptr<Ogre::Root> &ogre_root,
+                     Ogre::SceneManager *scene_manager);
 
-public:
+  ~OgreRendererWindow();
+
+  void updateCamera(const Ogre::Vector3 &camera_position,
+                    const Ogre::Quaternion &camera_orientation,
+                    const Ogre::Matrix4 &projection_matrix);
+
+  void render();
+
+  Ogre::SceneManager *scene_manager_;
+  Ogre::Camera *camera_;
+  Ogre::RenderWindow *window_;
+  int width_, height_;
+  std::string name_;
+};
+
+class OgreMultiRenderTarget {
+ public:
   OgreMultiRenderTarget(std::string name, int width, int height,
                         Ogre::SceneManager *scene_manager);
+
   ~OgreMultiRenderTarget();
 
   void updateCamera(const Ogre::Vector3 &camera_position,
@@ -48,6 +73,8 @@ public:
                     const Ogre::Matrix4 &projection_matrix);
 
   void render();
+
+  void render(Ogre::RenderWindow* window);
 
   enum class ArrayType {
     normal_x,
@@ -63,7 +90,7 @@ public:
 
   const std::string name_;
 
-private:
+ private:
   const int width_;
   const int height_;
   const int n_rtt_textures_;
@@ -72,5 +99,10 @@ private:
   Ogre::Camera *camera_;
   Ogre::MultiRenderTarget *multi_render_target_;
   std::vector<cudaGraphicsResource *> cuda_resources_;
+
+  Ogre::Rectangle2D *debug_textured_objects_;
+  Ogre::SceneNode *debug_object_node_;
 };
+
+
 }

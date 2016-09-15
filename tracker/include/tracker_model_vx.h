@@ -58,6 +58,7 @@
 #include "flow_graph.hpp"
 
 #include "../../fato_rendering/include/device_1d.h"
+#include "../../fato_rendering/include/renderer.h"
 
 namespace fato {
 
@@ -102,6 +103,10 @@ class TrackerVX {
     vx_uint32 fast_type;
     vx_uint32 fast_thresh;
 
+    // parameters used by the m-estimators
+    int iterations_m_real;
+    int iterations_m_synth;
+
     Params();
   };
 
@@ -117,6 +122,10 @@ class TrackerVX {
     float render_time;
     float synth_time;
     float synth_time_vx;
+    float synth_graph;
+    float synth_points;
+    float synth_depth;
+    float synth_estimator;
     float cam_flow_time;
     float active_transf_time;
     float corner_time;
@@ -136,6 +145,10 @@ class TrackerVX {
           track_time(0),
           synth_time(0),
           synth_time_vx(0),
+          synth_graph(0),
+          synth_points(0),
+          synth_depth(0),
+          synth_estimator(0),
           corner_time(0),
           m_est_time(0),
           depth_to_host_time(0),
@@ -172,19 +185,23 @@ class TrackerVX {
 
   void printProfile();
 
-  bool isLost() { return m_is_object_lost; }
+  cv::Mat getDepthBuffer();
 
+  bool isLost() { return m_is_object_lost; }
+  /****************************************************************************/
+  /*                       RENDERING                                          */
+  /****************************************************************************/
+  std::unique_ptr<pose::MultipleRigidModelsOgre> ogre_renderer_;
+  std::unique_ptr<rendering::Renderer> renderer_;
   /****************************************************************************/
   /*                       STATS VARIABLES                                    */
   /****************************************************************************/
   bool stop_matcher;
 
   /****************************************************************************/
-  /*                       KALMAN POSE                                        */
+  /*                       KALMAN FILTER                                      */
   /****************************************************************************/
   cv::KalmanFilter kalman_pose_flow_;
-  // exposing the rendering engine cuz of opengl context problems
-  std::unique_ptr<pose::MultipleRigidModelsOgre> rendering_engine_;
 
  private:
   /**
@@ -263,7 +280,7 @@ class TrackerVX {
   std::pair<int, std::vector<double>> poseFromSynth();
 
   void projectPointsDepth(std::vector<cv::Point3f>& points,
-                          Eigen::MatrixXd& projection,
+                          Eigen::MatrixXd &projection,
                           std::vector<float>& projected_depth);
 
   void initFilter(cv::KalmanFilter& filter, Eigen::MatrixXd& projection);
@@ -326,7 +343,7 @@ class TrackerVX {
   // ERORR: why doesn't work if I move this!!!!
   Params params_;
 
-  SyntheticTrack synth_track_;
+  //SyntheticTrack synth_track_;
 
 
   std::string file_name_pose;

@@ -53,7 +53,9 @@
 #include "../include/utilities.h"
 #include "../include/nvx_utilities.hpp"
 #include "../../cuda/include/utility_kernels.h"
+#include "../../cuda/include/gl_interop.h"
 #include "../../cuda/include/utility_kernels_pose.h"
+#include "../../fato_rendering/include/env_config.h"
 
 #define VERBOSE_DEBUG
 
@@ -142,14 +144,22 @@ void TrackerVX::loadDescriptors(const string& h5_file) {
 void TrackerVX::initSynthTracking(const string& object_model, double fx,
                                   double fy, double cx, double cy,
                                   int img_width, int img_height) {
-  rendering_engine_ = unique_ptr<pose::MultipleRigidModelsOgre>(
-      new pose::MultipleRigidModelsOgre(img_width, img_height, fx, fy, cx, cy,
-                                        0.01, 10.0));
+  //  ogre_renderer_ = unique_ptr<pose::MultipleRigidModelsOgre>(
+  //      new pose::MultipleRigidModelsOgre(img_width, img_height, fx, fy, cx,
+  //      cy,
+  //                                        0.01, 10.0));
 
-  rendering_engine_->addModel(object_model);
+  // ogre_renderer_->addModel(object_model);
 
-  synth_track_.init(cx, cy, fx, fy, img_width, img_height,
-                    rendering_engine_.get());
+  // new rendering system using pure opengl
+  renderer_ = unique_ptr<rendering::Renderer>(new rendering::Renderer(
+      img_width, img_height, fx, fy, cx, cy, 0.01, 100.0));
+  renderer_->initRenderContext(
+      640, 480, render::get_resources_path() + "shaders/framebuffer.vs",
+      render::get_resources_path() + "shaders/framebuffer.frag");
+  renderer_->addModel(object_model,
+                      render::get_resources_path() + "shaders/model.vs",
+                      render::get_resources_path() + "shaders/model.frag");
 }
 
 void TrackerVX::initializeContext() {
@@ -198,7 +208,7 @@ void TrackerVX::detectorWorker() {
         detector_condition_.wait(lock);
       }
       det_worker_ready_ = false;
-      //safePrint("detector working");
+      // safePrint("detector working");
     }
 
     if (task_completed_) break;
@@ -210,7 +220,7 @@ void TrackerVX::detectorWorker() {
         chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
     {
-      //safePrint("detector done");
+      // safePrint("detector done");
       unique_lock<mutex> lock(detector_mutex_);
       det_worker_ready_ = true;
       detector_done_ = true;
@@ -312,12 +322,7 @@ void TrackerVX::next(Mat& rgb) {
   if (target_object_.target_found_) {
     // download to host depth buffer
     begin = chrono::high_resolution_clock::now();
-//    util::Device1D<float> rendered_depth(params_.image_height * params_.image_width);
-//    pose::convertZbufferToZ(rendered_depth.data(),
-//                            rendering_engine_->getZBuffer(), params_.image_width,
-//                            params_.image_height, params_.cx, params_.cy, 0.01,
-//                            1000.0);
-    rendered_depth_.copyTo(host_rendered_depth_);
+    renderer_->downloadDepthBuffer(host_rendered_depth_);
     end = chrono::high_resolution_clock::now();
     profile_.depth_to_host_time =
         chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -346,14 +351,14 @@ void TrackerVX::parNext(cv::Mat& rgb) {
   {
     unique_lock<mutex> lock(detector_mutex_);
     if (!det_worker_ready_) {
-      //cout << "worker not ready, skipping img" << endl;
+      // cout << "worker not ready, skipping img" << endl;
       return;
     }
   }
 
   // loading image on the gpu and notify detector
   {
-    //safePrint("new image ready");
+    // safePrint("new image ready");
     unique_lock<mutex> lock(detector_mutex_);
     loadImg(rgb);
     image_received_ = true;
@@ -366,14 +371,14 @@ void TrackerVX::parNext(cv::Mat& rgb) {
 
   // notify detector tracking is done
   {
-    //safePrint("tracking done");
+    // safePrint("tracking done");
     unique_lock<mutex> lock(detector_mutex_);
     tracking_done_ = true;
     update_condition_.notify_one();
   }
   // waiting for the detector to be finished
   {
-    //safePrint("waiting for detector to be done");
+    // safePrint("waiting for detector to be done");
     unique_lock<mutex> lock(detector_mutex_);
     while (!detector_done_) tracker_condition_.wait(lock);
   }
@@ -385,13 +390,12 @@ void TrackerVX::parNext(cv::Mat& rgb) {
 }
 
 void TrackerVX::loadImg(Mat& rgb) {
-
-
   auto begin = chrono::high_resolution_clock::now();
   cvtColor(rgb, next_gray_, CV_BGR2GRAY);
   vx_image vxiSrc;
   vxiSrc = nvx_cv::createVXImageFromCVMat(gpu_context_, rgb);
-  NVXIO_CHECK_REFERENCE((vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0));
+  NVXIO_CHECK_REFERENCE(
+      (vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0));
   NVXIO_CHECK_REFERENCE(vxiSrc);
   NVXIO_SAFE_CALL(
       vxuColorConvert(gpu_context_, vxiSrc,
@@ -400,7 +404,6 @@ void TrackerVX::loadImg(Mat& rgb) {
   profile_.img_load_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
   vxReleaseImage(&vxiSrc);
-
 }
 
 void TrackerVX::release() {
@@ -478,18 +481,14 @@ void TrackerVX::trackSequential() {
       target_object_.weighted_pose = target_object_.pnp_pose;
 
       target_object_.target_history_.clear();
-      target_object_.target_history_.init(target_object_.pnp_pose);
+      target_object_.target_history_.init(target_object_.weighted_pose);
 
       stringstream ss;
       ss << "pst " << model_pts.size() << " inliers " << inliers.size();
 
       auto inliers_count = inliers.size();
       removeOutliers(inliers);
-      //validateInliers(inliers);
-
-      // cout << "object found!" << endl;
-      Eigen::MatrixXd projection_matrix = getProjectionMatrix(
-          target_object_.rotation, target_object_.translation);
+      // validateInliers(inliers);
 
       model_pts.clear();
       for (int i = 0; i < target_object_.active_points.size(); ++i) {
@@ -500,8 +499,16 @@ void TrackerVX::trackSequential() {
       ss << " active " << model_pts.size();
       cout << ss.str() << endl;
 
+      auto projection_matrix =
+          (Eigen::MatrixXd)target_object_.weighted_pose.getPose();
+
       vector<float> projected_depth;
       projectPointsDepth(model_pts, projection_matrix, projected_depth);
+
+      //      for(auto val : projected_depth)
+      //      {
+      //          cout << val << endl;
+      //      }
 
       for (auto i = 0; i < target_object_.active_points.size(); ++i) {
         const int& id = target_object_.active_to_model_.at(i);
@@ -509,7 +516,7 @@ void TrackerVX::trackSequential() {
       }
       if (inliers_count > 4) {
         target_object_.target_found_ = true;
-        target_object_.pose_ = projection_matrix * target_object_.pose_;
+        // target_object_.pose_ = projection_matrix * target_object_.pose_;
         target_object_.kalman_pose_ =
             projection_matrix * target_object_.kalman_pose_;
       }
@@ -532,6 +539,14 @@ void TrackerVX::trackSequential() {
       float total_features = static_cast<float>(beta.first + synth_beta.first);
       target_object_.real_pts_ = beta.first;
       target_object_.synth_pts_ = synth_beta.first;
+
+      //      cout << "printing betas " << endl;
+      //      for (auto val : beta.second) cout << setprecision(5) << val << "
+      //      ";
+      //      cout << "\n printing synth betas " << endl;
+      //      for (auto val : synth_beta.second) cout << setprecision(5) << val
+      //      << " ";
+      //      cout << "\n";
 
       if (total_features == 0)
         target_object_.target_found_ = false;
@@ -595,8 +610,9 @@ void TrackerVX::detectParallel() {
   /*************************************************************************************/
   vector<vector<DMatch>> matches;
   auto begin = chrono::high_resolution_clock::now();
-  pair<float,float> times =feature_detector_->matchP(next_gray_, keypoints, descriptors, matches);
-  //feature_detector_->match(next_gray_, keypoints, descriptors, matches);
+  pair<float, float> times =
+      feature_detector_->matchP(next_gray_, keypoints, descriptors, matches);
+  // feature_detector_->match(next_gray_, keypoints, descriptors, matches);
   auto end = chrono::high_resolution_clock::now();
   profile_.feature_extraction =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -612,7 +628,7 @@ void TrackerVX::detectParallel() {
   /*************************************************************************************/
   /*                       ADD FEATURES TO TRACKER */
   /*************************************************************************************/
-  //safePrint("updating points");
+  // safePrint("updating points");
   updatedDetectedPoints(keypoints, matches);
 }
 
@@ -633,8 +649,7 @@ void TrackerVX::trackParallel() {
   if (target_object_.target_found_) {
     // download to host depth buffer
     begin = chrono::high_resolution_clock::now();
-
-    rendered_depth_.copyTo(host_rendered_depth_);
+    renderer_->downloadDepthBuffer(host_rendered_depth_);
     end = chrono::high_resolution_clock::now();
     profile_.depth_to_host_time =
         chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -650,7 +665,7 @@ void TrackerVX::trackParallel() {
 void TrackerVX::updatedDetectedPoints(
     const std::vector<KeyPoint>& keypoints,
     const std::vector<std::vector<DMatch>>& matches) {
-  //cout << "matches size: " << matches.size() << endl;
+  // cout << "matches size: " << matches.size() << endl;
   auto begin = chrono::high_resolution_clock::now();
   if (matches.size() < 2) return;
   if (matches.at(0).size() != 2) return;
@@ -714,29 +729,37 @@ void TrackerVX::updatedDetectedPoints(
 }
 
 void TrackerVX::renderPredictedPose() {
-
-
   // setting up pose according to ogre requirements
-  auto eigen_pose = target_object_.weighted_pose.toEigen();
-  double tra_render[3];
-  double rot_render[9];
-  Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
-  Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
-      rot_render);
-  tra_render_eig = eigen_pose.second;
-  rot_render_eig = eigen_pose.first;
+  //  auto eigen_pose = target_object_.weighted_pose.toEigen();
+  //  double tra_render[3];
+  //  double rot_render[9];
+  //  Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
+  //  Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
+  //      rot_render);
+  //  tra_render_eig = eigen_pose.second;
+  //  rot_render_eig = eigen_pose.first;
 
+  //  std::vector<pose::TranslationRotation3D> TR(1);
+  //  TR.at(0).setT(tra_render);
+  //  TR.at(0).setR_mat(rot_render);
+  // ogre_renderer_->render(TR);
 
+  auto pose = target_object_.weighted_pose.toGL();
+  rendering::RigidObject& obj = renderer_->getObject(0);
+  obj.updatePose(pose);
+  renderer_->render();
 
-  std::vector<pose::TranslationRotation3D> TR(1);
-  TR.at(0).setT(tra_render);
-  TR.at(0).setR_mat(rot_render);
-  rendering_engine_->render(TR);
+  //  cout << "rendered pose " << endl;
+  //  for (int i = 0; i < 4; ++i) {
+  //    for (int j = 0; j < 4; ++j) {
+  //      cout << setprecision(2) << fixed << pose[i][j] << " ";
+  //    }
+  //    cout << "\n";
+  //  }
 
   // mapping opengl rendered image to visionworks vx_image
   vx_image rendered_next =
       (vx_image)vxGetReferenceFromDelay(renderer_img_delay_, 0);
-
 
   vx_rectangle_t rect;
   vxGetValidRegionImage(rendered_next, &rect);
@@ -745,16 +768,18 @@ void TrackerVX::renderPredictedPose() {
   vxAccessImagePatch(rendered_next, &rect, 0, &dst_addr, (void**)&dst_ptr,
                      NVX_WRITE_ONLY_CUDA);
 
-  vision::convertFloatArrayToGrayVX(
-      (uchar*)dst_ptr, rendering_engine_->getTexture(), params_.image_width,
-      params_.image_height, dst_addr.stride_y, 1.0, 2.0);
+  fato::gpu::convertRGBArrayToGrayVX((uchar*)dst_ptr, renderer_->getTexture(),
+                                     params_.image_width, params_.image_height,
+                                     dst_addr.stride_y);
   vxCommitImagePatch(rendered_next, &rect, 0, &dst_addr, dst_ptr);
+
   // saving zbuffer to adjust points depth in the real image
-  pose::convertZbufferToZ(rendered_depth_.data(),
-                          rendering_engine_->getZBuffer(), params_.image_width,
-                          params_.image_height, params_.cx, params_.cy, 0.01,
-                          1000.0);
-   rendered_depth_.copyTo(host_rendered_depth_);
+  //  pose::convertZbufferToZ(rendered_depth_.data(),
+  //  ogre_renderer_->getZBuffer(),
+  //                          params_.image_width, params_.image_height,
+  //                          params_.cx,
+  //                          params_.cy, 0.01, 1000.0);
+  //  rendered_depth_.copyTo(host_rendered_depth_);
 }
 
 void TrackerVX::projectPointsToModel(const Point2f& model_centroid,
@@ -850,14 +875,32 @@ pair<int, vector<double>> TrackerVX::poseFromFlow() {
   curr_points.reserve(target_object_.active_points.size());
   depths.reserve(target_object_.active_points.size());
 
+  // cout << "depths!!!!" << endl;
   for (auto i = 0; i < target_object_.active_points.size(); ++i) {
     int id = target_object_.active_to_model_.at(i);
     if (!is_nan(target_object_.projected_depth_.at(id))) {
       prev_points.push_back(target_object_.prev_points_.at(i));
       curr_points.push_back(target_object_.active_points.at(i));
       depths.push_back(target_object_.projected_depth_.at(id));
+      // cout << target_object_.projected_depth_.at(id) << endl;
     }
   }
+
+  float avg_vx = 0;
+  float avg_vy = 0;
+  float avg_depth = 0;
+  for (auto i = 0; i < prev_points.size(); ++i) {
+    Point2f pt = prev_points[i];
+    Point2f pt2 = curr_points[i];
+
+    avg_vx += pt.x - pt2.x;
+    avg_vy += pt.y - pt2.y;
+    avg_depth += depths[i];
+  }
+
+  //  cout << "average real flow " << avg_vx/float(prev_points.size())
+  //       << " " << avg_vy/float(prev_points.size())
+  //       << " d " << avg_depth/float(prev_points.size())  << endl;
 
   if (prev_points.size() == 0) {
     vector<double> bad_pose{0, 0, 0, 0, 0, 0};
@@ -876,15 +919,13 @@ pair<int, vector<double>> TrackerVX::poseFromFlow() {
     vector<int> outliers;
     Eigen::VectorXf beta;
     beta = getPoseFromFlowRobust(prev_points, depths, curr_points, nodal_x,
-                                 nodal_y, focal_x, focal_y, 10, t, r, outliers);
+                                 nodal_y, focal_x, focal_y,
+                                 params_.iterations_m_real, t, r, outliers);
     target_object_.removeInvalidPoints(outliers);
 
     for (auto i = 0; i < 6; ++i) {
       std_beta.at(i) = beta(i);
     }
-
-    cout << prev_points.size() << " " << outliers.size() << " "
-         << target_object_.active_points.size() << endl;
   }
 
   return pair<int, vector<double>>(target_object_.active_points.size(),
@@ -892,23 +933,40 @@ pair<int, vector<double>> TrackerVX::poseFromFlow() {
 }
 
 pair<int, vector<double>> TrackerVX::poseFromSynth() {
+  auto begin = chrono::high_resolution_clock::now();
   synth_graph_->track(
       (vx_image)vxGetReferenceFromDelay(renderer_img_delay_, -1),
       (vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0));
+  auto end = chrono::high_resolution_clock::now();
+
+  profile_.synth_graph =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
   vector<Point2f> prev_pts, next_pts;
 
+  begin = chrono::high_resolution_clock::now();
   synth_graph_->getValidPoints(params_.flow_threshold, prev_pts, next_pts);
+  end = chrono::high_resolution_clock::now();
+
+  profile_.synth_points =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+
+  int count = 0;
 
   vector<float> depth_pts;
+  begin = chrono::high_resolution_clock::now();
   depth_pts.reserve(prev_pts.size());
   for (auto pt : prev_pts) {
     int x = floor(pt.x);
     int y = floor(pt.y);
-    float depth = host_rendered_depth_.at(x + y * params_.image_width);
+    float inv_y = image_h_ - 1 - y;
+    float depth = host_rendered_depth_.at(x + inv_y * params_.image_width);
 
     depth_pts.push_back(depth);
   }
+  end = chrono::high_resolution_clock::now();
+  profile_.synth_depth =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
   Eigen::VectorXf beta;
   vector<double> std_beta(6, 0);
@@ -917,12 +975,17 @@ pair<int, vector<double>> TrackerVX::poseFromSynth() {
   vector<float> rotation;
   vector<int> outliers;
 
+  begin = chrono::high_resolution_clock::now();
   if (prev_pts.size() > 4) {
     beta = getPoseFromFlowRobust(prev_pts, depth_pts, next_pts, params_.cx,
-                                 params_.cy, params_.fx, params_.fy, 10,
-                                 translation, rotation, outliers);
+                                 params_.cy, params_.fx, params_.fy,
+                                 params_.iterations_m_synth, translation,
+                                 rotation, outliers);
     for (auto i = 0; i < 6; ++i) std_beta[i] = beta(i);
   }
+  end = chrono::high_resolution_clock::now();
+  profile_.synth_estimator =
+      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
   return pair<int, vector<double>>(prev_pts.size(), std_beta);
 }
@@ -1039,11 +1102,9 @@ void TrackerVX::updatePointsDepth(Target& t, Pose& p) {
 }
 
 void TrackerVX::updatePointsDepthFromZBuffer(Target& t, Pose& p) {
-  //  std::vector<float> z_buffer;
-  //  Mat out;
-  //  synth_track_.renderObject(p, out, z_buffer);
-
   vector<int> invalid_ids;
+
+  // cout << "Updating from Z BUFFER!!!!!!!" << endl;
 
   for (auto i = 0; i < t.active_points.size(); ++i) {
     const int& id = t.active_to_model_.at(i);
@@ -1057,9 +1118,17 @@ void TrackerVX::updatePointsDepthFromZBuffer(Target& t, Pose& p) {
       continue;
     }
 
-    float depth = host_rendered_depth_.at(x + y * image_w_);
+    // TODO: fast hack here, rendered_depth is in opengl image frame with
+    // bottom_left
+    // corner as 0,0 therefore y is flipped
+    float inv_y = image_h_ - 1 - y;
 
-    if (is_nan(depth)) {
+    // float depth = host_rendered_depth_.at(x + y * image_w_);
+    float depth = host_rendered_depth_.at(x + inv_y * image_w_);
+
+    // cout << depth << endl;
+
+    if (is_nan(depth) || depth == 0) {
       invalid_ids.push_back(i);
       continue;
     }
@@ -1126,7 +1195,7 @@ TrackerVX::Params::Params() {
   lk_epsilon = 0.01;
 
   // Common parameters for corner detector node
-  array_capacity = 2000;
+  array_capacity = 200;
   detector_cell_size = 7;
   use_harris_detector = false;
 
@@ -1137,6 +1206,28 @@ TrackerVX::Params::Params() {
   // Parameters for fast_track node
   fast_type = 9;
   fast_thresh = 7;
+
+  // Parameters used by the m-estimators
+  iterations_m_real = 10;
+  iterations_m_synth = 10;
+}
+
+cv::Mat TrackerVX::getDepthBuffer() {
+  cv::Mat out(image_h_, image_w_, CV_8UC1);
+
+  if (host_rendered_depth_.size() == 0) return out;
+
+  for (auto i = 0; i < image_h_; ++i) {
+    for (auto j = 0; j < image_w_; ++j) {
+      auto id = j + (image_h_ - 1 - i) * image_w_;
+      float val = -1 * host_rendered_depth_[id];
+      val = (val - 0.01) / (100.0 - 0.01);
+
+      out.at<uchar>(i, j) = uchar(255.0 * val);
+    }
+  }
+
+  return out;
 }
 
 string TrackerVX::Profile::str() {
@@ -1154,6 +1245,10 @@ string TrackerVX::Profile::str() {
   ss << "\t\t cam_flow: " << cam_flow_time / 1000000.0f << "\n";
   ss << "\t\t active pts: " << active_transf_time / 1000000.0f << "\n";
   ss << "\t\t synth_vx: " << synth_time_vx / 1000000.0f << "\n";
+  ss << "\t\t\t synth_graph: " << synth_graph / 1000000.0f << "\n";
+  ss << "\t\t\t synth_points: " << synth_points / 1000000.0f << "\n";
+  ss << "\t\t\t synth_depth: " << synth_depth / 1000000.0f << "\n";
+  ss << "\t\t\t synth_estimator: " << synth_estimator / 1000000.0f << "\n";
   ss << "\t\t estimator: " << m_est_time / 1000000.0f << "\n";
   ss << "\t renderer: " << render_time / 1000000.0f << "\n";
   ss << "\t depth2host: " << depth_to_host_time / 1000000.0f << "\n";

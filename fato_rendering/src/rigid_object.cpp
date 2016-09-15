@@ -40,6 +40,8 @@
 
 #include <rigid_object.h>
 
+#include <iostream>
+
 namespace render {
 
 RigidObject::RigidObject(std::string file_name,
@@ -50,7 +52,6 @@ RigidObject::RigidObject(std::string file_name,
   Ogre::MaterialPtr mat =
       Ogre::MaterialManager::getSingleton().getByName("textured");
   std::stringstream ss;
-  ss << "textured_" << segment_ind_;
   Ogre::MaterialPtr cloned_mat = mat->clone(ss.str());
   Ogre::Pass *pass = cloned_mat->getTechnique(0)->getPass(0);
   Ogre::TextureUnitState *tex_unit = pass->createTextureUnitState();

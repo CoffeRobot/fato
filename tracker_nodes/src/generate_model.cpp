@@ -40,6 +40,7 @@
 #include <stdexcept>
 #include <limits>
 #include <fstream>
+#include <thread>
 
 // TOFIX: find why qtcreator cannot pickup header files
 //#include <multiple_rigid_models_ogre.h>
@@ -305,6 +306,8 @@ int main(int argc, char **argv) {
   std::vector<std::vector<float>> projected_points;
   std::vector<cv::Mat> img_descriptors;
 
+  auto elapsed = 0;
+
   for (int view_ind = 0; view_ind < rot_x.size(); ++view_ind) {
     // compose render transform (tra_center -> rot_view -> tra_z_shift)
     Eigen::Transform<double, 3, Eigen::Affine> t_render;
@@ -313,6 +316,8 @@ int main(int argc, char **argv) {
 
     renderObject(t_render, model_ogre);
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
     std::vector<uchar4> h_texture(height * width);
     downloadRenderedImg(model_ogre, h_texture);
 
@@ -320,9 +325,9 @@ int main(int argc, char **argv) {
     cv::Mat img_gray;
     cv::cvtColor(img_rgba, img_gray, CV_RGBA2GRAY);
 
-    matcher->extractTarget(img_gray);
-    std::vector<cv::KeyPoint> &points = matcher->getTargetPoints();
-    cv::Mat &dscs = matcher->getTargetDescriptors();
+    matcher.extractTarget(img_gray);
+    std::vector<cv::KeyPoint> &points = matcher.getTargetPoints();
+    cv::Mat &dscs = matcher.getTargetDescriptors();
 
     img_descriptors.push_back(dscs);
 
@@ -426,11 +431,7 @@ int main(int argc, char **argv) {
     }
 
     cv::imshow(window_name, img);
-<<<<<<< HEAD
-    //writer.write(img);
-    //cv::imwrite("/home/niklas/dev/src/ros_ws/hydra.pgm",img);
-    //cv::waitKey(0);
-=======
+
 
     std::ofstream file("/home/alessandro/Downloads/img.txt");
 
@@ -445,8 +446,7 @@ int main(int argc, char **argv) {
     }
 
     writer.write(img);
-    cv::waitKey(0);
->>>>>>> 98b1a1f77ba8075314f488272f782b58a5abb394
+    cv::waitKey(10);
   }
 
   std::cout << "Keypoints after response filtering: " << valid_point_count

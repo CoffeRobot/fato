@@ -209,7 +209,15 @@ if(VisionWorks_FOUND)
     ${VisionWorks_LIBRARIES}
     ${CUDA_LIBRARIES})
 
+  add_executable(test_rendering
+    src/test_rendering.cpp)
+
+  target_link_libraries(test_rendering
+    ${catkin_LIBRARIES}
+    ${OPENCV_LIBS}
+    ${Boost_LIBRARIES}
+    ${VisionWorks_LIBRARIES}
+    ${CUDA_LIBRARIES})
+
 endif()
-
-
 

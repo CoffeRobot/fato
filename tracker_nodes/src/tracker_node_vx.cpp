@@ -185,15 +185,72 @@ void TrackerModelVX::loadParameters(ros::NodeHandle &nh)
     if (!ros::param::get("fato/model/obj_file", obj_file)) {
       throw std::runtime_error("cannot read obj file param");
     }
-
-    if (!ros::param::get("fato/model/descriptor_type", descriptor_type_)) {
+if (!ros::param::get("fato/model/descriptor_type", descriptor_type_)) {
 	descriptor_type_ = 0;
 	ROS_INFO("No descriptor type defined");
+    }
+    if (!ros::param::get("fato/parallel", params_.parallel)) {
+      throw std::runtime_error("cannot read parallel param");
+    }
+    int pyr_level;
+    if (!ros::param::get("fato/pyr_levels", pyr_level)) {
+      throw std::runtime_error("cannot read pyr_levels param");
+    }
+    params_.pyr_levels = pyr_level;
+    int lk_iters;
+    if (!ros::param::get("fato/lk_num_iters",lk_iters )) {
+      throw std::runtime_error("cannot read lk_num_iters param");
+    }
+    params_.lk_num_iters = lk_iters;
+    int win_size;
+    if (!ros::param::get("fato/lk_win_size",win_size)) {
+      throw std::runtime_error("cannot read lk_win_size param");
+    }
+    win_size =  params_.lk_win_size;
+    if (!ros::param::get("fato/lk_epsilon", params_.lk_epsilon)) {
+      throw std::runtime_error("cannot read lk_epsilon param");
+    }
+    if (!ros::param::get("fato/flow_threshold", params_.flow_threshold)) {
+      throw std::runtime_error("cannot read flow_threshold param");
+    }
+    int capacity;
+    if (!ros::param::get("fato/array_capacity", capacity)) {
+      throw std::runtime_error("cannot read array_capacity param");
+    }
+    capacity = params_.array_capacity;
+    int cell_size;
+    if (!ros::param::get("fato/detector_cell_size", cell_size)) {
+      throw std::runtime_error("cannot read detector_cell_size param");
+    }
+    params_.detector_cell_size = cell_size;
+    if (!ros::param::get("fato/use_harris", params_.use_harris_detector)) {
+      throw std::runtime_error("cannot read use_harris param");
+    }
+    if (!ros::param::get("fato/harris_k", params_.harris_k)) {
+      throw std::runtime_error("cannot read harris_k param");
+    }
+    if (!ros::param::get("fato/harris_thresh", params_.harris_thresh)) {
+      throw std::runtime_error("cannot read harris_thresh param");
+    }
+    int fast_type;
+    if (!ros::param::get("fato/fast_type", fast_type)) {
+      throw std::runtime_error("cannot read fast_type param");
+    }
+    fast_type = params_.fast_type;
+    int thresh;
+    if (!ros::param::get("fato/fast_thresh", thresh)) {
+      throw std::runtime_error("cannot read fast_thresh param");
+    }
+    thresh = params_.fast_thresh;
+    if (!ros::param::get("fato/iterations_cam", params_.iterations_m_real)) {
+      throw std::runtime_error("cannot read iterations cam param");
+    }
+    if (!ros::param::get("fato/iterations_synth", params_.iterations_m_synth)) {
+      throw std::runtime_error("cannot read iterations real param");
     }
 
     
 
-    //cam_info_manager_ = camera_info_manager(nh);
     cam_info_manager_.loadCameraInfo(camera_info_file);
 
     const sensor_msgs::CameraInfo& camera_info_msg = cam_info_manager_.getCameraInfo();
@@ -205,8 +262,7 @@ void TrackerModelVX::loadParameters(ros::NodeHandle &nh)
     params_.descriptors_file = model_name;
     params_.model_file = obj_file;
 
-    cout << "camera parameters loaded!" << endl;
-    cout << camera_matrix_ << endl;
+    cout << "tracker parameters loaded!" << endl;
 }
 
 void TrackerModelVX::initRGBSynch() {
@@ -244,7 +300,7 @@ void TrackerModelVX::rgbCallback(
 
   Mat rgb;
   readImage(rgb_msg, rgb);
-  cvtColor(rgb, rgb_image_, CV_GRAY2BGR);
+  cvtColor(rgb, rgb_image_, CV_RGB2BGR);
   img_updated_ = true;
 }
 
@@ -252,7 +308,7 @@ void TrackerModelVX::rgbCallbackNoInfo(const sensor_msgs::ImageConstPtr &rgb_msg
 {
     Mat rgb;
     readImage(rgb_msg, rgb);
-    cvtColor(rgb, rgb_image_, CV_GRAY2BGR);
+    cvtColor(rgb, rgb_image_, CV_RGB2BGR);
     img_updated_ = true;
 }
 
@@ -297,7 +353,7 @@ void TrackerModelVX::run() {
   ros::Rate r(100);
 
   bool camera_is_set = false;
-  bool background_learned = false;
+ 
 
   Mat flow_output;
 
@@ -319,7 +375,7 @@ void TrackerModelVX::run() {
   Mat cam(3, 3, CV_64FC1);
 
   // set to true to run concurrent threads
-  params_.parallel = false;
+  params_.parallel = true;
 
   while (ros::ok()) {
 
@@ -357,6 +413,8 @@ void TrackerModelVX::run() {
         vx_tracker_ =
             unique_ptr<TrackerVX>(new TrackerVX(params_, std::move(derived)));
 
+        cout << "Tracker initialized!" << endl;
+
         camera_is_set = true;
       }
 
@@ -375,6 +433,10 @@ void TrackerModelVX::run() {
           chrono::duration_cast<chrono::microseconds>(end - begin).count();
 
       const Target &target = vx_tracker_->getTarget();
+
+      Pose p = target.weighted_pose;
+
+      glm::mat4 pose_glm = p.toGL();
 
       flow_output = rgb_image_.clone();
 
@@ -409,6 +471,10 @@ void TrackerModelVX::run() {
       }
 
       vx_tracker_->printProfile();
+
+
+      //imshow("depth buffer", out_depth);
+      //waitKey(1);
 
       float total = target.real_pts_ + target.synth_pts_;
       float ratio = target.real_pts_ / total;
@@ -477,9 +543,9 @@ void TrackerModelVX::run() {
         cv_rend.encoding = sensor_msgs::image_encodings::MONO8;
         render_publisher_.publish(cv_rend.toImageMsg());
 
-        /*cv_flow.image = flow_output;
+        cv_flow.image = flow_output;
         cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
-        flow_publisher_.publish(cv_flow.toImageMsg());*/
+        flow_publisher_.publish(cv_flow.toImageMsg());
 
         //video_writer.write(flow_output);
 
@@ -504,7 +570,6 @@ void TrackerModelVX::run() {
 
 int main(int argc, char *argv[]) {
   ROS_INFO("Starting tracker input");
-  
   ros::init(argc, argv, "fato_tracker_model_node");
 
   fato::TrackerModelVX manager;

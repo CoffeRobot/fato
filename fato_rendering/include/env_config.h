@@ -1,5 +1,5 @@
 /*****************************************************************************/
-/*  Copyright (c) 2015, Karl Pauwels                                         */
+/*  Copyright (c) 2016, Alessandro Pieropan                                  */
 /*  All rights reserved.                                                     */
 /*                                                                           */
 /*  Redistribution and use in source and binary forms, with or without       */
@@ -38,4 +38,5 @@ namespace render {
 
 std::string get_distro();
 std::string get_ogre_plugin_path();
+std::string get_resources_path();
 }
