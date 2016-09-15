@@ -103,6 +103,10 @@ class TrackerVX {
     vx_uint32 fast_type;
     vx_uint32 fast_thresh;
 
+    // parameters used by the m-estimators
+    int iterations_m_real;
+    int iterations_m_synth;
+
     Params();
   };
 
@@ -118,6 +122,10 @@ class TrackerVX {
     float render_time;
     float synth_time;
     float synth_time_vx;
+    float synth_graph;
+    float synth_points;
+    float synth_depth;
+    float synth_estimator;
     float cam_flow_time;
     float active_transf_time;
     float corner_time;
@@ -137,6 +145,10 @@ class TrackerVX {
           track_time(0),
           synth_time(0),
           synth_time_vx(0),
+          synth_graph(0),
+          synth_points(0),
+          synth_depth(0),
+          synth_estimator(0),
           corner_time(0),
           m_est_time(0),
           depth_to_host_time(0),

@@ -1,0 +1,23 @@
+# matcher and tracker should run concurrently
+fato/parallel: true
+# parameters used by visionworks optical flow
+fato/pyr_levels: 3
+fato/lk_num_iters: 5
+fato/lk_win_size: 21
+fato/lk_epsilon: 0.01
+# used to discard backward/forward otliers, squared distance in pixel
+fato/flow_threshold: 25.0
+# corner detector by visionworks
+fato/array_capacity: 200
+fato/detector_cell_size: 7
+# if set to false, fast corner is used instead
+fato/use_harris: false
+# harris params
+fato/harris_k: 0.04
+fato/harris_thresh: 100.0
+# fast params
+fato/fast_type: 9
+fato/fast_thresh: 7
+# m-estimator params
+fato/iterations_cam: 10
+fato/iterations_synth: 10
