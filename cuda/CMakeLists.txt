@@ -41,27 +41,27 @@ pkg_check_modules(GLEW REQUIRED glew)
 
 
 # OGRE SETUP DEFINED BY KARL
-pkg_check_modules(OGRE_OV OGRE OGRE-Overlay)
-# Old versions of OGRE (pre 1.9) included OGRE-Overlay in the main package
-# (i.e. there was no OGRE-Overlay component).  So if the above
-# pkg_check_modules() failed, try looking for just OGRE.
-if(NOT OGRE_OV_FOUND)
-  pkg_check_modules(OGRE_OV REQUIRED OGRE)
-endif(NOT OGRE_OV_FOUND)
-## Find OGRE Plugin path (not necessarily platform-independent, I guess)
-execute_process(COMMAND
-  pkg-config --variable=plugindir OGRE
-  OUTPUT_VARIABLE OGRE_PLUGIN_PATH
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
+#pkg_check_modules(OGRE_OV OGRE OGRE-Overlay)
+## Old versions of OGRE (pre 1.9) included OGRE-Overlay in the main package
+## (i.e. there was no OGRE-Overlay component).  So if the above
+## pkg_check_modules() failed, try looking for just OGRE.
+#if(NOT OGRE_OV_FOUND)
+#  pkg_check_modules(OGRE_OV REQUIRED OGRE)
+#endif(NOT OGRE_OV_FOUND)
+### Find OGRE Plugin path (not necessarily platform-independent, I guess)
+#execute_process(COMMAND
+#  pkg-config --variable=plugindir OGRE
+#  OUTPUT_VARIABLE OGRE_PLUGIN_PATH
+#  OUTPUT_STRIP_TRAILING_WHITESPACE
+#  )
 
 
-# Build the version number and other build-time constants into the
-# source for access at run-time.
-set(ENV_CONFIG_FILE ${CMAKE_CURRENT_BINARY_DIR}/env_config.cpp)
-#set(RVIZ_VERSION ${rviz_VERSION})
-#message("making version ${RVIZ_VERSION}.")
-set(ROS_DISTRO $ENV{ROS_DISTRO})
+## Build the version number and other build-time constants into the
+## source for access at run-time.
+#set(ENV_CONFIG_FILE ${CMAKE_CURRENT_BINARY_DIR}/env_config.cpp)
+##set(RVIZ_VERSION ${rviz_VERSION})
+##message("making version ${RVIZ_VERSION}.")
+#set(ROS_DISTRO $ENV{ROS_DISTRO})
 
 
 # find absolute path of ogre libraries.
@@ -71,28 +71,28 @@ set(ROS_DISTRO $ENV{ROS_DISTRO})
 # or when 2 versions of Ogre are installed.  Using absolute paths ensures that
 # components that link against Ogre (rviz and any packages depending on rviz)
 # all find the same Ogre shared library.
-if(NOT DEFINED OGRE_OV_LIBRARIES_ABS)
-  unset(OGRE_OV_LIBRARIES_ABS_TMP)
-  foreach(_lib ${OGRE_OV_LIBRARIES})
-    set(OGRE_OV_LIB_TAG "OGRE_OV_RVIZ_LIB_${_lib}")
+#if(NOT DEFINED OGRE_OV_LIBRARIES_ABS)
+#  unset(OGRE_OV_LIBRARIES_ABS_TMP)
+#  foreach(_lib ${OGRE_OV_LIBRARIES})
+#    set(OGRE_OV_LIB_TAG "OGRE_OV_RVIZ_LIB_${_lib}")
 
-    find_library(${OGRE_OV_LIB_TAG}
-            NAMES ${_lib}
-            HINTS ${OGRE_OV_LIBRARY_DIRS}
-            PATHS ${OGRE_OV_LIBRARY_DIRS}
-    )
+#    find_library(${OGRE_OV_LIB_TAG}
+#            NAMES ${_lib}
+#            HINTS ${OGRE_OV_LIBRARY_DIRS}
+#            PATHS ${OGRE_OV_LIBRARY_DIRS}
+#    )
 
-    set(OGRE_OV_LIBRARIES_ABS_TMP ${OGRE_OV_LIBRARIES_ABS_TMP} ${${OGRE_OV_LIB_TAG}})
-  endforeach(_lib)
+#    set(OGRE_OV_LIBRARIES_ABS_TMP ${OGRE_OV_LIBRARIES_ABS_TMP} ${${OGRE_OV_LIB_TAG}})
+#  endforeach(_lib)
 
-  set(OGRE_OV_LIBRARIES_ABS ${OGRE_OV_LIBRARIES_ABS_TMP}
-        CACHE FILEPATH "Pathname of library ${_lib}")
-endif(NOT DEFINED OGRE_OV_LIBRARIES_ABS)
-# add gl rendersystem
-list(APPEND OGRE_OV_LIBRARIES_ABS
-  ${OGRE_PLUGIN_PATH}/RenderSystem_GL.so
-)
-message(STATUS "OGRE_OV_LIBRARIES_ABS=${OGRE_OV_LIBRARIES_ABS}")
+#  set(OGRE_OV_LIBRARIES_ABS ${OGRE_OV_LIBRARIES_ABS_TMP}
+#        CACHE FILEPATH "Pathname of library ${_lib}")
+#endif(NOT DEFINED OGRE_OV_LIBRARIES_ABS)
+## add gl rendersystem
+#list(APPEND OGRE_OV_LIBRARIES_ABS
+#  ${OGRE_PLUGIN_PATH}/RenderSystem_GL.so
+#)
+#message(STATUS "OGRE_OV_LIBRARIES_ABS=${OGRE_OV_LIBRARIES_ABS}")
 
 # OGRE SETUP
 
@@ -124,7 +124,7 @@ endif()
 catkin_package(
   INCLUDE_DIRS
     include
-    ${OGRE_OV_INCLUDE_DIRS}
+    #${OGRE_OV_INCLUDE_DIRS}
     ${CUDA_INCLUDE_DIRS}
     ${VisionWorks_INCLUDE_DIRS}
   DEPENDS
@@ -133,7 +133,7 @@ catkin_package(
     libglew-dev
   LIBRARIES
     ${PROJECT_NAME}
-    ${OGRE_OV_LIBRARIES_ABS}
+    #${OGRE_OV_LIBRARIES_ABS}
   CATKIN_DEPENDS
 )
 
@@ -152,7 +152,7 @@ include_directories(include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIR}
-  ${OGRE_OV_INCLUDE_DIRS}
+  #${OGRE_OV_INCLUDE_DIRS}
   ${urdfdom_INCLUDE_DIRS}
   ${VisionWorks_INCLUDE_DIRS}
 )
@@ -166,7 +166,7 @@ cuda_add_library(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBS}
   ${catkin_LIBRARIES}
-  ${OGRE_OV_LIBRARIES_ABS}
+  #${OGRE_OV_LIBRARIES_ABS}
   ${CUDA_LIBRARIES}
   ${urdfdom_LIBRARIES}
   ${VisionWorks_LIBRARIES}

@@ -46,7 +46,7 @@ OgreMultiRenderTarget::OgreMultiRenderTarget(std::string name, int width,
       scene_manager_{ scene_manager } {
   camera_ = scene_manager_->createCamera(name_);
 
-Ogre::Root::getSingleton().getRenderSystem()->getMutableCapabilities()->unsetCapability(Ogre::RSC_SEPARATE_SHADER_OBJECTS);
+//Ogre::Root::getSingleton().getRenderSystem()->getMutableCapabilities()->unsetCapability(Ogre::RSC_SEPARATE_SHADER_OBJECTS);
 
   multi_render_target_ =
       Ogre::Root::getSingleton().getRenderSystem()->createMultiRenderTarget(
@@ -62,9 +62,13 @@ Ogre::Root::getSingleton().getRenderSystem()->getMutableCapabilities()->unsetCap
             Ogre::TEX_TYPE_2D, width, height, 0, format, Ogre::TU_RENDERTARGET);
 
     // Register for CUDA interop
-    GLuint id = static_cast<Ogre::GLTexturePtr>(rtt_texture)->getGLID();
-    GLenum target =
-        static_cast<Ogre::GLTexturePtr>(rtt_texture)->getGLTextureTarget();
+    Ogre::GLTexturePtr gl_tex = rtt_texture.staticCast<Ogre::GLTexture>();
+
+    GLuint id = gl_tex->getGLID();
+    GLenum target = gl_tex->getGLTextureTarget();
+    //GLuint id = static_cast<Ogre::GLTexturePtr>(rtt_texture)->getGLID();
+//    GLenum target =
+//        static_cast<Ogre::GLTexturePtr>(rtt_texture)->getGLTextureTarget();
 
     //    std::cout << "before register: " <<
     // cudaGetErrorString(cudaGetLastError()) << std::endl;

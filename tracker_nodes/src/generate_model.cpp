@@ -39,6 +39,7 @@
 #include <opencv2/opencv.hpp>
 #include <stdexcept>
 #include <limits>
+#include <fstream>
 
 // TOFIX: find why qtcreator cannot pickup header files
 //#include <multiple_rigid_models_ogre.h>
@@ -184,6 +185,7 @@ int main(int argc, char **argv) {
 
   // Create dummy GL context before cudaGL init
   render::WindowLessGLContext dummy(10, 10);
+
 
   // CUDA Init
   int device_id = 0;
@@ -424,9 +426,27 @@ int main(int argc, char **argv) {
     }
 
     cv::imshow(window_name, img);
+<<<<<<< HEAD
     //writer.write(img);
     //cv::imwrite("/home/niklas/dev/src/ros_ws/hydra.pgm",img);
     //cv::waitKey(0);
+=======
+
+    std::ofstream file("/home/alessandro/Downloads/img.txt");
+
+    for(int i = 0; i < img.rows; ++i)
+    {
+      for(int j = 0; j < img.cols; ++j)
+      {
+        cv::Vec3b s = img.at<cv::Vec3b>(i,j);
+        file << "[" << (int)s[0] << "," << (int)s[1] << "," << (int)s[2] << "] ";
+      }
+      file << "\n";
+    }
+
+    writer.write(img);
+    cv::waitKey(0);
+>>>>>>> 98b1a1f77ba8075314f488272f782b58a5abb394
   }
 
   std::cout << "Keypoints after response filtering: " << valid_point_count
