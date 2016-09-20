@@ -18,6 +18,14 @@ if(TRACKER_WITH_CUSTOM_OPENCV)
 
 endif()
 
+set(AKAZECU_INCLUDE_DIRS "/home/alessandro/projects/cuda_akaze/src"
+  "/home/alessandro/projects/cuda_akaze/src/lib")
+set(AKAZECU_LIBRARIES "/home/alessandro/projects/cuda_akaze/build/lib/libAKAZE.a"
+  "/home/alessandro/projects/cuda_akaze/build/lib/libAKAZE_CUDA.a" )
+
+
+message("PORCO DIO AKAZE " ${AKAZECU_INCLUDE_DIRS})
+message("DIO CANE AKAZE" ${AKAZECU_LIBRARIES})
 
 if(TRACKER_VERBOSE_LOGGING)
   add_definitions(-DVERBOSE_LOGGING)
@@ -97,6 +105,7 @@ set(include_dirs include
              ${catkin_INCLUDE_DIRS}
              ${EIGEN_INCLUDE_DIR}
              ${Boost_INCLUDE_DIRS}
+             ${AKAZECU_INCLUDE_DIRS}
 )
 
 if(TRACKER_WITH_GPU)
@@ -106,6 +115,7 @@ if(TRACKER_WITH_GPU)
     ${EIGEN_INCLUDE_DIR}
     ${Boost_INCLUDE_DIRS}
     ${CUDA_INCLUDE_DIRS}
+    ${AKAZECU_INCLUDE_DIRS}
   )
 elseif(VisionWorks_FOUND)
   include_directories(include
@@ -115,6 +125,7 @@ elseif(VisionWorks_FOUND)
     ${Boost_INCLUDE_DIRS}
     ${VisionWorks_INCLUDE_DIRS}
     ${CUDA_INCLUDE_DIRS}
+    ${AKAZECU_INCLUDE_DIRS}
   )
 else()
   include_directories(include
@@ -122,6 +133,7 @@ else()
     ${OpenCV_INCLUDE_DIRS}
     ${EIGEN_INCLUDE_DIR}
     ${Boost_INCLUDE_DIRS}
+    ${AKAZECU_INCLUDE_DIRS}
   )
 endif()
 
@@ -186,7 +198,8 @@ add_executable(matching_test
 target_link_libraries(matching_test
   ${catkin_LIBRARIES}
   ${OPENCV_LIBS}
-  ${Boost_LIBRARIES})
+  ${Boost_LIBRARIES}
+ ${AKAZECU_LIBRARIES})
 
 if(VisionWorks_FOUND)
   add_executable(vw_integration

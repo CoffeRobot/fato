@@ -622,7 +622,7 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
     // cout << "near plane " << near_plane << " far_plane " << far_plane <<
     // endl;
     vector<float> z_buffer, z_buffer2;
-    renderer.downloadDepthBufferCuda(z_buffer);
+    //renderer.downloadDepthBufferCuda(z_buffer);
     renderer.downloadDepthBuffer(z_buffer2);
 
     float average_depth = 0;
@@ -638,12 +638,13 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
       for (auto j = 0; j < width; ++j) {
         int id = j + i * width;
 
-        auto val = z_buffer[id];
+        //auto val = z_buffer[id];
         auto val2 = z_buffer2[id];
-        ss1 << val << "[" << val2 << "] " ;
+        //ss1 << val << "[" << val2 << "] " ;
+        ss1 << val2 << " ";
 
-        if(val != val2)
-            count ++;
+//        if(val != val2)
+//            count ++;
       }
       ss1 << "\n";
     }
@@ -707,7 +708,7 @@ void useNewRenderer(const ParamsBench &params, RenderData &data) {
     //imshow("debug opencv_cuda", out2);
 
 
-    auto c = waitKey(0);
+    auto c = waitKey(1);
     //    if (c == 'q') break;
 
     frame_count++;
@@ -737,8 +738,8 @@ void trackGeneratedData(RenderData &data,
 
   vector<Mat> &images = data.images;
 
-  std::unique_ptr<fato::FeatureMatcher> matcher =
-      std::unique_ptr<fato::BriskMatcher>(new fato::BriskMatcher);
+  std::unique_ptr<fato::AkazeMatcher> matcher =
+      std::unique_ptr<fato::AkazeMatcher>(new fato::AkazeMatcher);
   fato::TrackerVX vx_tracker(tracker_params, std::move(matcher));
 
   int count = 0;
@@ -808,7 +809,7 @@ void trackGeneratedData(RenderData &data,
     count++;
     if(rendered_pose.cols > 0)
         imshow("debug tracking", rendered_pose);
-    auto c = waitKey(1);
+    auto c = waitKey(0);
     if (c == 'q') break;
   }
 }

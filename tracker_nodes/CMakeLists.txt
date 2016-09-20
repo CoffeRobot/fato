@@ -16,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 
-find_package(OpenCV 2.4.13 REQUIRED)
+find_package(OpenCV 2.4.8 REQUIRED)
 find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 

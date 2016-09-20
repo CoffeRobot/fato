@@ -187,7 +187,6 @@ int main(int argc, char **argv) {
   // Create dummy GL context before cudaGL init
   render::WindowLessGLContext dummy(10, 10);
 
-
   // CUDA Init
   int device_id = 0;
   fato::initializeCUDARuntime(device_id);
@@ -218,8 +217,8 @@ int main(int argc, char **argv) {
     throw std::runtime_error("Cannot read the parameters required");
   }
   int descriptor_type = 0;
-  if (!ros::param::get("fato/model/descriptor_type", descriptor_type)) {
-      ROS_INFO("No descriptor type defined");
+  if (!ros::param::get("fato/descriptor_type", descriptor_type)) {
+    ROS_INFO("No descriptor type defined");
   }
 
   // storage
@@ -251,14 +250,18 @@ int main(int argc, char **argv) {
 
   std::unique_ptr<fato::FeatureMatcher> matcher;
   switch (descriptor_type) {
-      case 0:
-	  matcher.reset(new fato::BriskMatcher);
-	  break;
-      case 1:
-	  matcher.reset(new fato::AkazeMatcher);
-	  break;
-      default:
-	  break;
+    case 0:
+      matcher.reset(new fato::BriskMatcher);
+      break;
+    case 1:
+    {
+      matcher.reset(new fato::AkazeMatcher);
+      fato::AkazeMatcher* tmp_p = dynamic_cast<fato::AkazeMatcher*>(matcher.get());
+      tmp_p->init(width,height);
+  }
+      break;
+    default:
+      break;
   }
 
   // object vertices
@@ -273,7 +276,6 @@ int main(int argc, char **argv) {
       obj_model.getBoundingBox().data(), 3, 8);
 
   bounding_box = bounding_box_f.cast<double>();
-
 
   // centralizing translation
   auto mn = vertices.rowwise().minCoeff();
@@ -325,9 +327,9 @@ int main(int argc, char **argv) {
     cv::Mat img_gray;
     cv::cvtColor(img_rgba, img_gray, CV_RGBA2GRAY);
 
-    matcher.extractTarget(img_gray);
-    std::vector<cv::KeyPoint> &points = matcher.getTargetPoints();
-    cv::Mat &dscs = matcher.getTargetDescriptors();
+    matcher->extractTarget(img_gray);
+    std::vector<cv::KeyPoint> &points = matcher->getTargetPoints();
+    cv::Mat &dscs = matcher->getTargetDescriptors();
 
     img_descriptors.push_back(dscs);
 
@@ -372,11 +374,11 @@ int main(int argc, char **argv) {
 
     rendered_imgs.push_back(img_keys);
     img_keypoints.push_back(points);
-
   }
 
   std::cout << "min response " << min_response << " max reponse "
             << max_response << std::endl;
+
 
   int valid_point_count = 0;
   int invalid_points = 0;
@@ -390,13 +392,17 @@ int main(int argc, char **argv) {
     cv::Mat &descriptors = img_descriptors.at(i);
     std::vector<float> &points = projected_points.at(i);
 
+
     for (auto j = 0; j < key_points.size(); ++j) {
       cv::KeyPoint &kp = key_points.at(j);
 
       bool is_valid = true;
 
-      if (kp.response < response_thresh) is_valid = false;
-      else std::cout << "response: " << kp.response << "(" << response_thresh << ")" << std::endl;
+      if (kp.response < response_thresh)
+        is_valid = false;
+      else
+        std::cout << "response: " << kp.response << "(" << response_thresh
+                  << ")" << std::endl;
       int id = 3 * j;
 
       if (fato::is_nan(points.at(id)) || fato::is_nan(points.at(id + 1)) ||
@@ -415,32 +421,33 @@ int main(int argc, char **argv) {
         valid_point_count++;
       }
 
+
+
       // drawing stuff kept separated from saving stuff
       if (is_valid) {
-	float scaled_response = (kp.response - min_response) /
+        float scaled_response = (kp.response - min_response) /
                                 static_cast<float>(max_response - min_response);
         uchar b = 255 * (scaled_response);
         uchar r = 255 * (1 - scaled_response);
         cv::Scalar color(b, 0, r);
-        //cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), kp.size, color, 1, 8);
-        //cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 1, color, -1, 8);
+        cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), kp.size, color, 1, 8);
+        cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 1, color, -1, 8);
       } else {
-	  //cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 3, cv::Scalar(0, 255, 0),
-	  //       -1, 8);
+        // cv::circle(img, cv::Point2d(kp.pt.x, kp.pt.y), 3, cv::Scalar(0, 255,
+        // 0),
+        //       -1, 8);
       }
     }
 
     cv::imshow(window_name, img);
 
-
     std::ofstream file("/home/alessandro/Downloads/img.txt");
 
-    for(int i = 0; i < img.rows; ++i)
-    {
-      for(int j = 0; j < img.cols; ++j)
-      {
-        cv::Vec3b s = img.at<cv::Vec3b>(i,j);
-        file << "[" << (int)s[0] << "," << (int)s[1] << "," << (int)s[2] << "] ";
+    for (int i = 0; i < img.rows; ++i) {
+      for (int j = 0; j < img.cols; ++j) {
+        cv::Vec3b s = img.at<cv::Vec3b>(i, j);
+        file << "[" << (int)s[0] << "," << (int)s[1] << "," << (int)s[2]
+             << "] ";
       }
       file << "\n";
     }
@@ -455,6 +462,7 @@ int main(int argc, char **argv) {
             << std::endl;
   std::cout << "Size of filtered descriptors "
             << all_filtered_descriptors.size() << std::endl;
+  std::cout << "\t size: " << valid_point_count << " " << dsc_size << std::endl;
   std::cout << "Size of filtered points " << all_filtered_keypoints.size()
             << std::endl;
 
@@ -466,7 +474,6 @@ int main(int argc, char **argv) {
                       true);
   out_file.writeArray("positions", all_filtered_keypoints, positions_size,
                       true);
-
 
   return EXIT_SUCCESS;
 }

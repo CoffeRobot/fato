@@ -1,5 +1,9 @@
 # matcher and tracker should run concurrently
-fato/parallel: true
+fato/parallel: false
+# used to debug rendering
+fato/glwindow: false
+# used for matching 0 brisk, 1 cuda akaze
+fato/descriptor_type: 1
 # parameters used by visionworks optical flow
 fato/pyr_levels: 3
 fato/lk_num_iters: 5

@@ -156,7 +156,8 @@ void TrackerVX::initSynthTracking(const string& object_model, double fx,
       img_width, img_height, fx, fy, cx, cy, 0.01, 100.0));
   renderer_->initRenderContext(
       640, 480, render::get_resources_path() + "shaders/framebuffer.vs",
-      render::get_resources_path() + "shaders/framebuffer.frag");
+      render::get_resources_path() + "shaders/framebuffer.frag",
+              params_.glwindow);
   renderer_->addModel(object_model,
                       render::get_resources_path() + "shaders/model.vs",
                       render::get_resources_path() + "shaders/model.frag");
@@ -610,14 +611,14 @@ void TrackerVX::detectParallel() {
   /*************************************************************************************/
   vector<vector<DMatch>> matches;
   auto begin = chrono::high_resolution_clock::now();
-  pair<float, float> times =
-      feature_detector_->matchP(next_gray_, keypoints, descriptors, matches);
+  //pair<float, float> times =
+      feature_detector_->match(next_gray_, keypoints, descriptors, matches);
   // feature_detector_->match(next_gray_, keypoints, descriptors, matches);
   auto end = chrono::high_resolution_clock::now();
   profile_.feature_extraction =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-  profile_.feature_detection = times.first;
-  profile_.feature_matching = times.second;
+  //profile_.feature_detection = times.first;
+  //profile_.feature_matching = times.second;
   /*************************************************************************************/
   /*                       SYNCRONIZATION */
   /*************************************************************************************/
@@ -1169,8 +1170,32 @@ cv::Mat TrackerVX::downloadImage(vx_image image) {
 
 void TrackerVX::printProfile() { cout << profile_.str() << endl; }
 
+
+cv::Mat TrackerVX::getDepthBuffer() {
+  cv::Mat out(image_h_, image_w_, CV_8UC1);
+
+  if (host_rendered_depth_.size() == 0) return out;
+
+  for (auto i = 0; i < image_h_; ++i) {
+    for (auto j = 0; j < image_w_; ++j) {
+      auto id = j + (image_h_ - 1 - i) * image_w_;
+      float val = -1 * host_rendered_depth_[id];
+      val = (val - 0.01) / (100.0 - 0.01);
+
+      out.at<uchar>(i, j) = uchar(255.0 * val);
+    }
+  }
+
+  return out;
+}
+
+
+/*******************************************************************************/
+/*                         ADDITIONAL CLASSES                                  */
+/*******************************************************************************/
 TrackerVX::Params::Params() {
   parallel = false;
+  glwindow = false;
 
   image_width = 0;
   image_height = 0;
@@ -1212,23 +1237,7 @@ TrackerVX::Params::Params() {
   iterations_m_synth = 10;
 }
 
-cv::Mat TrackerVX::getDepthBuffer() {
-  cv::Mat out(image_h_, image_w_, CV_8UC1);
 
-  if (host_rendered_depth_.size() == 0) return out;
-
-  for (auto i = 0; i < image_h_; ++i) {
-    for (auto j = 0; j < image_w_; ++j) {
-      auto id = j + (image_h_ - 1 - i) * image_w_;
-      float val = -1 * host_rendered_depth_[id];
-      val = (val - 0.01) / (100.0 - 0.01);
-
-      out.at<uchar>(i, j) = uchar(255.0 * val);
-    }
-  }
-
-  return out;
-}
 
 string TrackerVX::Profile::str() {
   stringstream ss;

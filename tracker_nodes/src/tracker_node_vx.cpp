@@ -114,23 +114,17 @@ void downloadRenderedImg(pose::MultipleRigidModelsOgre &model_ogre,
   d_texture.copyTo(h_texture);
 }
 
-
-void blendRendered(const cv::Mat& rendered, cv::Mat& out)
-{
-    for(auto i = 0; i < rendered.rows; ++i)
-    {
-        for(auto j = 0; j < rendered.cols; ++j)
-        {
-            const uchar& px = rendered.at<uchar>(i,j);
-            Vec3b& px_out = out.at<Vec3b>(i,j);
-            if(px != 0)
-            {
-                px_out[0] -= px;
-                if(px_out[0] < 0)
-                    px_out[0] = 0;
-            }
-        }
+void blendRendered(const cv::Mat &rendered, cv::Mat &out) {
+  for (auto i = 0; i < rendered.rows; ++i) {
+    for (auto j = 0; j < rendered.cols; ++j) {
+      const uchar &px = rendered.at<uchar>(i, j);
+      Vec3b &px_out = out.at<Vec3b>(i, j);
+      if (px != 0) {
+        px_out[0] -= px;
+        if (px_out[0] < 0) px_out[0] = 0;
+      }
     }
+  }
 }
 
 TrackerModelVX::TrackerModelVX()
@@ -147,9 +141,7 @@ TrackerModelVX::TrackerModelVX()
       spinner_(0),
       camera_matrix_initialized(false),
       params_(),
-      cam_info_manager_(nh_)
-{
-
+      cam_info_manager_(nh_) {
   cvStartWindowThread();
 
   publisher_ = nh_.advertise<sensor_msgs::Image>("fato_tracker/output_pnp", 1);
@@ -163,7 +155,6 @@ TrackerModelVX::TrackerModelVX()
   service_server_ = nh_.advertiseService(
       "tracker_service", &TrackerModelVX::serviceCallback, this);
 
-
   loadParameters(nh_);
 
   initRGB();
@@ -171,98 +162,100 @@ TrackerModelVX::TrackerModelVX()
   run();
 }
 
-void TrackerModelVX::loadParameters(ros::NodeHandle &nh)
-{
-    string camera_info_file,model_name, obj_file;
-    if (!ros::param::get("fato/camera_info_url", camera_info_file)) {
-      throw std::runtime_error("cannot read camera infor url");
-    }
+void TrackerModelVX::loadParameters(ros::NodeHandle &nh) {
+  string camera_info_file, model_name, obj_file;
+  if (!ros::param::get("fato/camera_info_url", camera_info_file)) {
+    throw std::runtime_error("cannot read camera infor url");
+  }
 
-    if (!ros::param::get("fato/model/h5_file", model_name)) {
-      throw std::runtime_error("cannot read h5 file param");
-    }
+  if (!ros::param::get("fato/model/h5_file", model_name)) {
+    throw std::runtime_error("cannot read h5 file param");
+  }
 
-    if (!ros::param::get("fato/model/obj_file", obj_file)) {
-      throw std::runtime_error("cannot read obj file param");
-    }
-if (!ros::param::get("fato/model/descriptor_type", descriptor_type_)) {
-	descriptor_type_ = 0;
-	ROS_INFO("No descriptor type defined");
-    }
-    if (!ros::param::get("fato/parallel", params_.parallel)) {
-      throw std::runtime_error("cannot read parallel param");
-    }
-    int pyr_level;
-    if (!ros::param::get("fato/pyr_levels", pyr_level)) {
-      throw std::runtime_error("cannot read pyr_levels param");
-    }
-    params_.pyr_levels = pyr_level;
-    int lk_iters;
-    if (!ros::param::get("fato/lk_num_iters",lk_iters )) {
-      throw std::runtime_error("cannot read lk_num_iters param");
-    }
-    params_.lk_num_iters = lk_iters;
-    int win_size;
-    if (!ros::param::get("fato/lk_win_size",win_size)) {
-      throw std::runtime_error("cannot read lk_win_size param");
-    }
-    win_size =  params_.lk_win_size;
-    if (!ros::param::get("fato/lk_epsilon", params_.lk_epsilon)) {
-      throw std::runtime_error("cannot read lk_epsilon param");
-    }
-    if (!ros::param::get("fato/flow_threshold", params_.flow_threshold)) {
-      throw std::runtime_error("cannot read flow_threshold param");
-    }
-    int capacity;
-    if (!ros::param::get("fato/array_capacity", capacity)) {
-      throw std::runtime_error("cannot read array_capacity param");
-    }
-    capacity = params_.array_capacity;
-    int cell_size;
-    if (!ros::param::get("fato/detector_cell_size", cell_size)) {
-      throw std::runtime_error("cannot read detector_cell_size param");
-    }
-    params_.detector_cell_size = cell_size;
-    if (!ros::param::get("fato/use_harris", params_.use_harris_detector)) {
-      throw std::runtime_error("cannot read use_harris param");
-    }
-    if (!ros::param::get("fato/harris_k", params_.harris_k)) {
-      throw std::runtime_error("cannot read harris_k param");
-    }
-    if (!ros::param::get("fato/harris_thresh", params_.harris_thresh)) {
-      throw std::runtime_error("cannot read harris_thresh param");
-    }
-    int fast_type;
-    if (!ros::param::get("fato/fast_type", fast_type)) {
-      throw std::runtime_error("cannot read fast_type param");
-    }
-    fast_type = params_.fast_type;
-    int thresh;
-    if (!ros::param::get("fato/fast_thresh", thresh)) {
-      throw std::runtime_error("cannot read fast_thresh param");
-    }
-    thresh = params_.fast_thresh;
-    if (!ros::param::get("fato/iterations_cam", params_.iterations_m_real)) {
-      throw std::runtime_error("cannot read iterations cam param");
-    }
-    if (!ros::param::get("fato/iterations_synth", params_.iterations_m_synth)) {
-      throw std::runtime_error("cannot read iterations real param");
-    }
+  if (!ros::param::get("fato/model/obj_file", obj_file)) {
+    throw std::runtime_error("cannot read obj file param");
+  }
+  if (!ros::param::get("fato/descriptor_type", descriptor_type_)) {
+    descriptor_type_ = 0;
+    throw std::runtime_error("cannot read descriptor type param");
+  }
+  if (!ros::param::get("fato/parallel", params_.parallel)) {
+    throw std::runtime_error("cannot read parallel param");
+  }
+  int pyr_level;
+  if (!ros::param::get("fato/pyr_levels", pyr_level)) {
+    throw std::runtime_error("cannot read pyr_levels param");
+  }
+  params_.pyr_levels = pyr_level;
+  int lk_iters;
+  if (!ros::param::get("fato/lk_num_iters", lk_iters)) {
+    throw std::runtime_error("cannot read lk_num_iters param");
+  }
+  params_.lk_num_iters = lk_iters;
+  int win_size;
+  if (!ros::param::get("fato/lk_win_size", win_size)) {
+    throw std::runtime_error("cannot read lk_win_size param");
+  }
+  win_size = params_.lk_win_size;
+  if (!ros::param::get("fato/lk_epsilon", params_.lk_epsilon)) {
+    throw std::runtime_error("cannot read lk_epsilon param");
+  }
+  if (!ros::param::get("fato/flow_threshold", params_.flow_threshold)) {
+    throw std::runtime_error("cannot read flow_threshold param");
+  }
+  int capacity;
+  if (!ros::param::get("fato/array_capacity", capacity)) {
+    throw std::runtime_error("cannot read array_capacity param");
+  }
+  capacity = params_.array_capacity;
+  int cell_size;
+  if (!ros::param::get("fato/detector_cell_size", cell_size)) {
+    throw std::runtime_error("cannot read detector_cell_size param");
+  }
+  params_.detector_cell_size = cell_size;
+  if (!ros::param::get("fato/use_harris", params_.use_harris_detector)) {
+    throw std::runtime_error("cannot read use_harris param");
+  }
+  if (!ros::param::get("fato/harris_k", params_.harris_k)) {
+    throw std::runtime_error("cannot read harris_k param");
+  }
+  if (!ros::param::get("fato/harris_thresh", params_.harris_thresh)) {
+    throw std::runtime_error("cannot read harris_thresh param");
+  }
+  int fast_type;
+  if (!ros::param::get("fato/fast_type", fast_type)) {
+    throw std::runtime_error("cannot read fast_type param");
+  }
+  fast_type = params_.fast_type;
+  int thresh;
+  if (!ros::param::get("fato/fast_thresh", thresh)) {
+    throw std::runtime_error("cannot read fast_thresh param");
+  }
+  thresh = params_.fast_thresh;
+  if (!ros::param::get("fato/iterations_cam", params_.iterations_m_real)) {
+    throw std::runtime_error("cannot read iterations cam param");
+  }
+  if (!ros::param::get("fato/iterations_synth", params_.iterations_m_synth)) {
+    throw std::runtime_error("cannot read iterations real param");
+  }
+  if(!ros::param::get("fato/glwindow", params_.glwindow))
+  {
+      throw std::runtime_error("cannot read glwindow param");
+  }
 
-    
+  cam_info_manager_.loadCameraInfo(camera_info_file);
 
-    cam_info_manager_.loadCameraInfo(camera_info_file);
+  const sensor_msgs::CameraInfo &camera_info_msg =
+      cam_info_manager_.getCameraInfo();
 
-    const sensor_msgs::CameraInfo& camera_info_msg = cam_info_manager_.getCameraInfo();
+  camera_matrix_ =
+      cv::Mat(3, 4, CV_64F, (void *)camera_info_msg.P.data()).clone();
+  camera_matrix_initialized = true;
 
-    camera_matrix_ =
-        cv::Mat(3, 4, CV_64F, (void *)camera_info_msg.P.data()).clone();
-    camera_matrix_initialized = true;
+  params_.descriptors_file = model_name;
+  params_.model_file = obj_file;
 
-    params_.descriptors_file = model_name;
-    params_.model_file = obj_file;
-
-    cout << "tracker parameters loaded!" << endl;
+  cout << "tracker parameters loaded!" << endl;
 }
 
 void TrackerModelVX::initRGBSynch() {
@@ -279,14 +272,13 @@ void TrackerModelVX::initRGBSynch() {
       boost::bind(&TrackerModelVX::rgbCallback, this, _1, _2));
 }
 
-void TrackerModelVX::initRGB()
-{
-    rgb_it_.reset(new image_transport::ImageTransport(nh_));
+void TrackerModelVX::initRGB() {
+  rgb_it_.reset(new image_transport::ImageTransport(nh_));
 
-    sub_rgb_.subscribe(*rgb_it_, rgb_topic_, 1,
-                       image_transport::TransportHints("raw"));
-    sub_rgb_.registerCallback(
-                boost::bind(&TrackerModelVX::rgbCallbackNoInfo, this, _1));
+  sub_rgb_.subscribe(*rgb_it_, rgb_topic_, 1,
+                     image_transport::TransportHints("raw"));
+  sub_rgb_.registerCallback(
+      boost::bind(&TrackerModelVX::rgbCallbackNoInfo, this, _1));
 }
 
 void TrackerModelVX::rgbCallback(
@@ -304,12 +296,12 @@ void TrackerModelVX::rgbCallback(
   img_updated_ = true;
 }
 
-void TrackerModelVX::rgbCallbackNoInfo(const sensor_msgs::ImageConstPtr &rgb_msg)
-{
-    Mat rgb;
-    readImage(rgb_msg, rgb);
-    cvtColor(rgb, rgb_image_, CV_RGB2BGR);
-    img_updated_ = true;
+void TrackerModelVX::rgbCallbackNoInfo(
+    const sensor_msgs::ImageConstPtr &rgb_msg) {
+  Mat rgb;
+  readImage(rgb_msg, rgb);
+  cvtColor(rgb, rgb_image_, CV_RGB2BGR);
+  img_updated_ = true;
 }
 
 bool TrackerModelVX::serviceCallback(
@@ -334,26 +326,23 @@ void TrackerModelVX::rgbdCallback(
   ROS_INFO("Tracker2D: rgbd usupported");
 }
 
-
-
-
 void TrackerModelVX::run() {
   ROS_INFO("TrackerMB: init...");
 
   // Create dummy GL context before cudaGL init
-  render::WindowLessGLContext dummy(10, 10);
+  //render::WindowLessGLContext dummy(10, 10);
   // setup the engines
 
-//  ofstream file("/home/alessandro/debug/debug.txt");
-//  cv::VideoWriter video_writer("/home/alessandro/Downloads/pose_estimation.avi",
-//                               CV_FOURCC('D', 'I', 'V', 'X'), 30,
-//                               cv::Size(640, 480), true);
+  //  ofstream file("/home/alessandro/debug/debug.txt");
+  //  cv::VideoWriter
+  //  video_writer("/home/alessandro/Downloads/pose_estimation.avi",
+  //                               CV_FOURCC('D', 'I', 'V', 'X'), 30,
+  //                               cv::Size(640, 480), true);
   spinner_.start();
 
   ros::Rate r(100);
 
   bool camera_is_set = false;
- 
 
   Mat flow_output;
 
@@ -378,9 +367,8 @@ void TrackerModelVX::run() {
   params_.parallel = true;
 
   while (ros::ok()) {
-
     if (img_updated_) {
-	std::cout << "updated camera\n";
+      std::cout << "updated camera\n";
       if (!camera_matrix_initialized)
         continue;
       else if (camera_matrix_initialized && !camera_is_set) {
@@ -397,18 +385,20 @@ void TrackerModelVX::run() {
         params_.cx = cam.at<double>(0, 2);
         params_.cy = cam.at<double>(1, 2);
 
-
         std::unique_ptr<FeatureMatcher> derived;
-	switch (descriptor_type_) {
-	    case 0:
-		derived.reset(new BriskMatcher);
-		break;
-	    case 1:
-		derived.reset(new AkazeMatcher);
-		break;
-	    default:
-		break;
-	}
+        switch (descriptor_type_) {
+          case 0:
+            derived.reset(new BriskMatcher);
+            break;
+          case 1: {
+            derived.reset(new AkazeMatcher);
+            fato::AkazeMatcher *tmp_p =
+                dynamic_cast<fato::AkazeMatcher *>(derived.get());
+            tmp_p->init(params_.image_width, params_.image_height);
+          } break;
+          default:
+            break;
+        }
 
         vx_tracker_ =
             unique_ptr<TrackerVX>(new TrackerVX(params_, std::move(derived)));
@@ -419,13 +409,10 @@ void TrackerModelVX::run() {
       }
 
       auto begin = chrono::high_resolution_clock::now();
-      if(params_.parallel)
-      {
+      if (params_.parallel) {
         vx_tracker_->parNext(rgb_image_);
-      }
-      else
-      {
-          vx_tracker_->next(rgb_image_);
+      } else {
+        vx_tracker_->next(rgb_image_);
       }
       auto end = chrono::high_resolution_clock::now();
       frame_counter++;
@@ -458,10 +445,7 @@ void TrackerModelVX::run() {
           } else if (target.point_status_.at(id) == fato::KpStatus::PNP)
             color = Scalar(0, 255, 255);
 
-
           circle(flow_output, target.active_points.at(i), 1, color);
-
-          
 
           if (frame_counter > 100) {
             frame_counter = 0;
@@ -472,9 +456,8 @@ void TrackerModelVX::run() {
 
       vx_tracker_->printProfile();
 
-
-      //imshow("depth buffer", out_depth);
-      //waitKey(1);
+      // imshow("depth buffer", out_depth);
+      // waitKey(1);
 
       float total = target.real_pts_ + target.synth_pts_;
       float ratio = target.real_pts_ / total;
@@ -482,7 +465,8 @@ void TrackerModelVX::run() {
       pair<float, float> last_vals = target.target_history_.getLastVal();
       stringstream ss, ss1, ss2;
       ss << "average time: " << (average_time / frame_counter) / 1000.0;
-      ss << " cam pts " << target.real_pts_ << " synth " << target.synth_pts_ << " r " << ratio;
+      ss << " cam pts " << target.real_pts_ << " synth " << target.synth_pts_
+         << " r " << ratio;
       ss1 << "vel " << target.target_history_.getAvgVelocity() << " conf "
           << target.target_history_.getConfidence().first << " last "
           << last_vals.first;
@@ -534,8 +518,7 @@ void TrackerModelVX::run() {
 
         Mat rend_mat = vx_tracker_->getRenderedPose();
 
-        if(target.target_found_)
-            blendRendered(rend_mat, flow_output);
+        if (target.target_found_) blendRendered(rend_mat, flow_output);
 
         cv_bridge::CvImage cv_img, cv_rend, cv_flow;
 
@@ -547,7 +530,7 @@ void TrackerModelVX::run() {
         cv_flow.encoding = sensor_msgs::image_encodings::BGR8;
         flow_publisher_.publish(cv_flow.toImageMsg());
 
-        //video_writer.write(flow_output);
+        // video_writer.write(flow_output);
 
         //        Size sz1 = flow_output.size();
         //        Size sz2 = rend_mat.size();

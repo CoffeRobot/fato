@@ -107,6 +107,8 @@ class TrackerVX {
     int iterations_m_real;
     int iterations_m_synth;
 
+    bool glwindow;
+
     Params();
   };
 

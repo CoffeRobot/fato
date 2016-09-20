@@ -162,7 +162,10 @@ cv::Mat &BriskMatcher::getTargetDescriptors() { return train_descriptors_; }
 
 AkazeMatcher::AkazeMatcher() {
     feature_id_ = -1;
-    initExtractor();
+    width_ = -1;
+    height_ = -1;
+
+    cv_matcher_ = cv::BFMatcher(NORM_HAMMING);
 }
 
 AkazeMatcher::~AkazeMatcher() {
@@ -176,16 +179,36 @@ void AkazeMatcher::init(int feature_id) {
   initExtractor();
 }
 
+void AkazeMatcher::init(int width, int height) {
+
+  width_ = width;
+  height_ = height;
+
+  initExtractor();
+}
+
 void AkazeMatcher::extractTarget(const Mat &img) {
 
   if (img.empty()) {
-    cerr << "feature_matcher: image is empty!" << endl;
+
+      stringstream ss;
+      ss << __FILE__ << ", " << __LINE__ << " image empty";
+      throw runtime_error(ss.str());
+
     return;
   }
 
+  if(width_ == -1 || height_ == 1)
+  {
+    stringstream ss;
+    ss << __FILE__ << ", " << __LINE__ << " width and height required from cuda akaze, please call init";
+    throw runtime_error(ss.str());
+  }
+
   if (img.channels() > 1) {
-    cerr << "feature_matcher: image must be grayscale!" << endl;
-    return;
+      stringstream ss;
+      ss << __FILE__ << ", " << __LINE__ << " image must be grayscale";
+      throw runtime_error(ss.str());
   }
 
   if (train_keypoints_.size() > 0) train_keypoints_.clear();
@@ -215,10 +238,12 @@ void AkazeMatcher::extractTarget(const Mat &img) {
 }
 
 void AkazeMatcher::initExtractor() {
+
+
     AKAZEOptions options;
 
-    options.img_height = 480;
-    options.img_width = 640;
+    options.img_height = height_;
+    options.img_width = width_;
 
     akaze_detector_ = new libAKAZECU::AKAZE(options);
 
@@ -251,15 +276,23 @@ void AkazeMatcher::match(const Mat &img, std::vector<KeyPoint> &query_keypoints,
   }
 
   matches.clear();
+
+  //cout << "AKAZE MATHCER!!!!!!!" << endl;
+ // cout << "cv matcher " << endl;
+
+//  Mat descriptors = getTargetDescriptors();
+//  cv_matcher_.knnMatch(query_descriptors, descriptors, matches, 2);
+
+
   akaze_detector_->Match(query_descriptors, train_descriptors_, query_descriptors.cols, matches);
 
-  float closest = 500.0;
-  for (int i=0; i<matches.size(); ++i) {
-      closest = min(closest,matches[i][0].distance);
-      //std::cout << i << ":" << matches[i][0].distance << "  ";
-  }
+//  float closest = 500.0;
+//  for (int i=0; i<matches.size(); ++i) {
+//      closest = min(closest,matches[i][0].distance);
+//      //std::cout << i << ":" << matches[i][0].distance << "  ";
+//  }
 
-  std::cout << "mindist: " << closest << std::endl;
+//  std::cout << "mindist: " << closest << std::endl;
  
   
 }
@@ -280,7 +313,7 @@ std::pair<float,float> AkazeMatcher::matchP(const Mat &img, std::vector<KeyPoint
 #ifdef __arm__
   cv_matcher_.knnMatch(query_descriptors, train_descriptors_, matches, 2);
 #else
-  matcher_custom_.matchV2(query_descriptors, train_descriptors_, matches);
+  //matcher_custom_.matchV2(query_descriptors, train_descriptors_, matches);
 #endif
   end = high_resolution_clock::now();
   float mtc_time = duration_cast<nanoseconds>(end-begin).count();

@@ -1,9 +1,9 @@
 <launch>
 
-<param name="fato/model/object_path" type="str" value="$(find fato_tracker_nodes)/../data/ros_hydro/ros_hydro.obj"/>
+<param name="fato/model/object_path" type="str" value="$(find fato_tracker_nodes)/../data/models/ros_hydro/ros_hydro.obj"/>
 <param name="fato/model/response" value="0.01"/>
 <!-- Descriptor type: 0 - Brisk, 1 - Akaze -->
-<param name="fato/model/descriptor_type" type="int" value="1" />
+<param name="fato/descriptor_type" type="int" value="1" />
 
 <!-- uncomment to use the medium version-->
  <node name="tracker" pkg="fato_tracker_nodes" type="generate_model" output="screen">

@@ -62,7 +62,7 @@ Renderer::Renderer(int image_width, int image_height, float fx, float fy,
 
 Renderer::~Renderer() {
   glDeleteRenderbuffers(1, &color_buffer_);
-  //glDeleteRenderbuffers(1, &depth_buffer_);
+  // glDeleteRenderbuffers(1, &depth_buffer_);
   glDeleteRenderbuffers(1, &depth_image_buffer_);
   // Bind to 0 -> back buffer
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -72,11 +72,13 @@ Renderer::~Renderer() {
 }
 
 void Renderer::initRenderContext(int width, int height, string screen_vs_name,
-                                 string screen_frag_name) {
+                                 string screen_frag_name,
+                                 bool show_debug_window) {
   // cout << "getting here" << endl;
 
   screen_width_ = width;
   screen_height_ = height;
+  show_debug_window_ = show_debug_window;
 
   glfwInit();
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -84,8 +86,16 @@ void Renderer::initRenderContext(int width, int height, string screen_vs_name,
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-  window_ = glfwCreateWindow(width, height, "Opengl Window", nullptr,
-                             nullptr);  // Windowed
+  if (show_debug_window) {
+    window_ = glfwCreateWindow(width, height, "Opengl Window", nullptr,
+                               nullptr);  // Windowed
+  }
+  else
+  {
+      window_ = glfwCreateWindow(1, 1, "Opengl Window", nullptr,
+                                 nullptr);  // Windowed
+  }
+
   glfwMakeContextCurrent(window_);
 
   glewExperimental = GL_TRUE;
@@ -144,12 +154,13 @@ void Renderer::updateCamera(glm::vec3 position, glm::vec3 orientation,
                             glm::mat4 projection_matrix) {}
 
 void Renderer::render() {
-  //unmapCudaArrays();
+  // unmapCudaArrays();
   // Check and call events
   glfwPollEvents();
 
   glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
-  // the fragment shader renders two color buffers, one with the depth buffer in
+  // the fragment shader renders two color buffers, one with the depth buffer
+  // in
   // it
   // hack to transfer the depth buffer to cuda
   GLenum drawBuffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
@@ -188,11 +199,13 @@ void Renderer::render() {
   // it is not needed
   // glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
-  renderToTexture();
+  if(show_debug_window_)
+  {
+    renderToTexture();
+    glfwSwapBuffers(window_);
+  }
 
-  //mapCudaArrays();
-
-  glfwSwapBuffers(window_);
+  // mapCudaArrays();
 }
 
 void Renderer::addModel(string model_name, string ver_shader,
@@ -209,52 +222,50 @@ RigidObject& Renderer::getObject(int id) {
 }
 
 void Renderer::downloadDepthBuffer(std::vector<float>& h_buffer) {
-    int num_elems = screen_width_ * screen_height_;
+  int num_elems = screen_width_ * screen_height_;
 
-//    vector<float> tmp_buffer;
-//    tmp_buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
-    h_buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
+  //    vector<float> tmp_buffer;
+  //    tmp_buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
+  h_buffer.resize(num_elems, numeric_limits<float>::quiet_NaN());
 
-    glBindTexture(GL_TEXTURE_2D, depth_image_buffer_);
-    // read from bound texture to CPU
-    glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, h_buffer.data());
-    // unbind texture again
-    glBindTexture(GL_TEXTURE_2D, 0);
+  glBindTexture(GL_TEXTURE_2D, depth_image_buffer_);
+  // read from bound texture to CPU
+  glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, h_buffer.data());
+  // unbind texture again
+  glBindTexture(GL_TEXTURE_2D, 0);
 
-    // flipping why due to different coordinate system
-//    for(auto i = 0; i < height_;++i)
-//    {
-//        for(auto j = 0; j < width_; ++j)
-//        {
-//            auto id = j + i * width_;
-//            auto inv_id = j + (height_ - 1 - i) * width_;
+  // flipping why due to different coordinate system
+  //    for(auto i = 0; i < height_;++i)
+  //    {
+  //        for(auto j = 0; j < width_; ++j)
+  //        {
+  //            auto id = j + i * width_;
+  //            auto inv_id = j + (height_ - 1 - i) * width_;
 
-//            h_buffer[id] = tmp_buffer[inv_id];
-//        }
-//    }
+  //            h_buffer[id] = tmp_buffer[inv_id];
+  //        }
+  //    }
 }
 
-void Renderer::downloadDepthBufferCuda(std::vector<float> &h_buffer)
-{
-    float* d_buffer;
-    h_buffer.resize(height_*width_);
-    int size = sizeof(float) * height_ * width_;
-    cudaError_t error = cudaMalloc((void **)&d_buffer, size);
-    if (error != cudaSuccess)
-      throw fato::gpu::cudaException(__FILE__, __LINE__, error);
+void Renderer::downloadDepthBufferCuda(std::vector<float>& h_buffer) {
+  float* d_buffer;
+  h_buffer.resize(height_ * width_);
+  int size = sizeof(float) * height_ * width_;
+  cudaError_t error = cudaMalloc((void**)&d_buffer, size);
+  if (error != cudaSuccess)
+    throw fato::gpu::cudaException(__FILE__, __LINE__, error);
 
-    fato::gpu::downloadDepthTexture(d_buffer, *cuda_gl_depth_array_, width_, height_);
+  fato::gpu::downloadDepthTexture(d_buffer, *cuda_gl_depth_array_, width_,
+                                  height_);
 
-    error = cudaMemcpy(h_buffer.data(), d_buffer, size,
-                                   cudaMemcpyDeviceToHost);
+  error = cudaMemcpy(h_buffer.data(), d_buffer, size, cudaMemcpyDeviceToHost);
 
-    if (error != cudaSuccess)
-    {
-        throw fato::gpu::cudaException(__FILE__, __LINE__, error);
-        exit(0);
-    }
+  if (error != cudaSuccess) {
+    throw fato::gpu::cudaException(__FILE__, __LINE__, error);
+    exit(0);
+  }
 
-    cudaFree(d_buffer);
+  cudaFree(d_buffer);
 }
 
 void Renderer::downloadTexture(std::vector<uchar4>& h_texture) {
@@ -268,43 +279,43 @@ void Renderer::downloadTexture(std::vector<uchar4>& h_texture) {
   cudaError err = cudaGetLastError();
   if (err != cudaSuccess) {
     fato::gpu::cudaException(__FILE__, __LINE__, err);
-    std::cout << "downloadTexture(-) :" + std::string(cudaGetErrorString(err)) << std::endl;
-   exit(0);
+    std::cout << "downloadTexture(-) :" + std::string(cudaGetErrorString(err))
+              << std::endl;
+    exit(0);
   }
 }
 
-void Renderer::downloadTextureCuda(std::vector<uchar4> &h_texture)
-{
-    uchar4* d_buffer;
-    h_texture.resize(height_*width_);
-    int size = sizeof(uchar4) * height_ * width_;
-    size_t pitch;
+void Renderer::downloadTextureCuda(std::vector<uchar4>& h_texture) {
+  uchar4* d_buffer;
+  h_texture.resize(height_ * width_);
+  int size = sizeof(uchar4) * height_ * width_;
+  size_t pitch;
 
-    cudaError err = cudaGetLastError();
+  cudaError err = cudaGetLastError();
 
-    if (err != cudaSuccess)
-    {
-      throw fato::gpu::cudaException(__FILE__, __LINE__, err);
-      exit(0);
-    }
+  if (err != cudaSuccess) {
+    throw fato::gpu::cudaException(__FILE__, __LINE__, err);
+    exit(0);
+  }
 
-    cudaError_t error = cudaMalloc((void **)&d_buffer, size);
-    if (error != cudaSuccess)
-      throw fato::gpu::cudaException(__FILE__, __LINE__, err);
+  cudaError_t error = cudaMalloc((void**)&d_buffer, size);
+  if (error != cudaSuccess)
+    throw fato::gpu::cudaException(__FILE__, __LINE__, err);
 
-    fato::gpu::downloadTextureToRGBA(d_buffer, *cuda_gl_color_array_, width_, height_);
+  fato::gpu::downloadTextureToRGBA(d_buffer, *cuda_gl_color_array_, width_,
+                                   height_);
 
-    // error = cudaMemset(d_buffer, 255, size);
-    // if (error != cudaSuccess)
-    //   throw gpu::cudaException("Renderer::downloadDepthBuffer(280): ", error);
+  // error = cudaMemset(d_buffer, 255, size);
+  // if (error != cudaSuccess)
+  //   throw gpu::cudaException("Renderer::downloadDepthBuffer(280): ",
+  //   error);
 
-    error = cudaMemcpy(h_texture.data(), d_buffer, size,
-                                   cudaMemcpyDeviceToHost);
+  error = cudaMemcpy(h_texture.data(), d_buffer, size, cudaMemcpyDeviceToHost);
 
-    if (error != cudaSuccess)
-      throw fato::gpu::cudaException(__FILE__, __LINE__, err);
+  if (error != cudaSuccess)
+    throw fato::gpu::cudaException(__FILE__, __LINE__, err);
 
-    cudaFree(d_buffer);
+  cudaFree(d_buffer);
 }
 
 std::vector<double> Renderer::getBoundingBoxInCameraImage(
@@ -344,14 +355,14 @@ void Renderer::renderToTexture() {
   glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
 
-//  /cout << "before rendering depth buffer" << endl;
+  //  /cout << "before rendering depth buffer" << endl;
   screen_shader_->use();
   glBindVertexArray(screen_vao_);
   glDisable(GL_DEPTH_TEST);
   glBindTexture(GL_TEXTURE_2D, color_buffer_);
   glDrawArrays(GL_TRIANGLES, 0, 6);
   glBindVertexArray(0);
-  //cout << "after rendering depth buffer" << endl;
+  // cout << "after rendering depth buffer" << endl;
 }
 
 void Renderer::createCustomFramebuffer(int screen_width, int screen_height) {
@@ -420,7 +431,8 @@ void Renderer::bindCuda() {
                                         depth_image_buffer_, GL_TEXTURE_2D,
                                         cudaGraphicsRegisterFlagsReadOnly));
 
-  //  gpuErrchk(cudaGraphicsGLRegisterBuffer(&depth_buffer_cuda_, depth_buffer_,
+  //  gpuErrchk(cudaGraphicsGLRegisterBuffer(&depth_buffer_cuda_,
+  //  depth_buffer_,
   //                                         cudaGraphicsRegisterFlagsReadOnly));
 
   cuda_gl_color_array_ = new cudaArray*;
@@ -449,7 +461,6 @@ void Renderer::unmapCudaArrays() {
 cudaArray* Renderer::getTexture() { return (*cuda_gl_color_array_); }
 
 cudaArray* Renderer::getDepthBuffer() { return (*cuda_gl_depth_array_); }
-
 
 string Renderer::str(GLenum error) {
   switch (error) {

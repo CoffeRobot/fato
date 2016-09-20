@@ -55,14 +55,15 @@
 
 namespace rendering {
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
-{
-   if (code != cudaSuccess)
-   {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
+#define gpuErrchk(ans) \
+  { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char* file, int line,
+                      bool abort = true) {
+  if (code != cudaSuccess) {
+    fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file,
+            line);
+    if (abort) exit(code);
+  }
 }
 
 class Renderer {
@@ -74,7 +75,8 @@ class Renderer {
 
   void initRenderContext(int width = 640, int height = 480,
                          std::string screen_vs_name = "",
-                         std::string screen_frag_name = "");
+                         std::string screen_frag_name = "",
+                         bool show_debug_window = true);
 
   void updateProjectionMatrix(float fx, float fy, float cx, float cy,
                               float near_plane, float far_plane);
@@ -101,7 +103,6 @@ class Renderer {
   std::vector<double> getBoundingBoxInCameraImage(
       int obj_id, Eigen::Transform<double, 3, Eigen::Affine>& pose);
 
-
   cudaArray* getTexture();
   cudaArray* getDepthBuffer();
 
@@ -125,14 +126,13 @@ class Renderer {
 
   void unmapCudaArrays();
 
-
   int width_, height_, screen_width_, screen_height_;
   float fx_, fy_, cx_, cy_;
   float near_plane_, far_plane_;
   float z_conv1_, z_conv2_;
 
   GLuint fbo_, color_buffer_, screen_vao_, screen_vbo_, depth_image_buffer_;
-  //GLuint depth_buffer_;
+  // GLuint depth_buffer_;
 
   cudaGraphicsResource* color_buffer_cuda_;
   cudaGraphicsResource* depth_buffer_cuda_;
@@ -143,6 +143,7 @@ class Renderer {
 
   std::string str(GLenum error);
 
+  bool show_debug_window_;
 };
 
 }  // end namespace
