@@ -207,7 +207,7 @@ void TrackerModelVX::loadParameters(ros::NodeHandle &nh) {
   if (!ros::param::get("fato/array_capacity", capacity)) {
     throw std::runtime_error("cannot read array_capacity param");
   }
-  capacity = params_.array_capacity;
+  params_.array_capacity = capacity;
   int cell_size;
   if (!ros::param::get("fato/detector_cell_size", cell_size)) {
     throw std::runtime_error("cannot read detector_cell_size param");
@@ -359,14 +359,21 @@ void TrackerModelVX::run() {
   axis2.push_back(cv::Scalar(0, 125, 125));
   axis2.push_back(cv::Scalar(125, 0, 125));
 
+  vector<cv::Scalar> axis3;
+  axis3.push_back(cv::Scalar(255, 0, 0));
+  axis3.push_back(cv::Scalar(0, 255, 0));
+  axis3.push_back(cv::Scalar(0, 0, 255));
+
   float average_time = 0.0f;
   float frame_counter = 0;
 
   Mat cam(3, 3, CV_64FC1);
 
+  int img_count = 0;
+
   while (ros::ok()) {
     if (img_updated_) {
-      std::cout << "updated camera\n";
+      //std::cout << "updated camera\n";
       if (!camera_matrix_initialized)
         continue;
       else if (camera_matrix_initialized && !camera_is_set) {
@@ -428,7 +435,7 @@ void TrackerModelVX::run() {
 
       if (target.target_found_) {
         auto w_pose = target.weighted_pose.toCV();
-        drawObjectPose(target.centroid_, cam, w_pose.first, w_pose.second, axis,
+        drawObjectPose(target.centroid_, cam, w_pose.first, w_pose.second, axis3,
                        flow_output);
 
         for (auto i = 0; i < target.active_points.size(); ++i) {
@@ -473,12 +480,12 @@ void TrackerModelVX::run() {
           << target.target_history_.getConfidence().second << " last "
           << last_vals.second;
 
-      drawInformationHeader(Point2f(0, 0), ss.str(), 0.8, flow_output.cols, 20,
-                            flow_output);
-      drawInformationHeader(Point2f(0, 20), ss1.str(), 0.8, flow_output.cols,
-                            20, flow_output);
-      drawInformationHeader(Point2f(0, 40), ss2.str(), 0.8, flow_output.cols,
-                            20, flow_output);
+//      drawInformationHeader(Point2f(0, 0), ss.str(), 0.8, flow_output.cols, 20,
+//                            flow_output);
+//      drawInformationHeader(Point2f(0, 20), ss1.str(), 0.8, flow_output.cols,
+//                            20, flow_output);
+//      drawInformationHeader(Point2f(0, 40), ss2.str(), 0.8, flow_output.cols,
+//                            20, flow_output);
       // cout << target.active_to_model_.size() << endl;
 
 //      cv_bridge::CvImage cv_flowz;
@@ -537,6 +544,17 @@ void TrackerModelVX::run() {
         //        flow_output.copyTo(im3(Rect(0, 0, sz1.width, sz1.height)));
         //        rend_mat.copyTo(im3(Rect(sz1.width, 0, sz2.width,
         //        sz2.height)));
+
+        string rgb_f, track_f, rend_f;
+        rgb_f = "/home/alessandro/debug/images/rgb" + to_string(img_count) + ".png";
+        track_f = "/home/alessandro/debug/images/track" + to_string(img_count) + ".png";
+        rend_f = "/home/alessandro/debug/images/rend" + to_string(img_count) + ".png";
+
+        imwrite(rgb_f,rgb_image_);
+        imwrite(track_f, flow_output);
+        imwrite(rend_f, rend_mat);
+
+//        img_count++;
 
         img_updated_ = false;
         r.sleep();

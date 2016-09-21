@@ -1,5 +1,5 @@
 # matcher and tracker should run concurrently
-fato/parallel: false
+fato/parallel: true
 # used to debug rendering
 fato/glwindow: false
 # used for matching 0 brisk, 1 cuda akaze
@@ -12,7 +12,7 @@ fato/lk_epsilon: 0.01
 # used to discard backward/forward otliers, squared distance in pixel
 fato/flow_threshold: 25.0
 # corner detector by visionworks
-fato/array_capacity: 200
+fato/array_capacity: 500
 fato/detector_cell_size: 7
 # if set to false, fast corner is used instead
 fato/use_harris: false

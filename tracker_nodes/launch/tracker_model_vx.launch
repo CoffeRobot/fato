@@ -1,7 +1,7 @@
 <launch>
 
-<param name="fato/model/h5_file" type="str" value="$(find fato_tracker_nodes)/../data/models/ros_hydro/ros_hydro_features.h5"/>
-<param name="fato/model/obj_file" type="str" value="$(find fato_tracker_nodes)/../data/models/ros_hydro/ros_hydro.obj"/>
+<param name="fato/model/h5_file" type="str" value="$(find fato_tracker_nodes)/../data/models/nepia/nepia_features.h5"/>
+<param name="fato/model/obj_file" type="str" value="$(find fato_tracker_nodes)/../data/models/nepia/nepia.obj"/>
 <param name="fato/camera_info_url" value="file://$(find tracker_cameras)/config/logitech_hires.yaml"/>
 <rosparam command="load" file="$(find fato_tracker_nodes)/config/tracker_parameters_vx.yaml"/>
 

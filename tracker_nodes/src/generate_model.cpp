@@ -441,6 +441,10 @@ int main(int argc, char **argv) {
 
     cv::imshow(window_name, img);
 
+    std::string img_name = "/home/alessandro/debug/images/model" + std::to_string(i) + ".png";
+    cv::imwrite(img_name, img);
+
+
     std::ofstream file("/home/alessandro/Downloads/img.txt");
 
     for (int i = 0; i < img.rows; ++i) {

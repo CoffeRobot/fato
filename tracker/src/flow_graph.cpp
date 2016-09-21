@@ -94,8 +94,8 @@ void FeatureTracker::getValidPoints(float distance_thresh,
   vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &back_size,
                sizeof(back_size));
 
-  cout << "prev " << prev_size << " next " << next_size << " back " << back_size
-       << endl;
+//  cout << "prev " << prev_size << " next " << next_size << " back " << back_size
+//       << endl;
 
   prev_pts.reserve(prev_size);
   next_pts.reserve(prev_size);
@@ -138,8 +138,8 @@ void FeatureTracker::getValidPoints(float distance_thresh,
   vxCommitArrayRange(kp_next_list_, 0, next_size, next_data);
   vxCommitArrayRange(kp_back_list_, 0, back_size, back_data);
 
-  cout << "invalid points " << next_size - next_pts.size() << endl;
-  cout << "\t flag " << flag_counter << " dist " << distance_counter << endl;
+//  cout << "invalid points " << next_size - next_pts.size() << endl;
+//  cout << "\t flag " << flag_counter << " dist " << distance_counter << endl;
 
   auto end = chrono::high_resolution_clock::now();
   valid_time_ = chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -409,6 +409,20 @@ void FeatureTracker::uploadPoints(const std::vector<cv::Point2f>& prev_pts) {
     myptr->tracking_status = 1;
     vxCommitArrayRange(kp_prev_list_, i, i + 1, (void*)myptr);
   }
+
+  vxQueryArray(kp_prev_list_, VX_ARRAY_ATTRIBUTE_NUMITEMS, &size, sizeof(size));
+//  cout << "active pts size " << prev_pts.size() << " vx_pts " << size << endl;
+//  cout << "max capacity " << max_capacity << endl;
+//  if (prev_size != active_pts.size()) {
+//    stringstream ss;
+//    ss << __FILE__ << ", " << __LINE__;
+//    ss << " device - host points count inconsistent " << prev_size << " "
+//       << active_pts.size() << "\n";
+
+//    cout << ss.str() << endl;
+
+//    //throw std::runtime_error(ss.str());
+//  }
 }
 
 FeatureTrackerReal::FeatureTrackerReal(vx_context context, const Params& params)
@@ -580,6 +594,8 @@ void FeatureTrackerReal::track(vx_image newFrame, vx_image mask) {
 void FeatureTrackerReal::getValidPoints(Target& t, float distance_thresh) {
   t.prev_points_ = t.active_points;
 
+  //cout << "getValidPoints" << endl;
+
   std::vector<KpStatus>& prev_status = t.point_status_;
   std::vector<cv::Point2f>& active_pts = t.active_points;
   std::vector<int> to_remove;
@@ -655,7 +671,7 @@ void FeatureTrackerReal::getValidPoints(Target& t, float distance_thresh) {
   //    cout << "valid points " << next_size << endl;
   //    cout << "\t flag " << flag_counter << " dist " << distance_counter <<
   //    endl;
-
+  //cout << "end get valid points" << endl;
   //    cout << "removing invalid" << endl;
   //    cout << t.active_to_model_.size();
   //    cout << to_remove.size() << " of " << t.active_points.size() << endl;

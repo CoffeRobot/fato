@@ -308,7 +308,9 @@ void TrackerVX::next(Mat& rgb) {
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
   // compute flow
   begin = chrono::high_resolution_clock::now();
+  //cout << "<< " << endl;
   trackSequential();
+  cout << ">> " << endl;
   end = chrono::high_resolution_clock::now();
   profile_.track_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -439,8 +441,7 @@ void TrackerVX::trackSequential() {
   profile_.cam_flow_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
-  //  cout << "cpu active " << target_object_.active_points.size() << " gpu "
-  //       << tmp_t.active_points.size() << endl;
+  // cout << "cpu active " << target_object_.active_points.size() << endl;
 
   if (!target_object_.isConsistent())
     cout << "OF: Error status of object is incosistent!!" << endl;
@@ -449,14 +450,21 @@ void TrackerVX::trackSequential() {
   /*************************************************************************************/
   // finding all the points in the model that are active
   begin = chrono::high_resolution_clock::now();
+
   vector<Point3f> model_pts;
-  for (int i = 0; i < target_object_.active_points.size(); ++i) {
-    const int& id = target_object_.active_to_model_.at(i);
-    model_pts.push_back(target_object_.model_points_.at(id));
+
+  try {
+    for (int i = 0; i < target_object_.active_points.size(); ++i) {
+      const int& id = target_object_.active_to_model_.at(i);
+      model_pts.push_back(target_object_.model_points_.at(id));
+    }
+    end = chrono::high_resolution_clock::now();
+    profile_.active_transf_time =
+        chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
+
+  } catch (out_of_range exc) {
+    cout << "expection raised here" << endl;
   }
-  end = chrono::high_resolution_clock::now();
-  profile_.active_transf_time =
-      chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
   // used for debuggin to see how many points are found by the matcher
   if (!target_object_.target_found_)
@@ -544,11 +552,13 @@ void TrackerVX::trackSequential() {
       target_object_.real_pts_ = beta.first;
       target_object_.synth_pts_ = synth_beta.first;
 
-      cout << "printing betas " << endl;
-      for (auto val : beta.second) cout << setprecision(5) << val << " ";
-      cout << "\n printing synth betas " << endl;
-      for (auto val : synth_beta.second) cout << setprecision(5) << val << " ";
-      cout << "\n";
+      //      cout << "printing betas " << endl;
+      //      for (auto val : beta.second) cout << setprecision(5) << val << "
+      //      ";
+      //      cout << "\n printing synth betas " << endl;
+      //      for (auto val : synth_beta.second) cout << setprecision(5) << val
+      //      << " ";
+      //      cout << "\n";
 
       if (total_features == 0)
         target_object_.target_found_ = false;
@@ -992,7 +1002,7 @@ pair<int, vector<double>> TrackerVX::poseFromSynth() {
   vector<int> outliers;
 
   begin = chrono::high_resolution_clock::now();
-  if (prev_pts.size() > 4) {
+  if (val_prev_pts.size() > 4) {
     beta = getPoseFromFlowRobust(val_prev_pts, depth_pts, val_next_pts,
                                  params_.cx, params_.cy, params_.fx, params_.fy,
                                  params_.iterations_m_synth, translation,
@@ -1003,7 +1013,7 @@ pair<int, vector<double>> TrackerVX::poseFromSynth() {
   profile_.synth_estimator =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
-  return pair<int, vector<double>>(prev_pts.size(), std_beta);
+  return pair<int, vector<double>>(val_prev_pts.size(), std_beta);
 }
 
 void TrackerVX::projectPointsDepth(std::vector<Point3f>& points,

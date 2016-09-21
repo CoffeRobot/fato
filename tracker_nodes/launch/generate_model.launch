@@ -1,6 +1,6 @@
 <launch>
 
-<param name="fato/model/object_path" type="str" value="$(find fato_tracker_nodes)/../data/models/ros_hydro/ros_hydro.obj"/>
+<param name="fato/model/object_path" type="str" value="$(find fato_tracker_nodes)/../data/models/nepia/nepia.obj"/>
 <param name="fato/model/response" value="0.01"/>
 <!-- Descriptor type: 0 - Brisk, 1 - Akaze -->
 <param name="fato/descriptor_type" type="int" value="1" />
