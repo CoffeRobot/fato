@@ -133,7 +133,6 @@ void TrackerVX::loadDescriptors(const string& h5_file) {
 
   target_object_.init(pts, init_descriptors);
 
-  
   feature_detector_->setTarget(init_descriptors);
 
   std::cout << "Model loaded with " << target_object_.model_points_.size()
@@ -157,7 +156,7 @@ void TrackerVX::initSynthTracking(const string& object_model, double fx,
   renderer_->initRenderContext(
       640, 480, render::get_resources_path() + "shaders/framebuffer.vs",
       render::get_resources_path() + "shaders/framebuffer.frag",
-              params_.glwindow);
+      params_.glwindow);
   renderer_->addModel(object_model,
                       render::get_resources_path() + "shaders/model.vs",
                       render::get_resources_path() + "shaders/model.frag");
@@ -296,8 +295,8 @@ void TrackerVX::next(Mat& rgb) {
   // TODO: visionworks is slow right now due to a bug, grayscale conversion must
   // be moved to gpu later
   auto begin = chrono::high_resolution_clock::now();
-  next_gray_ = rgb;
-  //cvtColor(rgb, next_gray_, CV_BGR2GRAY);
+  // next_gray_ = rgb;
+  cvtColor(rgb, next_gray_, CV_BGR2GRAY);
   vx_image vxiSrc;
   vxiSrc = nvx_cv::createVXImageFromCVMat(gpu_context_, rgb);
   NVXIO_CHECK_REFERENCE(vxGetReferenceFromDelay(camera_img_delay_, 0));
@@ -402,9 +401,9 @@ void TrackerVX::loadImg(Mat& rgb) {
       vxuColorConvert(gpu_context_, vxiSrc,
                       (vx_image)vxGetReferenceFromDelay(camera_img_delay_, 0)));
   auto end = chrono::high_resolution_clock::now();
+  vxReleaseImage(&vxiSrc);
   profile_.img_load_time =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-  vxReleaseImage(&vxiSrc);
 }
 
 void TrackerVX::release() {
@@ -532,7 +531,11 @@ void TrackerVX::trackSequential() {
       profile_.synth_time_vx =
           chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
+      begin = chrono::high_resolution_clock::now();
       std::pair<int, vector<double>> beta = poseFromFlow();
+      end = chrono::high_resolution_clock::now();
+      profile_.m_est_time =
+          chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 
       target_object_.flow_pose.transform(beta.second);
 
@@ -611,14 +614,14 @@ void TrackerVX::detectParallel() {
   /*************************************************************************************/
   vector<vector<DMatch>> matches;
   auto begin = chrono::high_resolution_clock::now();
-  //pair<float, float> times =
-      feature_detector_->match(next_gray_, keypoints, descriptors, matches);
+  // pair<float, float> times =
+  feature_detector_->match(next_gray_, keypoints, descriptors, matches);
   // feature_detector_->match(next_gray_, keypoints, descriptors, matches);
   auto end = chrono::high_resolution_clock::now();
   profile_.feature_extraction =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
-  //profile_.feature_detection = times.first;
-  //profile_.feature_matching = times.second;
+  // profile_.feature_detection = times.first;
+  // profile_.feature_matching = times.second;
   /*************************************************************************************/
   /*                       SYNCRONIZATION */
   /*************************************************************************************/
@@ -680,7 +683,7 @@ void TrackerVX::updatedDetectedPoints(
 
   float maxconf = 0.f;
   float distsum = 0.f;
-  
+
   for (size_t i = 0; i < matches.size(); i++) {
     const DMatch& fst_match = matches.at(i).at(0);
     const DMatch& scd_match = matches.at(i).at(1);
@@ -699,9 +702,9 @@ void TrackerVX::updatedDetectedPoints(
 
     float confidence = 1 - (matches[i][0].distance / max_distance);
     distsum += matches[i][0].distance;
-    
-    maxconf = max(maxconf,confidence);
-    
+
+    maxconf = max(maxconf, confidence);
+
     if (confidence < params_.match_confidence) continue;
 
     auto ratio = (fst_match.distance / scd_match.distance);
@@ -720,10 +723,10 @@ void TrackerVX::updatedDetectedPoints(
     }
   }
 
-  std::cout << "Found valid keypoints: " << valid << std::endl;
-  std::cout << "Max confidence: " << maxconf << std::endl;
-  std::cout << "Distance sum: " << distsum << std::endl;
-  
+  //  std::cout << "Found valid keypoints: " << valid << std::endl;
+  //  std::cout << "Max confidence: " << maxconf << std::endl;
+  //  std::cout << "Distance sum: " << distsum << std::endl;
+
   auto end = chrono::high_resolution_clock::now();
   profile_.matching_update =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -1170,7 +1173,6 @@ cv::Mat TrackerVX::downloadImage(vx_image image) {
 
 void TrackerVX::printProfile() { cout << profile_.str() << endl; }
 
-
 cv::Mat TrackerVX::getDepthBuffer() {
   cv::Mat out(image_h_, image_w_, CV_8UC1);
 
@@ -1189,9 +1191,8 @@ cv::Mat TrackerVX::getDepthBuffer() {
   return out;
 }
 
-
 /*******************************************************************************/
-/*                         ADDITIONAL CLASSES                                  */
+/*                         ADDITIONAL CLASSES */
 /*******************************************************************************/
 TrackerVX::Params::Params() {
   parallel = false;
@@ -1236,8 +1237,6 @@ TrackerVX::Params::Params() {
   iterations_m_real = 10;
   iterations_m_synth = 10;
 }
-
-
 
 string TrackerVX::Profile::str() {
   stringstream ss;

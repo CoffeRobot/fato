@@ -23,5 +23,5 @@ fato/harris_thresh: 100.0
 fato/fast_type: 9
 fato/fast_thresh: 7
 # m-estimator params
-fato/iterations_cam: 10
-fato/iterations_synth: 10
+fato/iterations_cam: 3
+fato/iterations_synth: 3

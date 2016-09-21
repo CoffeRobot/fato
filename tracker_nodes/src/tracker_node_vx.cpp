@@ -410,6 +410,7 @@ void TrackerModelVX::run() {
 
       auto begin = chrono::high_resolution_clock::now();
       if (params_.parallel) {
+          //cout << "tracking in parallel" << endl;
         vx_tracker_->parNext(rgb_image_);
       } else {
         vx_tracker_->next(rgb_image_);
