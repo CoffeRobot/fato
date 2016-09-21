@@ -483,8 +483,8 @@ void TrackerVX::trackSequential() {
       target_object_.target_history_.clear();
       target_object_.target_history_.init(target_object_.weighted_pose);
 
-      stringstream ss;
-      ss << "pst " << model_pts.size() << " inliers " << inliers.size();
+      // stringstream ss;
+      // ss << "pst " << model_pts.size() << " inliers " << inliers.size();
 
       auto inliers_count = inliers.size();
       removeOutliers(inliers);
@@ -496,8 +496,8 @@ void TrackerVX::trackSequential() {
         model_pts.push_back(target_object_.model_points_.at(id));
       }
 
-      ss << " active " << model_pts.size();
-      cout << ss.str() << endl;
+      // ss << " active " << model_pts.size();
+      // cout << ss.str() << endl;
 
       auto projection_matrix =
           (Eigen::MatrixXd)target_object_.weighted_pose.getPose();
@@ -544,13 +544,11 @@ void TrackerVX::trackSequential() {
       target_object_.real_pts_ = beta.first;
       target_object_.synth_pts_ = synth_beta.first;
 
-      //      cout << "printing betas " << endl;
-      //      for (auto val : beta.second) cout << setprecision(5) << val << "
-      //      ";
-      //      cout << "\n printing synth betas " << endl;
-      //      for (auto val : synth_beta.second) cout << setprecision(5) << val
-      //      << " ";
-      //      cout << "\n";
+      cout << "printing betas " << endl;
+      for (auto val : beta.second) cout << setprecision(5) << val << " ";
+      cout << "\n printing synth betas " << endl;
+      for (auto val : synth_beta.second) cout << setprecision(5) << val << " ";
+      cout << "\n";
 
       if (total_features == 0)
         target_object_.target_found_ = false;
@@ -957,17 +955,31 @@ pair<int, vector<double>> TrackerVX::poseFromSynth() {
 
   int count = 0;
 
+  vector<Point2f> val_prev_pts, val_next_pts;
   vector<float> depth_pts;
   begin = chrono::high_resolution_clock::now();
   depth_pts.reserve(prev_pts.size());
-  for (auto pt : prev_pts) {
+  val_prev_pts.reserve(prev_pts.size());
+  val_next_pts.reserve(prev_pts.size());
+  // TODO: this can be optimized a lot with removal in place, but it will be
+  // ported to cuda soon
+  for (auto i = 0; i < prev_pts.size(); ++i) {
+    auto pt = prev_pts[i];
     int x = floor(pt.x);
     int y = floor(pt.y);
     float inv_y = image_h_ - 1 - y;
     float depth = host_rendered_depth_.at(x + inv_y * params_.image_width);
 
+    if (depth == 0 || isnan(depth)) {
+      count++;
+      continue;
+    }
+
     depth_pts.push_back(depth);
+    val_prev_pts.push_back(pt);
+    val_next_pts.push_back(next_pts[i]);
   }
+
   end = chrono::high_resolution_clock::now();
   profile_.synth_depth =
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -981,8 +993,8 @@ pair<int, vector<double>> TrackerVX::poseFromSynth() {
 
   begin = chrono::high_resolution_clock::now();
   if (prev_pts.size() > 4) {
-    beta = getPoseFromFlowRobust(prev_pts, depth_pts, next_pts, params_.cx,
-                                 params_.cy, params_.fx, params_.fy,
+    beta = getPoseFromFlowRobust(val_prev_pts, depth_pts, val_next_pts,
+                                 params_.cx, params_.cy, params_.fx, params_.fy,
                                  params_.iterations_m_synth, translation,
                                  rotation, outliers);
     for (auto i = 0; i < 6; ++i) std_beta[i] = beta(i);

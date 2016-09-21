@@ -300,6 +300,7 @@ void TrackerModelVX::rgbCallbackNoInfo(
     const sensor_msgs::ImageConstPtr &rgb_msg) {
   Mat rgb;
   readImage(rgb_msg, rgb);
+
   cvtColor(rgb, rgb_image_, CV_RGB2BGR);
   img_updated_ = true;
 }
@@ -363,9 +364,6 @@ void TrackerModelVX::run() {
 
   Mat cam(3, 3, CV_64FC1);
 
-  // set to true to run concurrent threads
-  params_.parallel = true;
-
   while (ros::ok()) {
     if (img_updated_) {
       std::cout << "updated camera\n";
@@ -408,6 +406,8 @@ void TrackerModelVX::run() {
         camera_is_set = true;
       }
 
+      flow_output = rgb_image_.clone();
+
       auto begin = chrono::high_resolution_clock::now();
       if (params_.parallel) {
           //cout << "tracking in parallel" << endl;
@@ -425,8 +425,6 @@ void TrackerModelVX::run() {
       Pose p = target.weighted_pose;
 
       glm::mat4 pose_glm = p.toGL();
-
-      flow_output = rgb_image_.clone();
 
       if (target.target_found_) {
         auto w_pose = target.weighted_pose.toCV();
@@ -483,10 +481,10 @@ void TrackerModelVX::run() {
                             20, flow_output);
       // cout << target.active_to_model_.size() << endl;
 
-      cv_bridge::CvImage cv_flowz;
-      cv_flowz.image = flow_output;
-      cv_flowz.encoding = sensor_msgs::image_encodings::RGB8;
-      flow_publisher_.publish(cv_flowz.toImageMsg());
+//      cv_bridge::CvImage cv_flowz;
+//      cv_flowz.image = flow_output;
+//      cv_flowz.encoding = sensor_msgs::image_encodings::RGB8;
+//      flow_publisher_.publish(cv_flowz.toImageMsg());
 
       if (target.active_to_model_.size()) {
         std::vector<Point3f> model_pts;
@@ -519,7 +517,7 @@ void TrackerModelVX::run() {
 
         Mat rend_mat = vx_tracker_->getRenderedPose();
 
-        if (target.target_found_) blendRendered(rend_mat, flow_output);
+        //if (target.target_found_) blendRendered(rend_mat, flow_output);
 
         cv_bridge::CvImage cv_img, cv_rend, cv_flow;
 
