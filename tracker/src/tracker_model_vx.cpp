@@ -143,13 +143,16 @@ void TrackerVX::loadDescriptors(const string& h5_file) {
 void TrackerVX::initSynthTracking(const string& object_model, double fx,
                                   double fy, double cx, double cy,
                                   int img_width, int img_height) {
-  //  ogre_renderer_ = unique_ptr<pose::MultipleRigidModelsOgre>(
-  //      new pose::MultipleRigidModelsOgre(img_width, img_height, fx, fy, cx,
-  //      cy,
-  //                                        0.01, 10.0));
+#if RENDERING_ENGINE == 0
+  ogre_renderer_ = unique_ptr<pose::MultipleRigidModelsOgre>(
+      new pose::MultipleRigidModelsOgre(img_width, img_height, fx, fy, cx, cy,
+                                        0.01, 10.0));
 
-  // ogre_renderer_->addModel(object_model);
+  ogre_renderer_->addModel(object_model);
 
+//  synth_track_.init(cx, cy, fx, fy, img_width, img_height,
+//                    ogre_renderer_.get());
+#else
   // new rendering system using pure opengl
   renderer_ = unique_ptr<rendering::Renderer>(new rendering::Renderer(
       img_width, img_height, fx, fy, cx, cy, 0.01, 100.0));
@@ -160,6 +163,7 @@ void TrackerVX::initSynthTracking(const string& object_model, double fx,
   renderer_->addModel(object_model,
                       render::get_resources_path() + "shaders/model.vs",
                       render::get_resources_path() + "shaders/model.frag");
+#endif
 }
 
 void TrackerVX::initializeContext() {
@@ -308,7 +312,7 @@ void TrackerVX::next(Mat& rgb) {
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
   // compute flow
   begin = chrono::high_resolution_clock::now();
-  //cout << "<< " << endl;
+  // cout << "<< " << endl;
   trackSequential();
   cout << ">> " << endl;
   end = chrono::high_resolution_clock::now();
@@ -324,7 +328,12 @@ void TrackerVX::next(Mat& rgb) {
   if (target_object_.target_found_) {
     // download to host depth buffer
     begin = chrono::high_resolution_clock::now();
+
+#if RENDERING_ENGINE == 0
+    rendered_depth_.copyTo(host_rendered_depth_);
+#else
     renderer_->downloadDepthBuffer(host_rendered_depth_);
+#endif
     end = chrono::high_resolution_clock::now();
     profile_.depth_to_host_time =
         chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -661,7 +670,11 @@ void TrackerVX::trackParallel() {
   if (target_object_.target_found_) {
     // download to host depth buffer
     begin = chrono::high_resolution_clock::now();
+#if RENDERING_ENGINE == 0
+    rendered_depth_.copyTo(host_rendered_depth_);
+#else
     renderer_->downloadDepthBuffer(host_rendered_depth_);
+#endif
     end = chrono::high_resolution_clock::now();
     profile_.depth_to_host_time =
         chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
@@ -740,34 +753,51 @@ void TrackerVX::updatedDetectedPoints(
       chrono::duration_cast<chrono::nanoseconds>(end - begin).count();
 }
 
+#if RENDERING_ENGINE == 0
 void TrackerVX::renderPredictedPose() {
   // setting up pose according to ogre requirements
-  //  auto eigen_pose = target_object_.weighted_pose.toEigen();
-  //  double tra_render[3];
-  //  double rot_render[9];
-  //  Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
-  //  Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
-  //      rot_render);
-  //  tra_render_eig = eigen_pose.second;
-  //  rot_render_eig = eigen_pose.first;
+  auto eigen_pose = target_object_.weighted_pose.toEigen();
+  double tra_render[3];
+  double rot_render[9];
+  Eigen::Map<Eigen::Vector3d> tra_render_eig(tra_render);
+  Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> rot_render_eig(
+      rot_render);
+  tra_render_eig = eigen_pose.second;
+  rot_render_eig = eigen_pose.first;
 
-  //  std::vector<pose::TranslationRotation3D> TR(1);
-  //  TR.at(0).setT(tra_render);
-  //  TR.at(0).setR_mat(rot_render);
-  // ogre_renderer_->render(TR);
+  std::vector<pose::TranslationRotation3D> TR(1);
+  TR.at(0).setT(tra_render);
+  TR.at(0).setR_mat(rot_render);
+  ogre_renderer_->render(TR);
 
+  // mapping opengl rendered image to visionworks vx_image
+  vx_image rendered_next =
+      (vx_image)vxGetReferenceFromDelay(renderer_img_delay_, 0);
+
+  vx_rectangle_t rect;
+  vxGetValidRegionImage(rendered_next, &rect);
+  vx_uint8* dst_ptr = NULL;  // should be NULL to work in MAP mode
+  vx_imagepatch_addressing_t dst_addr;
+  vxAccessImagePatch(rendered_next, &rect, 0, &dst_addr, (void**)&dst_ptr,
+                     NVX_WRITE_ONLY_CUDA);
+
+  vision::convertFloatArrayToGrayVX(
+      (uchar*)dst_ptr, ogre_renderer_->getTexture(), params_.image_width,
+      params_.image_height, dst_addr.stride_y, 1.0, 2.0);
+  vxCommitImagePatch(rendered_next, &rect, 0, &dst_addr, dst_ptr);
+  // saving zbuffer to adjust points depth in the real image
+  pose::convertZbufferToZ(rendered_depth_.data(), ogre_renderer_->getZBuffer(),
+                          params_.image_width, params_.image_height, params_.cx,
+                          params_.cy, 0.01, 1000.0);
+  rendered_depth_.copyTo(host_rendered_depth_);
+}
+#else
+
+void TrackerVX::renderPredictedPose() {
   auto pose = target_object_.weighted_pose.toGL();
   rendering::RigidObject& obj = renderer_->getObject(0);
   obj.updatePose(pose);
   renderer_->render();
-
-  //  cout << "rendered pose " << endl;
-  //  for (int i = 0; i < 4; ++i) {
-  //    for (int j = 0; j < 4; ++j) {
-  //      cout << setprecision(2) << fixed << pose[i][j] << " ";
-  //    }
-  //    cout << "\n";
-  //  }
 
   // mapping opengl rendered image to visionworks vx_image
   vx_image rendered_next =
@@ -784,15 +814,8 @@ void TrackerVX::renderPredictedPose() {
                                      params_.image_width, params_.image_height,
                                      dst_addr.stride_y);
   vxCommitImagePatch(rendered_next, &rect, 0, &dst_addr, dst_ptr);
-
-  // saving zbuffer to adjust points depth in the real image
-  //  pose::convertZbufferToZ(rendered_depth_.data(),
-  //  ogre_renderer_->getZBuffer(),
-  //                          params_.image_width, params_.image_height,
-  //                          params_.cx,
-  //                          params_.cy, 0.01, 1000.0);
-  //  rendered_depth_.copyTo(host_rendered_depth_);
 }
+#endif
 
 void TrackerVX::projectPointsToModel(const Point2f& model_centroid,
                                      const Point2f& upd_centroid,
@@ -977,9 +1000,14 @@ pair<int, vector<double>> TrackerVX::poseFromSynth() {
     auto pt = prev_pts[i];
     int x = floor(pt.x);
     int y = floor(pt.y);
-    float inv_y = image_h_ - 1 - y;
-    float depth = host_rendered_depth_.at(x + inv_y * params_.image_width);
 
+    float depth = 0;
+#if RENDERING_ENGINE == 0
+    depth = host_rendered_depth_.at(x + y * params_.image_width);
+#else
+    float inv_y = image_h_ - 1 - y;
+    depth = host_rendered_depth_.at(x + inv_y * params_.image_width);
+#endif
     if (depth == 0 || isnan(depth)) {
       count++;
       continue;
@@ -1144,13 +1172,17 @@ void TrackerVX::updatePointsDepthFromZBuffer(Target& t, Pose& p) {
       continue;
     }
 
+    float depth = 0;
+#if RENDERING_ENGINE == 0
+    depth = host_rendered_depth_.at(x + y * image_w_);
+#else
+
     // TODO: fast hack here, rendered_depth is in opengl image frame with
     // bottom_left
     // corner as 0,0 therefore y is flipped
     float inv_y = image_h_ - 1 - y;
-
-    // float depth = host_rendered_depth_.at(x + y * image_w_);
-    float depth = host_rendered_depth_.at(x + inv_y * image_w_);
+    depth = host_rendered_depth_.at(x + inv_y * image_w_);
+#endif
 
     // cout << depth << endl;
 

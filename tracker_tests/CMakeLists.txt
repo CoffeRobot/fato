@@ -24,9 +24,6 @@ set(AKAZECU_LIBRARIES "/home/alessandro/projects/cuda_akaze/build/lib/libAKAZE.a
   "/home/alessandro/projects/cuda_akaze/build/lib/libAKAZE_CUDA.a" )
 
 
-message("PORCO DIO AKAZE " ${AKAZECU_INCLUDE_DIRS})
-message("DIO CANE AKAZE" ${AKAZECU_LIBRARIES})
-
 if(TRACKER_VERBOSE_LOGGING)
   add_definitions(-DVERBOSE_LOGGING)
 endif()

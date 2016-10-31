@@ -316,7 +316,7 @@ void cudaAkaze() {
 
   // AKAZE CUDA RESULTS
   std::vector<std::vector<cv::DMatch>> cuda_dmatches;
-  MatchDescriptors(desc1_akaze, desc2_akaze, kpts1_akaze.size(), cuda_dmatches);
+  //MatchDescriptors(desc1_akaze, desc2_akaze, kpts1_akaze.size(), cuda_dmatches);
 
   matches2points_nndr(kpts1_akaze, kpts2_akaze, cuda_dmatches,
                       cuda_matches_akaze, DRATIO);

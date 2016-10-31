@@ -1,9 +1,25 @@
 FATO - Fast and Adaptive Tracker of Objects
 =====
 
-ROS-package for detecting and tracking unknown objects in 2D and 3D. For more information please refer to the following paper:
+ROS-package for detecting and tracking objects in 2D and 3D. The package includes different trackers implemented over the years.
+The package is open source and you can use that freely even for commercial application. The list of publications explaining the algorithms implemented are the following:
 
-*A.Pieropan; N.Bergström; M.Ishikawa; H.Kjellström (2015) [Robust 3D Tracking of Unknown Objects](http://http://www.csc.kth.se/~hedvig/publications/icra_15.pdf). IEEE International Conference on Robotics and Automation.*
+2D Tracking:
+
+1. **Robust and Adaptive Keypoint Based Object Tracking**. Alessandro Pieropan, Niklas Bergström, Hedvig Kjellström and Masatoshi Ishikawa. Advanced Robotics, 2015
+
+3D Tracking of unknown objects:
+
+1. **Robust 3D Tracking of Unknown Objects**. Alessandro Pieropan, Niklas Bergström, Masatoshi Ishikawa and Hedvig Kjellström. IEEE International Conference on Robotics and Automation 2015.
+2. **Robust Tracking of Unknown Objects Through Adaptive Size Estimation and Appearance Learning**. Alessandro Pieropan, Niklas Bergström, Masatoshi Ishikawa, Danica Kragic and Hedvig Kjellström. IEEE International Conference on Robotics and Automation 2016.
+
+Model Based tracking:
+
+1. **Real Time Object Pose Estimation and Tracking for GPU Enabled Embedded Systems**. Alessandro Pieropan, Niklas Bergström and Masatoshi Ishikawa. Poster at GPU Technology Conference 2016.
+
+CUDA Akaze implementation:
+
+1. **Feature Descriptors for Tracking by Detection: a Benchmark**. Alessandro Pieropan, Mårten Björkman, Niklas Bergström and Danica Kragic (arXiv:1607.06178).
 
 # Contents
 
@@ -14,7 +30,7 @@ ROS-package for detecting and tracking unknown objects in 2D and 3D. For more in
     - [Tracking 2D](#markdown-header-traking-2D)
     - [Tracking 3D](#markdown-header-tracking=3D)
     - [Offline Mode](#markdown-header-offline-mode)
-    - [Model Tracking]
+    - [Model Tracking](#markdown-header-model-tracking)
 - [Model Generation](#markdown-header-model-generation)
 
 ## Installation
@@ -159,10 +175,17 @@ roslaunch fato_tracker_nodes tracker_offline.launch
 ### Model Tracking
 
 The model-based tracker currently works only with monocular cameras and requires a model.h5. There are a couple of models included in the package but please refer to the model generation section to generate your own model.
-The path to the target object h5 should be changed in the launch file. Then run the following:
+The path to the target object h5 should be changed in the launch file.
 
+To run the model based tracker implemented using only the CPU please run:
 ```
 roslaunch fato_tracker_nodes tracker_model.launch
+```
+
+To run the model based tracker implemented using CUDA and VisionWorks please run:
+
+```
+roslaunch fato_tracker_nodes tracker_model_vx.launch
 ```
 
 ## Model Generation

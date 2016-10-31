@@ -16,11 +16,11 @@ find_package(Eigen REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 find_package(VisionWorks REQUIRED)
 
-set(TRACKER_CUDA_AKAZE CACHE PATH "path to gpu compiled opencv" PARENT_SCOPE)
+set(TRACKER_CUDA_AKAZE CACHE PATH "path to cuda akaze")
 
 # TODO Write FindAKAZECU.cmake
 if ("${TRACKER_CUDA_AKAZE}" STREQUAL "")
-  message(ERROR "cuda akaze path not set!")
+  message(ERROR "Cuda AKAZE path not set!")
 else()
   set(AKAZECU_INCLUDE_DIRS ${TRACKER_CUDA_AKAZE}/src ${TRACKER_CUDA_AKAZE}/src/lib)
   set(AKAZECU_LIBRARIES ${TRACKER_CUDA_AKAZE}/build/lib/libAKAZE.a ${TRACKER_CUDA_AKAZE}/build/lib/libAKAZE_CUDA.a)

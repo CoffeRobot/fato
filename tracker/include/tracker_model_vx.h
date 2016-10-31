@@ -33,6 +33,9 @@
 #ifndef TRACKER_MODEL__VX_H
 #define TRACKER_MODEL__VX_H
 
+// constant to switch between rendering engines since opengl does not work fully
+#define RENDERING_ENGINE 0
+
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/video/tracking.hpp>
@@ -193,8 +196,11 @@ class TrackerVX {
   /****************************************************************************/
   /*                       RENDERING                                          */
   /****************************************************************************/
+#if RENDERING_ENGINE == 0
   std::unique_ptr<pose::MultipleRigidModelsOgre> ogre_renderer_;
+#else
   std::unique_ptr<rendering::Renderer> renderer_;
+#endif
   /****************************************************************************/
   /*                       STATS VARIABLES                                    */
   /****************************************************************************/

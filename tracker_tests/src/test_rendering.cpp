@@ -491,18 +491,18 @@ void testObjectMovement(const ParamsBench &params) {
 
   fato::TrackerVX vx_tracker(tracker_params, std::move(matcher));
 
-  pose::MultipleRigidModelsOgre &rendering_engine =
-      *vx_tracker.ogre_renderer_;
-  RenderData data;
-  generateRenderedMovement(params, rendering_engine, data);
+//  pose::MultipleRigidModelsOgre &rendering_engine =
+//      *vx_tracker.ogre_renderer_;
+//  RenderData data;
+//  generateRenderedMovement(params, rendering_engine, data);
 
-  const render::RigidObject &obj_model = rendering_engine.getRigidObject(0);
+//  const render::RigidObject &obj_model = rendering_engine.getRigidObject(0);
 
-  vector<float> bbox = obj_model.getBoundingBox();
+  //vector<float> bbox = obj_model.getBoundingBox();
 
-  cout << "ogre bbox" << endl;
-  for(auto val : bbox)
-      cout << val << " ";
+//  cout << "ogre bbox" << endl;
+//  for(auto val : bbox)
+//      cout << val << " ";
 
   // trackGeneratedData(data, vx_tracker);
 
