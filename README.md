@@ -4,22 +4,24 @@ FATO - Fast and Adaptive Tracker of Objects
 ROS-package for detecting and tracking objects in 2D and 3D. The package includes different trackers implemented over the years.
 The package is open source and you can use that freely even for commercial application. The list of publications explaining the algorithms implemented are the following:
 
-2D Tracking:
+**2D Tracking**:
 
-1. **Robust and Adaptive Keypoint Based Object Tracking**. Alessandro Pieropan, Niklas Bergström, Hedvig Kjellström and Masatoshi Ishikawa. Advanced Robotics, 2015
+- **Robust and Adaptive Keypoint Based Object Tracking**. Alessandro Pieropan, Niklas Bergström, Hedvig Kjellström and Masatoshi Ishikawa. Advanced Robotics, 2015
 
-3D Tracking of unknown objects:
+**3D Tracking of Unknown Objects**:
 
-1. **Robust 3D Tracking of Unknown Objects**. Alessandro Pieropan, Niklas Bergström, Masatoshi Ishikawa and Hedvig Kjellström. IEEE International Conference on Robotics and Automation 2015.
-2. **Robust Tracking of Unknown Objects Through Adaptive Size Estimation and Appearance Learning**. Alessandro Pieropan, Niklas Bergström, Masatoshi Ishikawa, Danica Kragic and Hedvig Kjellström. IEEE International Conference on Robotics and Automation 2016.
+- **Robust 3D Tracking of Unknown Objects**. Alessandro Pieropan, Niklas Bergström, Masatoshi Ishikawa and Hedvig Kjellström. IEEE International Conference on Robotics and Automation 2015.
+- **Robust Tracking of Unknown Objects Through Adaptive Size Estimation and Appearance Learning**. Alessandro Pieropan, Niklas Bergström, Masatoshi Ishikawa, Danica Kragic and Hedvig Kjellström. IEEE International Conference on Robotics and Automation 2016.
 
-Model Based tracking:
+**Model Based Tracking**:
 
-1. **Real Time Object Pose Estimation and Tracking for GPU Enabled Embedded Systems**. Alessandro Pieropan, Niklas Bergström and Masatoshi Ishikawa. Poster at GPU Technology Conference 2016.
+- **Real Time Object Pose Estimation and Tracking for GPU Enabled Embedded Systems**. Alessandro Pieropan, Niklas Bergström and Masatoshi Ishikawa. Poster at GPU Technology Conference 2016.
 
-CUDA Akaze implementation:
+**CUDA Akaze**:
 
-1. **Feature Descriptors for Tracking by Detection: a Benchmark**. Alessandro Pieropan, Mårten Björkman, Niklas Bergström and Danica Kragic (arXiv:1607.06178).
+- **Feature Descriptors for Tracking by Detection: a Benchmark**. Alessandro Pieropan, Mårten Björkman, Niklas Bergström and Danica Kragic (arXiv:1607.06178).
+
+If you use any code as part of your work please cite the any of the list papers.
 
 # Contents
 
